@@ -1,0 +1,16 @@
+{
+  "error_server": "Server error. Please try again later.",
+  "error_no_internet": "No internet connection. Please check again.",
+  "error_timeout": "Connection timed out. Please try again later.",
+  "error_connection": "Unable to connect to the server. Please check your network connection.",
+  "error_cache": "Local data extraction error.",
+  "error_unknown": "Unknown error.",
+  "error_permission": "You do not have permission to access this feature.",
+  "login_failed": "Login failed",
+  "login_google_failed": "Google login failed",
+  "common_cancel": "Cancel",
+  "common_confirm": "Confirm",
+  "forgot_send_otp_failed": "Unable to send OTP code",
+  "forgot_verify_otp_failed": "OTP verification failed",
+  "forgot_reset_failed": "Failed to reset password"
+}

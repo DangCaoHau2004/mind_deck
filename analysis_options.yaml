@@ -1,0 +1,13 @@
+include: package:flutter_lints/flutter.yaml
+
+linter:
+  rules:
+    prefer_const_constructors: true # phải dùng const cho những cái không thay đổi
+    prefer_const_literals_to_create_immutables: true # dùng const cho danh sách bất biến
+    always_declare_return_types: true # rõ ràng về kiểu dữ liệu trả về
+    avoid_empty_else: true # else rỗng thì xóa 
+    avoid_relative_lib_imports: true # import với đường dẫn tuyệt đối
+    avoid_print: true # cấm dùng print 
+    unnecessary_nullable_for_final_variable_declarations: true # không cần thiết phải khai báo null
+
+

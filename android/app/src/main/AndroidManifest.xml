@@ -6,7 +6,7 @@
     <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
     <uses-permission android:name="android.permission.CAMERA" />
     <application
-        android:label="Mind Deck"
+        android:label="@string/app_name"
         android:name="${applicationName}"
         android:icon="@mipmap/launcher_icon">
         <activity
@@ -37,6 +37,10 @@
                 <data android:scheme="minddeck" android:host="minddeck.com" />
             </intent-filter>
         </activity>
+        <!-- AdMob App ID theo flavor, khai báo ở src/<flavor>/res/values/strings.xml. -->
+        <meta-data
+            android:name="com.google.android.gms.ads.APPLICATION_ID"
+            android:value="@string/admob_app_id"/>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data

@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:mind_deck/constants/api_endpoints.dart';
+import 'package:mind_deck/utils/timezone_utils.dart';
 
 abstract class DeckRemoteDataSource {
   Future<Response> createDeck(Map<String, dynamic> data);
@@ -17,6 +18,8 @@ abstract class DeckRemoteDataSource {
   Future<Response> shareDeck(String id, {required String accessLevel});
   Future<Response> cloneDeck(String id, {String? token});
   Future<Response> starDeck(String id);
+  Future<Response> deleteDecks(List<String> ids);
+  Future<Response> starDecks(List<String> ids, {required bool isStarred});
 }
 
 class DeckRemoteDataSourceImpl implements DeckRemoteDataSource {
@@ -37,7 +40,7 @@ class DeckRemoteDataSourceImpl implements DeckRemoteDataSource {
     String? filter,
     String? sort,
     String? order,
-  }) {
+  }) async {
     return dio.get(
       ApiEndpoints.decks,
       queryParameters: {
@@ -47,16 +50,14 @@ class DeckRemoteDataSourceImpl implements DeckRemoteDataSource {
         if (filter != null && filter.isNotEmpty) 'filter': filter,
         if (sort != null && sort.isNotEmpty) 'sort': sort,
         if (order != null && order.isNotEmpty) 'order': order,
+        'timezone': ?await localTimezone(),
       },
     );
   }
 
   @override
   Future<Response> getDeckById(String id, {String? token}) {
-    return dio.get(
-      '${ApiEndpoints.deckById}$id',
-      queryParameters: {'token': ?token},
-    );
+    return dio.get('${ApiEndpoints.deckById}$id', queryParameters: {'token': ?token});
   }
 
   @override
@@ -76,10 +77,17 @@ class DeckRemoteDataSourceImpl implements DeckRemoteDataSource {
 
   @override
   Future<Response> cloneDeck(String id, {String? token}) {
-    return dio.post(
-      '${ApiEndpoints.cloneDeck}$id/clone',
-      queryParameters: {'token': ?token},
-    );
+    return dio.post('${ApiEndpoints.cloneDeck}$id/clone', queryParameters: {'token': ?token});
+  }
+
+  @override
+  Future<Response> deleteDecks(List<String> ids) {
+    return dio.delete(ApiEndpoints.decks, data: {'ids': ids});
+  }
+
+  @override
+  Future<Response> starDecks(List<String> ids, {required bool isStarred}) {
+    return dio.patch('${ApiEndpoints.decks}/star', data: {'ids': ids, 'isStarred': isStarred});
   }
 
   @override

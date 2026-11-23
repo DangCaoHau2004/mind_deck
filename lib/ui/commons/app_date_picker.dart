@@ -30,7 +30,8 @@ class AppDatePicker {
     final colorScheme = theme.colorScheme;
     final isDark = theme.brightness == Brightness.dark;
 
-    final defaultBuilder = builder ??
+    final defaultBuilder =
+        builder ??
         (dialogContext, child) {
           return Theme(
             data: theme.copyWith(
@@ -135,7 +136,8 @@ class AppDatePicker {
     final colorScheme = theme.colorScheme;
     final isDark = theme.brightness == Brightness.dark;
 
-    final timeBuilder = builder ??
+    final timeBuilder =
+        builder ??
         (dialogContext, child) {
           return Theme(
             data: theme.copyWith(

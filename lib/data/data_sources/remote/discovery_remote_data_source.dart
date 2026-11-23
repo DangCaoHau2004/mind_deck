@@ -18,9 +18,6 @@ class DiscoveryRemoteDataSourceImpl implements DiscoveryRemoteDataSource {
 
   @override
   Future<Response> getPopularContent({int page = 1, int limit = 20}) {
-    return dio.get(
-      ApiEndpoints.discoveryPopular,
-      queryParameters: {'page': page, 'limit': limit},
-    );
+    return dio.get(ApiEndpoints.discoveryPopular, queryParameters: {'page': page, 'limit': limit});
   }
 }

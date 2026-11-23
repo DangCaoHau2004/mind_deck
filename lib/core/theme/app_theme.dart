@@ -8,8 +8,7 @@ class AppTheme {
     useMaterial3: true,
     textTheme: AppStyles.textTheme,
     actionIconTheme: ActionIconThemeData(
-      backButtonIconBuilder: (context) =>
-          const Icon(Icons.arrow_back_ios_new, size: 22),
+      backButtonIconBuilder: (context) => const Icon(Icons.arrow_back_ios_new, size: 22),
     ),
     pageTransitionsTheme: const PageTransitionsTheme(
       builders: {
@@ -25,8 +24,7 @@ class AppTheme {
     useMaterial3: true,
     textTheme: AppStyles.textTheme,
     actionIconTheme: ActionIconThemeData(
-      backButtonIconBuilder: (context) =>
-          const Icon(Icons.arrow_back_ios_new, size: 22),
+      backButtonIconBuilder: (context) => const Icon(Icons.arrow_back_ios_new, size: 22),
     ),
     pageTransitionsTheme: const PageTransitionsTheme(
       builders: {
@@ -44,8 +42,7 @@ class AppTheme {
     useMaterial3: true,
     textTheme: AppStyles.textTheme,
     actionIconTheme: ActionIconThemeData(
-      backButtonIconBuilder: (context) =>
-          const Icon(Icons.arrow_back_ios_new, size: 22),
+      backButtonIconBuilder: (context) => const Icon(Icons.arrow_back_ios_new, size: 22),
     ),
     pageTransitionsTheme: const PageTransitionsTheme(
       builders: {

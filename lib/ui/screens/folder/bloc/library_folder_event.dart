@@ -1,4 +1,5 @@
 import 'package:equatable/equatable.dart';
+import 'package:mind_deck/data/models/folder_model.dart';
 
 abstract class LibraryFolderEvent extends Equatable {
   const LibraryFolderEvent();
@@ -12,6 +13,16 @@ class LibraryFolderLoadStarted extends LibraryFolderEvent {}
 class LibraryFolderRefreshed extends LibraryFolderEvent {}
 
 class LibraryFolderLoadMore extends LibraryFolderEvent {}
+
+/// Chi tiết thư mục đã đổi (tên, màu, sao, số bộ thẻ...): thay đúng mục đó tại chỗ, không gọi API.
+class LibraryFolderItemUpdated extends LibraryFolderEvent {
+  final FolderModel folder;
+
+  const LibraryFolderItemUpdated(this.folder);
+
+  @override
+  List<Object?> get props => [folder];
+}
 
 class LibraryFolderFilterChanged extends LibraryFolderEvent {
   final String? search;
@@ -42,6 +53,9 @@ class LibraryFolderSelectionToggled extends LibraryFolderEvent {
 }
 
 class LibraryFolderSelectionCleared extends LibraryFolderEvent {}
+
+/// Gắn sao / bỏ sao hàng loạt các thư mục đang chọn (tất cả đã gắn sao thì bỏ sao, ngược lại gắn sao).
+class LibraryFolderSelectedStarToggled extends LibraryFolderEvent {}
 
 class LibraryFolderStarToggled extends LibraryFolderEvent {
   final String id;

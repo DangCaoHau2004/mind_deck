@@ -1,9 +1,17 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
+import 'package:mind_deck/core/extensions/string_extension.dart';
 import 'package:mind_deck/navigation/app_routes.dart';
 import 'package:mind_deck/ui/commons/common_refresh.dart';
 import 'package:mind_deck/ui/commons/custom_toast.dart';
+import 'package:mind_deck/ui/commons/shimmer_sweep.dart';
+import 'package:mind_deck/ui/commons/skeleton_back_button.dart';
+import 'package:skeletonizer/skeletonizer.dart';
+import 'package:mind_deck/data/models/deck_model.dart';
+import 'package:mind_deck/ui/commons/state_screens/common_empty.dart';
 import 'package:mind_deck/ui/screens/folder/folder_detail/bloc/folder_detail_bloc.dart';
 import 'package:mind_deck/ui/screens/folder/folder_detail/bloc/folder_detail_event.dart';
 import 'package:mind_deck/ui/screens/folder/folder_detail/bloc/folder_detail_state.dart';
@@ -11,13 +19,15 @@ import 'package:mind_deck/ui/screens/deck/widgets/deck_item_widget.dart';
 import 'package:mind_deck/ui/screens/auth/bloc/auth_bloc.dart';
 import 'package:mind_deck/ui/screens/auth/bloc/auth_state.dart';
 import 'package:mind_deck/data/models/folder_model.dart';
-import 'package:mind_deck/constants/app_icons.dart';
 import 'package:mind_deck/utils/color_utils.dart';
 import 'widgets/folder_detail_action_buttons.dart';
 import 'widgets/folder_detail_decks_header.dart';
+import 'widgets/folder_detail_header.dart';
 import 'widgets/folder_detail_overlay_app_bar.dart';
 import 'widgets/folder_detail_selection_bar.dart';
 import 'widgets/folder_dialog_helper.dart';
+import 'package:mind_deck/constants/ad_units.dart';
+import 'package:mind_deck/ui/commons/ads/native_ad_slot.dart';
 
 class FolderDetailScreen extends StatefulWidget {
   final String folderId;
@@ -32,35 +42,45 @@ class FolderDetailScreen extends StatefulWidget {
 
 class _FolderDetailScreenState extends State<FolderDetailScreen> {
   late FolderModel? currentFolder;
+  final ScrollController _scrollController = ScrollController();
+
+  /// Chỉ báo "đang tìm" (vệt sáng + vòng xoay) chỉ hiện khi chờ quá 300ms để khỏi nháy khi mạng nhanh.
+  static const Duration _searchIndicatorDelay = Duration(milliseconds: 300);
+  Timer? _searchIndicatorTimer;
+  bool _showSearchIndicator = false;
+  int _lastListVersion = 0;
 
   @override
   void initState() {
     super.initState();
     currentFolder = widget.initialFolder;
+    _scrollController.addListener(_onScroll);
+    // Có sẵn thông tin thư mục từ danh sách thì phần đầu hiện ngay, danh sách bộ thẻ vẫn phải tải theo sắp xếp hiện tại
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final bloc = context.read<FolderDetailBloc>();
-      if (currentFolder == null) {
-        bloc.add(FolderDetailLoaded(widget.folderId, token: widget.token));
-      } else {
-        bloc.add(FolderDetailRefreshed(widget.folderId, token: widget.token));
-      }
+      context.read<FolderDetailBloc>().add(
+        FolderDetailLoaded(widget.folderId, token: widget.token),
+      );
     });
   }
 
+  /// Gần cuối danh sách thì tải trang tiếp (bloc tự bỏ qua khi đang tải hoặc đã hết).
+  void _onScroll() {
+    if (_scrollController.position.extentAfter < 600) {
+      context.read<FolderDetailBloc>().add(const FolderDetailDecksLoadMore());
+    }
+  }
+
+  @override
+  void dispose() {
+    _searchIndicatorTimer?.cancel();
+    _scrollController.dispose();
+    super.dispose();
+  }
+
   void _handleDeleteFolder() async {
-    final folderDeckCount = currentFolder?.deckCount ?? currentFolder?.decks?.length ?? 0;
-    final deleteOption = await FolderDialogHelper.showDeleteFolder(
-      context,
-      folder: currentFolder,
-      deckCount: folderDeckCount,
-    );
-    if (deleteOption != null && mounted) {
-      final bloc = context.read<FolderDetailBloc>();
-      if (deleteOption == 0) {
-        bloc.add(FolderDeleted(id: widget.folderId, keepDecks: false));
-      } else if (deleteOption == 1) {
-        bloc.add(FolderDeleted(id: widget.folderId, keepDecks: true));
-      }
+    final confirmed = await FolderDialogHelper.showDeleteFolder(context, folder: currentFolder);
+    if (confirmed == true && mounted) {
+      context.read<FolderDetailBloc>().add(FolderDeleted(id: widget.folderId));
     }
   }
 
@@ -73,12 +93,91 @@ class _FolderDetailScreenState extends State<FolderDetailScreen> {
     }
   }
 
+  /// Skeleton [count] thẻ bộ thẻ (tối thiểu 1, tối đa một trang 20).
+  Widget _deckSkeletons(int count) {
+    return Skeletonizer(
+      child: Column(
+        children: [
+          for (var i = 0; i < count.clamp(1, 20); i++)
+            DeckItemWidget(
+              deck: DeckModel.placeholder(),
+              showFolder: false,
+              isSelected: false,
+              isSelectionMode: false,
+            ),
+        ],
+      ),
+    );
+  }
+
+  /// Skeleton cả trang khi chưa có chút dữ liệu nào về thư mục (mở từ chip hoặc link chia sẻ).
+  Widget _buildPageSkeleton() {
+    return Scaffold(
+      backgroundColor: Colors.white,
+      body: Stack(
+        children: [
+          SingleChildScrollView(
+            physics: const NeverScrollableScrollPhysics(),
+            child: Column(
+              children: [
+                Skeletonizer(
+                  child: FolderDetailHeader(
+                    folder: FolderModel.placeholder(),
+                    themeColor: Colors.blueGrey.shade200,
+                    deckCount: 0,
+                    actions: Padding(
+                      padding: const EdgeInsets.only(top: 20),
+                      child: Skeleton.leaf(
+                        child: Container(
+                          height: 56,
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                // Ô tìm thật (không bị skeleton hóa), giống các tab Thư viện
+                const FolderDetailDecksHeader(sort: 'due', showSpinner: false),
+                _deckSkeletons(4),
+              ],
+            ),
+          ),
+          const SkeletonBackButton(),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
     return BlocConsumer<FolderDetailBloc, FolderDetailState>(
       listener: (context, state) {
+        if (state.isSearching) {
+          _searchIndicatorTimer ??= Timer(_searchIndicatorDelay, () {
+            if (mounted) setState(() => _showSearchIndicator = true);
+          });
+        } else {
+          _searchIndicatorTimer?.cancel();
+          _searchIndicatorTimer = null;
+          if (_showSearchIndicator) setState(() => _showSearchIndicator = false);
+        }
+
+        // Kết quả tìm/sắp xếp mới thay danh sách: cuộn nhẹ về đầu danh sách bộ thẻ
+        if (state.listVersion != _lastListVersion) {
+          _lastListVersion = state.listVersion;
+          if (_scrollController.hasClients && _scrollController.offset > 0) {
+            _scrollController.animateTo(
+              0,
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.easeOut,
+            );
+          }
+        }
+
         if (state.toastTriggerTime != null) {
           if (state.errorMessage != null) {
             CustomToast.show(context, CustomToast.danger(message: state.errorMessage!));
@@ -90,7 +189,7 @@ class _FolderDetailScreenState extends State<FolderDetailScreen> {
                   message: state.successMessage!,
                   actionLabel: 'XEM',
                   onAction: () {
-                    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                    CustomToast.dismiss();
                     context.pushNamed(
                       AppRoute.folderDetail.name,
                       pathParameters: {'id': state.clonedFolderId!},
@@ -109,275 +208,206 @@ class _FolderDetailScreenState extends State<FolderDetailScreen> {
       },
       listenWhen: (previous, current) =>
           previous.toastTriggerTime != current.toastTriggerTime ||
-          previous.status != current.status,
+          previous.status != current.status ||
+          previous.isSearching != current.isSearching ||
+          previous.listVersion != current.listVersion,
       builder: (context, state) {
         final realFolder = state.folder ?? currentFolder;
-        if (realFolder == null) {
-          return const Scaffold(
-            backgroundColor: Colors.white,
-            body: Center(child: CircularProgressIndicator()),
-          );
-        }
+        if (realFolder == null) return _buildPageSkeleton();
 
         final authState = context.read<AuthBloc>().state;
         final currentUserId = authState is AuthAuthenticated ? authState.user.id : null;
-        final isFolderOwner =
-            realFolder.isOwner || (currentUserId != null && realFolder.userId == currentUserId);
+        // Đã tải chi tiết thì BE quyết định quyền sửa (canEdit); chưa thì suy từ thông tin sẵn có.
+        final isFolderOwner = state.folder != null
+            ? state.folder!.canEdit
+            : (realFolder.isOwner || (currentUserId != null && realFolder.userId == currentUserId));
 
-        final folderName = realFolder.name;
         final folderDeckCount = realFolder.deckCount ?? realFolder.decks?.length ?? 0;
-
         final themeColor = ColorUtils.parseHex(realFolder.color);
-        final bool isLight = ColorUtils.isLightColor(themeColor);
         final Color contentColor = ColorUtils.getContrastColor(themeColor);
-        final Color subTextColor = isLight ? Colors.black54 : Colors.white.withValues(alpha: 0.85);
+        final folderDecks = state.decks;
+        final bloc = context.read<FolderDetailBloc>();
 
-        IconData folderIcon = AppIcons.getIconFromKey(realFolder.icon);
-        final folderDecks = realFolder.decks ?? [];
-
-        return Scaffold(
-          backgroundColor: Colors.white,
-          body: Stack(
-            children: [
-              // --- PULL TO REFRESH & SCROLLABLE CONTENT ---
-              CommonRefresh(
-                onRefresh: () async {
-                  final bloc = context.read<FolderDetailBloc>();
-                  bloc.add(FolderDetailRefreshed(widget.folderId, token: widget.token));
-                  await bloc.stream.firstWhere((FolderDetailState s) => !s.isRefreshing);
-                },
-                slivers: [
-                  // --- HEADER CONTAINER (Trôi hoàn toàn lên trên khi cuộn) ---
-                  SliverToBoxAdapter(
-                    child: Container(
-                      height: 240.0,
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: [themeColor.withValues(alpha: 0.85), themeColor],
+        // Back bình thường trả về thông tin thư mục mới nhất để danh sách bên ngoài cập nhật tại chỗ
+        return PopScope<Object?>(
+          canPop: false,
+          onPopInvokedWithResult: (didPop, _) {
+            if (!didPop) context.pop(state.folder);
+          },
+          child: Scaffold(
+            backgroundColor: Colors.white,
+            body: Stack(
+              children: [
+                // --- PULL TO REFRESH & SCROLLABLE CONTENT ---
+                ShimmerScope(
+                  active: _showSearchIndicator,
+                  child: CommonRefresh(
+                    controller: _scrollController,
+                    onRefresh: () async {
+                      bloc.add(FolderDetailRefreshed(widget.folderId, token: widget.token));
+                      await bloc.stream.firstWhere((FolderDetailState s) => !s.isRefreshing);
+                    },
+                    slivers: [
+                      // --- HEADER + NÚT HÀNH ĐỘNG (trôi lên khi cuộn) ---
+                      SliverToBoxAdapter(
+                        child: FolderDetailHeader(
+                          folder: realFolder,
+                          themeColor: themeColor,
+                          deckCount: folderDeckCount,
+                          actions: FolderDetailActionButtons(
+                            folder: realFolder,
+                            themeColor: themeColor,
+                            contentColor: contentColor,
+                            isFolderOwner: isFolderOwner,
+                          ),
                         ),
                       ),
-                      child: Stack(
-                        children: [
-                          Positioned(
-                            right: -50,
-                            top: -50,
-                            child: Icon(
-                              folderIcon,
-                              size: 250,
-                              color: contentColor.withValues(alpha: 0.15),
-                            ),
+
+                      // Quảng cáo: một ô giữa nút hành động và danh sách bộ thẻ, không chen vào danh sách
+                      SliverList(
+                        delegate: SliverChildListDelegate([
+                          const NativeAdSlot(
+                            unit: AdUnit.nativeFolderDetail,
+                            margin: EdgeInsets.fromLTRB(24, 0, 24, 8),
                           ),
-                          Positioned(
-                            bottom: 24,
-                            left: 24,
-                            right: 24,
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.all(8),
-                                  decoration: BoxDecoration(
-                                    color: isLight
-                                        ? Colors.black.withValues(alpha: 0.05)
-                                        : Colors.white.withValues(alpha: 0.2),
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: Icon(folderIcon, color: contentColor, size: 28),
-                                ),
-                                const SizedBox(height: 12),
-                                Text(
-                                  folderName,
-                                  style: theme.textTheme.headlineMedium?.copyWith(
-                                    color: contentColor,
-                                    fontWeight: FontWeight.w900,
-                                  ),
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  '$folderDeckCount bộ thẻ',
-                                  style: theme.textTheme.titleSmall?.copyWith(color: subTextColor),
-                                ),
-                                if (realFolder.authorName != null &&
-                                    realFolder.authorName!.isNotEmpty) ...[
-                                  const SizedBox(height: 8),
-                                  Row(
-                                    children: [
-                                      CircleAvatar(
-                                        radius: 12,
-                                        backgroundColor: Colors.black.withValues(alpha: 0.1),
-                                        child: Icon(Icons.person, size: 14, color: contentColor),
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Text(
-                                        'Tác giả: ${realFolder.authorName}',
-                                        style: theme.textTheme.bodyMedium?.copyWith(
-                                          color: contentColor,
-                                          fontWeight: FontWeight.w500,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ],
-                            ),
-                          ),
-                        ],
+                        ]),
                       ),
-                    ),
-                  ),
 
-                  // --- ACTIONS BARS ---
-                  SliverToBoxAdapter(
-                    child: FolderDetailActionButtons(
-                      folder: realFolder,
-                      themeColor: themeColor,
-                      contentColor: contentColor,
-                      isLight: isLight,
-                      isFolderOwner: isFolderOwner,
-                    ),
-                  ),
-
-                  // --- BỘ THẺ ---
-                  if (folderDecks.isNotEmpty) ...[
-                    FolderDetailDecksHeader(
-                      title: 'Bộ thẻ trong thư mục',
-                      folderId: widget.folderId,
-                      isFolderOwner: isFolderOwner,
-                    ),
-                    SliverList.builder(
-                      itemCount: folderDecks.length,
-                      itemBuilder: (context, index) {
-                        final deck = folderDecks[index];
-                        final isSelected = state.selectedDeckIds.contains(deck.id);
-
-                        final card = DeckItemWidget(
-                          deck: deck,
-                          isSelected: isSelected,
-                          isSelectionMode: state.isSelectionMode,
-                          onLongPress: isFolderOwner
-                              ? () {
-                                  context.read<FolderDetailBloc>().add(
-                                    FolderDetailSelectionToggled(deck.id),
-                                  );
-                                }
-                              : null,
-                          onTap: () async {
-                            if (state.isSelectionMode && isFolderOwner) {
-                              context.read<FolderDetailBloc>().add(
-                                FolderDetailSelectionToggled(deck.id),
-                              );
-                            } else {
-                              final result = await context.pushNamed(
-                                AppRoute.deckDetail.name,
-                                pathParameters: {'id': deck.id},
-                                extra: deck.toJson(),
-                              );
-                              if (result != null && context.mounted) {
-                                context.read<FolderDetailBloc>().add(
-                                  FolderDetailRefreshed(widget.folderId),
+                      // --- BỘ THẺ ---
+                      // Chưa có danh sách: skeleton đúng số bộ thẻ đã biết từ màn trước (tối đa một trang).
+                      // Đã biết thư mục trống thì vào thẳng màn trống, không có gì để chờ.
+                      // Tiêu đề, sắp xếp và ô tìm luôn hiện (kể cả lúc tải lần đầu), giống các tab Thư viện
+                      SliverToBoxAdapter(
+                        child: FolderDetailDecksHeader(
+                          sort: state.sort,
+                          showSpinner: _showSearchIndicator,
+                        ),
+                      ),
+                      if (state.folder == null && currentFolder?.deckCount != 0)
+                        SliverToBoxAdapter(child: _deckSkeletons(currentFolder?.deckCount ?? 4))
+                      else ...[
+                        if (folderDecks.isEmpty && state.isSearching && _showSearchIndicator)
+                          // Danh sách trống mà đang tìm lại quá 300ms: skeleton (trước đó giữ màn trống)
+                          SliverToBoxAdapter(child: _deckSkeletons(4))
+                        else if (folderDecks.isEmpty)
+                          SliverFillRemaining(
+                            hasScrollBody: false,
+                            child: state.search.isNotEmpty
+                                ? CommonEmpty.search(
+                                    title: 'deck_empty_search_title'.tr,
+                                    subtitle: 'deck_empty_search_subtitle'.tr,
+                                  )
+                                : CommonEmpty(
+                                    icon: Icons.folder_open_rounded,
+                                    title: 'folder_detail_empty_title'.tr,
+                                    subtitle: isFolderOwner
+                                        ? 'folder_detail_empty_subtitle'.tr
+                                        : null,
+                                  ),
+                          )
+                        else
+                          SliverList.builder(
+                            itemCount: folderDecks.length + (state.isLoadingMore ? 1 : 0),
+                            itemBuilder: (context, index) {
+                              if (index >= folderDecks.length) {
+                                return const Padding(
+                                  padding: EdgeInsets.symmetric(vertical: 16),
+                                  child: Center(child: CircularProgressIndicator()),
                                 );
                               }
-                            }
-                          },
-                        );
+                              final deck = folderDecks[index];
+                              final isSelected = state.selectedDeckIds.contains(deck.id);
 
-                        if (!isFolderOwner || state.isSelectionMode) return card;
-
-                        return Dismissible(
-                          key: ValueKey(deck.id),
-                          direction: DismissDirection.endToStart,
-                          confirmDismiss: (direction) async {
-                            final confirmed = await FolderDialogHelper.showRemoveDeckFromFolder(
-                              context,
-                              deckName: deck.name,
-                            );
-                            return confirmed == true;
-                          },
-                          background: Container(
-                            alignment: Alignment.centerRight,
-                            padding: const EdgeInsets.only(right: 32),
-                            margin: const EdgeInsets.only(top: 16, bottom: 12),
-                            color: Colors.red,
-                            child: const Icon(
-                              Icons.delete_outline_rounded,
-                              color: Colors.white,
-                              size: 32,
-                            ),
-                          ),
-                          onDismissed: (direction) {
-                            context.read<FolderDetailBloc>().add(
-                              FolderRemoveDecks(folderId: widget.folderId, deckIds: [deck.id]),
-                            );
-                          },
-                          child: card,
-                        );
-                      },
-                    ),
-                  ] else if (state.folder == null) ...[
-                    const SliverToBoxAdapter(
-                      child: Padding(
-                        padding: EdgeInsets.symmetric(vertical: 60),
-                        child: Center(child: CircularProgressIndicator()),
-                      ),
-                    ),
-                  ] else ...[
-                    FolderDetailDecksHeader(
-                      title: 'Bộ thẻ trong thư mục',
-                      folderId: widget.folderId,
-                      isFolderOwner: isFolderOwner,
-                    ),
-                    SliverToBoxAdapter(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 60),
-                        child: Center(
-                          child: Column(
-                            children: [
-                              Icon(
-                                Icons.folder_open_rounded,
-                                size: 64,
-                                color: Colors.grey.shade300,
-                              ),
-                              const SizedBox(height: 16),
-                              Text(
-                                'Thư mục này chưa có bộ thẻ nào',
-                                style: theme.textTheme.bodyLarge?.copyWith(
-                                  color: Colors.grey.shade500,
+                              final card = ShimmerSweep(
+                                child: DeckItemWidget(
+                                  deck: deck,
+                                  showFolder: false,
+                                  isSelected: isSelected,
+                                  isSelectionMode: state.isSelectionMode,
+                                  onLongPress: isFolderOwner
+                                      ? () => bloc.add(FolderDetailSelectionToggled(deck.id))
+                                      : null,
+                                  onTap: () async {
+                                    if (state.isSelectionMode && isFolderOwner) {
+                                      bloc.add(FolderDetailSelectionToggled(deck.id));
+                                    } else {
+                                      final result = await context.pushNamed(
+                                        AppRoute.deckDetail.name,
+                                        pathParameters: {'id': deck.id},
+                                        extra: deck.toJson(),
+                                      );
+                                      if (result != null && context.mounted) {
+                                        bloc.add(FolderDetailRefreshed(widget.folderId));
+                                      }
+                                    }
+                                  },
                                 ),
-                              ),
-                            ],
+                              );
+
+                              if (!isFolderOwner || state.isSelectionMode) return card;
+
+                              return Dismissible(
+                                key: ValueKey(deck.id),
+                                direction: DismissDirection.endToStart,
+                                confirmDismiss: (direction) async {
+                                  final confirmed =
+                                      await FolderDialogHelper.showRemoveDeckFromFolder(
+                                        context,
+                                        deckName: deck.name,
+                                      );
+                                  return confirmed == true;
+                                },
+                                background: Container(
+                                  alignment: Alignment.centerRight,
+                                  padding: const EdgeInsets.only(right: 32),
+                                  margin: const EdgeInsets.only(bottom: 12, left: 24, right: 24),
+                                  decoration: BoxDecoration(
+                                    color: Colors.red,
+                                    borderRadius: BorderRadius.circular(20),
+                                  ),
+                                  child: const Icon(
+                                    Icons.delete_outline_rounded,
+                                    color: Colors.white,
+                                    size: 32,
+                                  ),
+                                ),
+                                onDismissed: (direction) {
+                                  bloc.add(
+                                    FolderRemoveDecks(
+                                      folderId: widget.folderId,
+                                      deckIds: [deck.id],
+                                    ),
+                                  );
+                                },
+                                child: card,
+                              );
+                            },
                           ),
-                        ),
-                      ),
-                    ),
-                  ],
+                      ],
 
-                  const SliverToBoxAdapter(child: SizedBox(height: 80)),
-                ],
-              ),
-
-              // --- FIXED OVERLAY APP BAR BUTTONS ---
-              FolderDetailOverlayAppBar(
-                folder: realFolder,
-                folderId: widget.folderId,
-                token: widget.token,
-                contentColor: contentColor,
-                isLight: isLight,
-                isFolderOwner: isFolderOwner,
-                onDeleteFolder: _handleDeleteFolder,
-                onCloneFolder: () => _handleCloneFolder(realFolder),
-              ),
-
-              // --- BATCH SELECTION BAR ---
-              if (state.isSelectionMode)
-                FolderDetailSelectionBar(
-                  folderId: widget.folderId,
-                  selectedDeckIds: state.selectedDeckIds,
+                      const SliverToBoxAdapter(child: SizedBox(height: 80)),
+                    ],
+                  ),
                 ),
-            ],
+
+                // --- FIXED OVERLAY APP BAR BUTTONS ---
+                FolderDetailOverlayAppBar(
+                  folder: realFolder,
+                  folderId: widget.folderId,
+                  token: widget.token,
+                  isFolderOwner: isFolderOwner,
+                  onDeleteFolder: _handleDeleteFolder,
+                  onCloneFolder: () => _handleCloneFolder(realFolder),
+                ),
+
+                // --- BATCH SELECTION BAR ---
+                if (state.isSelectionMode)
+                  FolderDetailSelectionBar(
+                    folderId: widget.folderId,
+                    selectedDeckIds: state.selectedDeckIds,
+                  ),
+              ],
+            ),
           ),
         );
       },

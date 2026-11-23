@@ -10,9 +10,9 @@ import 'share_deck_dialog.dart';
 class DeckDetailOverlayAppBar extends StatelessWidget {
   final DeckModel deck;
   final DeckModel realDeck;
-  final bool isLight;
-  final Color contentColor;
   final bool isDeckOwner;
+  final bool canEditClassCopy;
+  final bool canCloneClassCopy;
   final String deckId;
   final String? token;
   final VoidCallback onDeleteDeck;
@@ -22,23 +22,23 @@ class DeckDetailOverlayAppBar extends StatelessWidget {
     super.key,
     required this.deck,
     required this.realDeck,
-    required this.isLight,
-    required this.contentColor,
     required this.isDeckOwner,
+    this.canEditClassCopy = false,
+    this.canCloneClassCopy = false,
     required this.deckId,
     this.token,
     required this.onDeleteDeck,
     required this.onCloneDeck,
   });
 
-  Widget _buildCircleButton({required Widget child, required bool isLight}) {
+  Widget _buildCircleButton({required Widget child}) {
     return Container(
       decoration: BoxDecoration(
-        color: isLight ? Colors.white.withValues(alpha: 0.85) : Colors.black.withValues(alpha: 0.4),
+        color: Colors.black.withValues(alpha: 0.4),
         shape: BoxShape.circle,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.12),
+            color: Colors.black.withValues(alpha: 0.08),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -50,8 +50,11 @@ class DeckDetailOverlayAppBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final topPadding = MediaQuery.of(context).padding.top;
+    const activeIconColor = Colors.white;
+
     return Positioned(
-      top: MediaQuery.of(context).padding.top,
+      top: topPadding,
       left: 16,
       right: 16,
       child: SizedBox(
@@ -61,12 +64,11 @@ class DeckDetailOverlayAppBar extends StatelessWidget {
           children: [
             // Back button
             _buildCircleButton(
-              isLight: isLight,
               child: IconButton(
-                icon: Icon(Icons.arrow_back_ios_new_rounded, color: contentColor),
-                iconSize: 20,
+                icon: const Icon(Icons.arrow_back_rounded, color: activeIconColor),
+                iconSize: 18,
                 constraints: const BoxConstraints(),
-                padding: const EdgeInsets.all(10),
+                padding: const EdgeInsets.all(9),
                 onPressed: () => Navigator.maybePop(context),
               ),
             ),
@@ -75,48 +77,52 @@ class DeckDetailOverlayAppBar extends StatelessWidget {
             Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                _buildCircleButton(
-                  isLight: isLight,
-                  child: IconButton(
-                    icon: Icon(
-                      deck.isStarred ? Icons.star_rounded : Icons.star_outline_rounded,
-                      color: deck.isStarred ? Colors.amber : contentColor,
+                // Bản sao lớp không gắn sao / chia sẻ được (BE từ chối).
+                if (!deck.isClassCopy) ...[
+                  _buildCircleButton(
+                    child: IconButton(
+                      icon: Icon(
+                        deck.isStarred ? Icons.star_rounded : Icons.star_outline_rounded,
+                        color: deck.isStarred ? Colors.amber : activeIconColor,
+                      ),
+                      iconSize: 22,
+                      constraints: const BoxConstraints(),
+                      padding: const EdgeInsets.all(7),
+                      onPressed: () {
+                        context.read<DeckDetailBloc>().add(
+                          DeckDetailStarToggled(deck.id, isStarred: deck.isStarred),
+                        );
+                      },
                     ),
-                    iconSize: 32,
-                    constraints: const BoxConstraints(),
-                    padding: const EdgeInsets.all(8),
-                    onPressed: () {
-                      context.read<DeckDetailBloc>().add(DeckDetailStarToggled(deck.id));
-                    },
                   ),
-                ),
-                const SizedBox(width: 8),
-                _buildCircleButton(
-                  isLight: isLight,
-                  child: IconButton(
-                    icon: Icon(Icons.share_rounded, color: contentColor),
-                    iconSize: 20,
-                    constraints: const BoxConstraints(),
-                    padding: const EdgeInsets.all(10),
-                    onPressed: () {
-                      ShareDeckDialog.show(context, deck: realDeck, isOwner: isDeckOwner);
-                    },
+                  const SizedBox(width: 8),
+                  _buildCircleButton(
+                    child: IconButton(
+                      icon: const Icon(Icons.share_rounded, color: activeIconColor),
+                      iconSize: 18,
+                      constraints: const BoxConstraints(),
+                      padding: const EdgeInsets.all(9),
+                      onPressed: () {
+                        ShareDeckDialog.show(context, deck: realDeck, isOwner: isDeckOwner);
+                      },
+                    ),
                   ),
-                ),
-                const SizedBox(width: 8),
+                  const SizedBox(width: 8),
+                ],
                 _buildCircleButton(
-                  isLight: isLight,
                   child: IconButton(
-                    icon: Icon(Icons.more_vert_rounded, color: contentColor),
-                    iconSize: 20,
+                    icon: const Icon(Icons.more_horiz_rounded, color: activeIconColor),
+                    iconSize: 19,
                     constraints: const BoxConstraints(),
-                    padding: const EdgeInsets.all(10),
+                    padding: const EdgeInsets.all(9),
                     onPressed: () => DeckDetailOptionsBottomSheet.show(
                       context,
                       deck: deck,
                       deckId: deckId,
                       token: token,
                       isDeckOwner: isDeckOwner,
+                      canEditClassCopy: canEditClassCopy,
+                      canCloneClassCopy: canCloneClassCopy,
                       onDeleteDeck: onDeleteDeck,
                       onCloneDeck: onCloneDeck,
                     ),

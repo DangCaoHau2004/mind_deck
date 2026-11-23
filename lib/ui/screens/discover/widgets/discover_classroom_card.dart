@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:mind_deck/core/extensions/string_extension.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mind_deck/data/models/discovery/discovery_suggested_class_model.dart';
 import 'package:mind_deck/navigation/app_routes.dart';
@@ -7,7 +8,10 @@ import 'package:mind_deck/navigation/app_routes.dart';
 class DiscoverClassroomCard extends StatelessWidget {
   final DiscoverySuggestedClassModel item;
 
-  const DiscoverClassroomCard({super.key, required this.item});
+  /// Bề rộng cố định cho danh sách vuốt ngang; `null` = chiếm hết bề rộng (danh sách dọc).
+  final double? width;
+
+  const DiscoverClassroomCard({super.key, required this.item, this.width = 280});
 
   @override
   Widget build(BuildContext context) {
@@ -31,8 +35,9 @@ class DiscoverClassroomCard extends StatelessWidget {
             }
           },
           child: Container(
-            width: 280,
-            margin: const EdgeInsets.only(right: 14, bottom: 6),
+            width: width,
+            height: 160,
+            margin: EdgeInsets.only(right: width == null ? 0 : 14, bottom: width == null ? 12 : 6),
             padding: const EdgeInsets.all(18.0),
             decoration: BoxDecoration(
               color: colorScheme.surface.withValues(alpha: 160 / 255),
@@ -65,7 +70,7 @@ class DiscoverClassroomCard extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
-                    if (item.isJoined)
+                    if (item.isJoined || item.isPending)
                       Container(
                         margin: const EdgeInsets.only(left: 8),
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -75,7 +80,7 @@ class DiscoverClassroomCard extends StatelessWidget {
                           border: Border.all(color: classColor.withValues(alpha: 50 / 255)),
                         ),
                         child: Text(
-                          'Đã tham gia',
+                          item.isJoined ? 'discover_joined'.tr : 'discover_pending'.tr,
                           style: textTheme.labelSmall?.copyWith(
                             color: classColor,
                             fontWeight: FontWeight.bold,
@@ -113,7 +118,7 @@ class DiscoverClassroomCard extends StatelessWidget {
                           const SizedBox(width: 4),
                           Flexible(
                             child: Text(
-                              item.ownerName ?? 'Ẩn danh',
+                              item.ownerName ?? 'discover_anonymous'.tr,
                               style: textTheme.labelSmall?.copyWith(
                                 color: colorScheme.onSurfaceVariant,
                                 fontWeight: FontWeight.w500,

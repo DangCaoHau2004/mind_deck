@@ -3,14 +3,8 @@ import 'package:mind_deck/data/models/api_response_model.dart';
 import 'package:mind_deck/core/api_handler.dart';
 
 abstract class SharedRepository {
-  Future<ApiResponse<String>> generateLink({
-    required String targetType,
-    required String targetId,
-  });
-  Future<ApiResponse<void>> revokeLink({
-    required String targetType,
-    required String targetId,
-  });
+  Future<ApiResponse<String>> generateLink({required String targetType, required String targetId});
+  Future<ApiResponse<void>> revokeLink({required String targetType, required String targetId});
 }
 
 class SharedRepositoryImpl with ApiHandler implements SharedRepository {
@@ -44,10 +38,7 @@ class SharedRepositoryImpl with ApiHandler implements SharedRepository {
         targetType: targetType,
         targetId: targetId,
       );
-      return ApiResponse<void>.fromJson(
-        response.data as Map<String, dynamic>,
-        (_) {},
-      );
+      return ApiResponse<void>.fromJson(response.data as Map<String, dynamic>, (_) {});
     });
   }
 }

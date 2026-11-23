@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Mind Deck</string>
+    <!-- App ID AdMob thật của app Android. Mã quảng cáo thật chỉ được dùng ở bản release (xem AdUnit.id). -->
+    <string name="admob_app_id">ca-app-pub-5061961566441627~5724482778</string>
+</resources>

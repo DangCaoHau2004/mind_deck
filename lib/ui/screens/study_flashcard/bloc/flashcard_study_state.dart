@@ -13,6 +13,10 @@ class FlashcardStudyState {
   final int currentIndex;
   final bool isShuffleMode;
   final bool showBackFirst;
+  final int timeLimitSeconds;
+  final int remainingSeconds;
+  final bool isTimedOut;
+  final bool isReadOnly;
   final String? errorMessage;
 
   const FlashcardStudyState({
@@ -26,6 +30,10 @@ class FlashcardStudyState {
     this.currentIndex = 0,
     this.isShuffleMode = false,
     this.showBackFirst = false,
+    this.timeLimitSeconds = 0,
+    this.remainingSeconds = 0,
+    this.isTimedOut = false,
+    this.isReadOnly = false,
     this.errorMessage,
   });
 
@@ -51,6 +59,10 @@ class FlashcardStudyState {
     int? currentIndex,
     bool? isShuffleMode,
     bool? showBackFirst,
+    int? timeLimitSeconds,
+    int? remainingSeconds,
+    bool? isTimedOut,
+    bool? isReadOnly,
     String? errorMessage,
   }) {
     return FlashcardStudyState(
@@ -64,6 +76,10 @@ class FlashcardStudyState {
       currentIndex: currentIndex ?? this.currentIndex,
       isShuffleMode: isShuffleMode ?? this.isShuffleMode,
       showBackFirst: showBackFirst ?? this.showBackFirst,
+      timeLimitSeconds: timeLimitSeconds ?? this.timeLimitSeconds,
+      remainingSeconds: remainingSeconds ?? this.remainingSeconds,
+      isTimedOut: isTimedOut ?? this.isTimedOut,
+      isReadOnly: isReadOnly ?? this.isReadOnly,
       errorMessage: errorMessage ?? this.errorMessage,
     );
   }

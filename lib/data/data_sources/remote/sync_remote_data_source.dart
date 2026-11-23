@@ -3,7 +3,7 @@ import 'package:mind_deck/constants/api_endpoints.dart';
 
 abstract class SyncRemoteDataSource {
   Future<Response> syncDown({String? lastSyncTimestamp});
-  Future<Response> syncUp({required List<Map<String, dynamic>> reviewLogs});
+  Future<Response> syncUp({required List<Map<String, dynamic>> reviewLogs, String? timezone});
 }
 
 class SyncRemoteDataSourceImpl implements SyncRemoteDataSource {
@@ -20,7 +20,7 @@ class SyncRemoteDataSourceImpl implements SyncRemoteDataSource {
   }
 
   @override
-  Future<Response> syncUp({required List<Map<String, dynamic>> reviewLogs}) {
-    return dio.post(ApiEndpoints.syncUp, data: {'reviewLogs': reviewLogs});
+  Future<Response> syncUp({required List<Map<String, dynamic>> reviewLogs, String? timezone}) {
+    return dio.post(ApiEndpoints.syncUp, data: {'reviewLogs': reviewLogs, 'timezone': ?timezone});
   }
 }

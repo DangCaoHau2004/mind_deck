@@ -10,6 +10,9 @@ import 'package:mind_deck/ui/screens/profile/stats_overview/bloc/stats_overview_
 import 'package:mind_deck/ui/screens/profile/stats_overview/bloc/stats_overview_event.dart';
 import 'package:mind_deck/ui/screens/profile/stats_overview/bloc/stats_overview_state.dart';
 import 'package:mind_deck/ui/screens/profile/stats_overview/widgets/stats_widgets.dart';
+import 'package:mind_deck/ui/screens/profile/stats_overview/widgets/stats_extra_sections.dart';
+import 'package:mind_deck/constants/ad_units.dart';
+import 'package:mind_deck/ui/commons/ads/banner_ad_slot.dart';
 
 class StatsOverviewScreen extends StatelessWidget {
   const StatsOverviewScreen({super.key});
@@ -38,14 +41,13 @@ class _StatsOverviewView extends StatelessWidget {
       appBar: AppBar(
         title: Text(
           'Thống kê tổng quan',
-          style: theme.textTheme.titleLarge?.copyWith(
-            fontWeight: FontWeight.bold,
-          ),
+          style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
         ),
         backgroundColor: colorScheme.surface,
         elevation: 1,
         iconTheme: IconThemeData(color: colorScheme.onSurface),
       ),
+      bottomNavigationBar: const BannerAdSlot(unit: AdUnit.bannerStats),
       body: CommonRefresh(
         onRefresh: () async {
           final bloc = context.read<StatsOverviewBloc>();
@@ -56,10 +58,7 @@ class _StatsOverviewView extends StatelessWidget {
           BlocBuilder<StatsOverviewBloc, StatsOverviewState>(
             builder: (context, state) {
               if (state is StatsOverviewLoading) {
-                return const SliverFillRemaining(
-                  hasScrollBody: false,
-                  child: CommonLoading(),
-                );
+                return const SliverFillRemaining(hasScrollBody: false, child: CommonLoading());
               }
 
               if (state is StatsOverviewFailure) {
@@ -72,9 +71,12 @@ class _StatsOverviewView extends StatelessWidget {
               if (state is StatsOverviewSuccess) {
                 final data = state.stats;
 
+                // Người mới chỉ có thẻ chưa học hoặc bài giao vẫn phải thấy được số liệu.
                 if (data.heatmap.isEmpty &&
                     data.futureReviews.isEmpty &&
-                    data.difficultCards.isEmpty) {
+                    data.difficultCards.isEmpty &&
+                    data.cardStates.total == 0 &&
+                    data.assignments.items.isEmpty) {
                   return const SliverFillRemaining(
                     hasScrollBody: false,
                     child: CommonEmpty(title: 'Chưa có đủ dữ liệu học tập'),
@@ -86,6 +88,14 @@ class _StatsOverviewView extends StatelessWidget {
                   sliver: SliverList(
                     delegate: SliverChildListDelegate([
                       StreakSection(streak: data.streak),
+                      const SizedBox(height: 24),
+                      DueNowSection(dueNow: data.dueNow, studiedToday: data.studiedToday),
+                      const SizedBox(height: 24),
+                      MemorySection(memory: data.memory),
+                      const SizedBox(height: 24),
+                      CardStatesSection(cardStates: data.cardStates),
+                      const SizedBox(height: 24),
+                      AssignmentsSection(overview: data.assignments),
                       const SizedBox(height: 24),
                       HeatmapSection(data: data.heatmap),
                       const SizedBox(height: 24),

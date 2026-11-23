@@ -7,6 +7,8 @@ import 'package:mind_deck/data/models/discovery/discovery_suggested_content_mode
 import 'bloc/discover_popular_bloc.dart';
 import 'bloc/discover_popular_event.dart';
 import 'bloc/discover_popular_state.dart';
+import 'package:mind_deck/constants/ad_units.dart';
+import 'package:mind_deck/ui/commons/ads/native_ad_slot.dart';
 
 class DiscoverPopularScreen extends StatefulWidget {
   const DiscoverPopularScreen({super.key});
@@ -32,14 +34,10 @@ class _DiscoverPopularScreenState extends State<DiscoverPopularScreen> {
   }
 
   void _onScroll() {
-    if (_scrollController.position.pixels >=
-        _scrollController.position.maxScrollExtent - 200) {
+    if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 200) {
       final state = context.read<DiscoverPopularBloc>().state;
-      if (!state.hasReachedMax &&
-          state.status != DiscoverPopularStatus.loading) {
-        context.read<DiscoverPopularBloc>().add(
-          DiscoverPopularLoaded(page: state.currentPage + 1),
-        );
+      if (!state.hasReachedMax && state.status != DiscoverPopularStatus.loading) {
+        context.read<DiscoverPopularBloc>().add(DiscoverPopularLoaded(page: state.currentPage + 1));
       }
     }
   }
@@ -55,21 +53,16 @@ class _DiscoverPopularScreenState extends State<DiscoverPopularScreen> {
       appBar: AppBar(
         backgroundColor: colorScheme.surface,
         elevation: 0,
-        title: const Text(
-          'Nội dung thịnh hành',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
+        title: const Text('Nội dung thịnh hành', style: TextStyle(fontWeight: FontWeight.bold)),
         centerTitle: true,
       ),
       body: BlocBuilder<DiscoverPopularBloc, DiscoverPopularState>(
         builder: (context, state) {
-          if (state.status == DiscoverPopularStatus.loading &&
-              state.items.isEmpty) {
+          if (state.status == DiscoverPopularStatus.loading && state.items.isEmpty) {
             return const Center(child: CircularProgressIndicator());
           }
 
-          if (state.status == DiscoverPopularStatus.failure &&
-              state.items.isEmpty) {
+          if (state.status == DiscoverPopularStatus.failure && state.items.isEmpty) {
             return Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -79,9 +72,8 @@ class _DiscoverPopularScreenState extends State<DiscoverPopularScreen> {
                     style: TextStyle(color: colorScheme.error),
                   ),
                   TextButton(
-                    onPressed: () => context.read<DiscoverPopularBloc>().add(
-                      DiscoverPopularLoaded(page: 1),
-                    ),
+                    onPressed: () =>
+                        context.read<DiscoverPopularBloc>().add(DiscoverPopularLoaded(page: 1)),
                     child: const Text('Thử lại'),
                   ),
                 ],
@@ -89,6 +81,7 @@ class _DiscoverPopularScreenState extends State<DiscoverPopularScreen> {
             );
           }
 
+          final ads = NativeAdPositions(itemCount: state.items.length);
           return CommonRefresh(
             controller: _scrollController,
             onRefresh: () async {
@@ -100,24 +93,22 @@ class _DiscoverPopularScreenState extends State<DiscoverPopularScreen> {
               SliverPadding(
                 padding: const EdgeInsets.all(16),
                 sliver: SliverList(
-                  delegate: SliverChildBuilderDelegate(
-                    (context, index) {
-                      if (index >= state.items.length) {
-                        return const Padding(
-                          padding: EdgeInsets.symmetric(vertical: 16),
-                          child: Center(child: CircularProgressIndicator()),
-                        );
-                      }
-                      return _buildTrendingListItem(
-                        state.items[index],
-                        colorScheme,
-                        textTheme,
+                  delegate: SliverChildBuilderDelegate((context, index) {
+                    if (ads.isAd(index)) {
+                      return const NativeAdSlot(
+                        unit: AdUnit.nativeDiscoverPopular,
+                        margin: EdgeInsets.only(bottom: 12),
                       );
-                    },
-                    childCount: state.hasReachedMax
-                        ? state.items.length
-                        : state.items.length + 1,
-                  ),
+                    }
+                    index = ads.itemIndex(index);
+                    if (index >= state.items.length) {
+                      return const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 16),
+                        child: Center(child: CircularProgressIndicator()),
+                      );
+                    }
+                    return _buildTrendingListItem(state.items[index], colorScheme, textTheme);
+                  }, childCount: state.hasReachedMax ? ads.totalCount : ads.totalCount + 1),
                 ),
               ),
             ],
@@ -140,15 +131,9 @@ class _DiscoverPopularScreenState extends State<DiscoverPopularScreen> {
     return InkWell(
       onTap: () {
         if (isFolder) {
-          context.pushNamed(
-            AppRoute.folderDetail.name,
-            pathParameters: {'id': item.id},
-          );
+          context.pushNamed(AppRoute.folderDetail.name, pathParameters: {'id': item.id});
         } else {
-          context.pushNamed(
-            AppRoute.deckDetail.name,
-            pathParameters: {'id': item.id},
-          );
+          context.pushNamed(AppRoute.deckDetail.name, pathParameters: {'id': item.id});
         }
       },
       child: Container(
@@ -201,18 +186,12 @@ class _DiscoverPopularScreenState extends State<DiscoverPopularScreen> {
                   const SizedBox(height: 8),
                   Row(
                     children: [
-                      Icon(
-                        Icons.edit_document,
-                        size: 12,
-                        color: colorScheme.outline,
-                      ),
+                      Icon(Icons.edit_document, size: 12, color: colorScheme.outline),
                       const SizedBox(width: 4),
                       Expanded(
                         child: Text(
                           item.ownerName ?? 'Ẩn danh',
-                          style: textTheme.bodySmall?.copyWith(
-                            color: colorScheme.outline,
-                          ),
+                          style: textTheme.bodySmall?.copyWith(color: colorScheme.outline),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -246,15 +225,9 @@ class _DiscoverPopularScreenState extends State<DiscoverPopularScreen> {
               child: IconButton(
                 style: IconButton.styleFrom(
                   backgroundColor: itemColor.withAlpha(15),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
-                icon: Icon(
-                  Icons.bookmark_add_outlined,
-                  color: itemColor,
-                  size: 20,
-                ),
+                icon: Icon(Icons.bookmark_add_outlined, color: itemColor, size: 20),
                 onPressed: () {},
               ),
             ),

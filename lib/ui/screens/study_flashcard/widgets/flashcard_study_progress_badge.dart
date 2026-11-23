@@ -33,10 +33,7 @@ class FlashcardStudyProgressBadge extends StatelessWidget {
         children: [
           Text(
             '$count',
-            style: theme.textTheme.titleMedium?.copyWith(
-              color: color,
-              fontWeight: FontWeight.w900,
-            ),
+            style: theme.textTheme.titleMedium?.copyWith(color: color, fontWeight: FontWeight.w900),
           ),
           if (showPlusOne)
             Padding(

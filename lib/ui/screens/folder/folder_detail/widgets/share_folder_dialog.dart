@@ -195,10 +195,7 @@ class _ShareAccessOptions extends StatelessWidget {
               }
 
               context.read<FolderDetailBloc>().add(
-                FolderShareUpdated(
-                  id: currentFolder.id,
-                  accessLevel: targetAccessLevel,
-                ),
+                FolderShareUpdated(id: currentFolder.id, accessLevel: targetAccessLevel),
               );
             },
           );

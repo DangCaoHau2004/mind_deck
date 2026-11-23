@@ -47,7 +47,8 @@ class _ClassTestView extends StatelessWidget {
       builder: (context) => AlertDialog(
         title: const Text('Cảnh báo'),
         content: const Text(
-          'Bạn đang làm bài thi. Thoát ra lúc này kết quả sẽ không được lưu. Chắc chắn thoát?',
+          'Các câu bạn đã trả lời được lưu tạm. Bạn có thể vào lại để làm tiếp, nhưng đồng hồ vẫn chạy '
+          'và bài tự kết thúc khi hết giờ. Thoát ra lúc này?',
         ),
         actions: [
           TextButton(
@@ -97,16 +98,17 @@ class _ClassTestView extends StatelessWidget {
             appBar: AppBar(
               title: BlocBuilder<ClassTestBloc, ClassTestState>(
                 builder: (context, state) {
-                  if (state is ClassTestInProgressState) {
+                  if (state is ClassTestInProgressState && state.hasTimer && !state.isSuccess) {
                     final remaining = state.timeRemainingSeconds;
-                    if (remaining > 0) {
-                      final minutes = (remaining / 60).floor().toString().padLeft(2, '0');
-                      final seconds = (remaining % 60).toString().padLeft(2, '0');
-                      return Text(
-                        'Thời gian: $minutes:$seconds',
-                        style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
-                      );
-                    }
+                    final minutes = (remaining / 60).floor().toString().padLeft(2, '0');
+                    final seconds = (remaining % 60).toString().padLeft(2, '0');
+                    return Text(
+                      'Thời gian: $minutes:$seconds',
+                      style: TextStyle(
+                        color: remaining <= 60 ? Colors.red : null,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    );
                   }
                   return const Text('Làm Bài Tập');
                 },
@@ -120,10 +122,24 @@ class _ClassTestView extends StatelessWidget {
 
               if (state is ClassTestFailure) {
                 return Center(
-                  child: Text(
-                    state.errorMessage,
-                    style: const TextStyle(color: Colors.red),
-                    textAlign: TextAlign.center,
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          state.errorMessage,
+                          style: const TextStyle(color: Colors.red),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 16),
+                        // Về danh sách bài tập; trả `true` để danh sách tải lại (bài có thể đã đổi / bị xóa).
+                        OutlinedButton(
+                          onPressed: () => context.pop(true),
+                          child: const Text('Về danh sách bài tập'),
+                        ),
+                      ],
+                    ),
                   ),
                 );
               }
@@ -146,8 +162,8 @@ class _ClassTestView extends StatelessWidget {
                 final index = state.currentQuestionIndex;
 
                 if (index >= questions.length) {
-                  // Hết câu hỏi và đang chờ xử lý nộp bài
-                  return const Center(child: CircularProgressIndicator());
+                  // Đã trả lời hết nhưng nộp chưa thành công (lỗi mạng...): cho nộp lại.
+                  return _SubmitRetryView(state: state);
                 }
 
                 return ClassTestInProgressView(state: state);
@@ -157,6 +173,52 @@ class _ClassTestView extends StatelessWidget {
             }(),
           );
         },
+      ),
+    );
+  }
+}
+
+/// Nộp bài thất bại vì lỗi tạm thời: bài làm vẫn còn trong máy, phiên vẫn còn trên server
+/// (đến `expiresAt` + 60 giây), nên cho người dùng bấm nộp lại.
+class _SubmitRetryView extends StatelessWidget {
+  final ClassTestInProgressState state;
+
+  const _SubmitRetryView({required this.state});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final answered = state.answersMap.length;
+    final total = state.questions.length;
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.cloud_off_rounded, size: 56, color: theme.colorScheme.error),
+            const SizedBox(height: 16),
+            Text(
+              'Chưa nộp được bài',
+              style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Bạn đã làm $answered/$total câu. Bài làm vẫn được giữ trên máy, '
+              'hãy kiểm tra kết nối rồi nộp lại trước khi hết hạn.',
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 24),
+            FilledButton.icon(
+              onPressed: () => context.read<ClassTestBloc>().add(const ClassTestSubmitRequested()),
+              icon: const Icon(Icons.refresh_rounded),
+              label: const Text('Nộp lại'),
+            ),
+          ],
+        ),
       ),
     );
   }

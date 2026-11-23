@@ -16,26 +16,15 @@ class SocialAccountModel {
       id: json['id'] as String? ?? '',
       userId: json['userId'] as String? ?? json['user_id'] as String? ?? '',
       provider: json['provider'] as String? ?? 'google',
-      providerId:
-          json['providerId'] as String? ?? json['provider_id'] as String? ?? '',
+      providerId: json['providerId'] as String? ?? json['provider_id'] as String? ?? '',
     );
   }
 
   Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'userId': userId,
-      'provider': provider,
-      'providerId': providerId,
-    };
+    return {'id': id, 'userId': userId, 'provider': provider, 'providerId': providerId};
   }
 
-  SocialAccountModel copyWith({
-    String? id,
-    String? userId,
-    String? provider,
-    String? providerId,
-  }) {
+  SocialAccountModel copyWith({String? id, String? userId, String? provider, String? providerId}) {
     return SocialAccountModel(
       id: id ?? this.id,
       userId: userId ?? this.userId,

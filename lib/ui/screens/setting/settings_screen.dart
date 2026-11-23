@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'package:mind_deck/navigation/app_routes.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -15,11 +17,7 @@ class SettingsScreen extends StatelessWidget {
         backgroundColor: colorScheme.surfaceContainer,
         elevation: 0,
         leading: IconButton(
-          icon: Icon(
-            Icons.arrow_back_ios_new_rounded,
-            color: colorScheme.onSurface,
-            size: 22,
-          ),
+          icon: Icon(Icons.arrow_back_ios_new_rounded, color: colorScheme.onSurface, size: 22),
           onPressed: () => Navigator.pop(context),
         ),
         title: Text('Cài đặt', style: theme.textTheme.headlineSmall),
@@ -57,9 +55,7 @@ class SettingsScreen extends StatelessWidget {
                   iconColor: colorScheme.tertiary,
                   trailing: Text(
                     'Đã liên kết',
-                    style: theme.textTheme.labelMedium?.copyWith(
-                      color: colorScheme.primary,
-                    ),
+                    style: theme.textTheme.labelMedium?.copyWith(color: colorScheme.primary),
                   ),
                 ),
               ],
@@ -75,6 +71,7 @@ class SettingsScreen extends StatelessWidget {
                   icon: Icons.notifications_active_outlined,
                   title: 'Thông báo & Nhắc nhở',
                   iconColor: colorScheme.primary,
+                  onTap: () => context.pushNamed(AppRoute.notificationSettings.name),
                 ),
                 _buildDivider(context),
                 _buildSettingsTile(
@@ -92,21 +89,14 @@ class SettingsScreen extends StatelessWidget {
                 icon: Icon(Icons.logout_rounded, color: colorScheme.error),
                 label: Text(
                   'Đăng xuất',
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    color: colorScheme.error,
-                  ),
+                  style: theme.textTheme.titleMedium?.copyWith(color: colorScheme.error),
                 ),
                 style: TextButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 24,
-                    vertical: 14,
-                  ),
-                  backgroundColor: colorScheme.errorContainer.withOpacity(0.5),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                  backgroundColor: colorScheme.errorContainer.withValues(alpha: 0.5),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                   // Thêm viền nhẹ cho nút đăng xuất
-                  side: BorderSide(color: colorScheme.error.withOpacity(0.2)),
+                  side: BorderSide(color: colorScheme.error.withValues(alpha: 0.2)),
                 ),
               ),
             ),
@@ -131,24 +121,18 @@ class SettingsScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildSettingsGroup({
-    required BuildContext context,
-    required List<Widget> children,
-  }) {
+  Widget _buildSettingsGroup({required BuildContext context, required List<Widget> children}) {
     final colorScheme = Theme.of(context).colorScheme;
     return Container(
       decoration: BoxDecoration(
         color: colorScheme.surface, // Giữ màu trắng
         borderRadius: BorderRadius.circular(20),
         // Viền tinh tế
-        border: Border.all(
-          color: colorScheme.outline.withOpacity(0.1),
-          width: 1.5,
-        ),
+        border: Border.all(color: colorScheme.outline.withValues(alpha: 0.1), width: 1.5),
         // Bóng đổ để khối setting nổi lên hẳn so với nền xám
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 16,
             offset: const Offset(0, 6),
           ),
@@ -165,15 +149,16 @@ class SettingsScreen extends StatelessWidget {
     required Color iconColor,
     String? subtitle,
     Widget? trailing,
+    VoidCallback? onTap,
   }) {
     final theme = Theme.of(context);
     return ListTile(
-      onTap: () {},
+      onTap: onTap ?? () {},
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       leading: Container(
         padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
-          color: iconColor.withOpacity(0.1),
+          color: iconColor.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(12),
         ),
         child: Icon(icon, color: iconColor, size: 24),
@@ -182,18 +167,12 @@ class SettingsScreen extends StatelessWidget {
       subtitle: subtitle != null
           ? Text(
               subtitle,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.outline,
-              ),
+              style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.outline),
             )
           : null,
       trailing:
           trailing ??
-          Icon(
-            Icons.arrow_forward_ios_rounded,
-            size: 16,
-            color: theme.colorScheme.outline,
-          ),
+          Icon(Icons.arrow_forward_ios_rounded, size: 16, color: theme.colorScheme.outline),
     );
   }
 
@@ -202,7 +181,7 @@ class SettingsScreen extends StatelessWidget {
       height: 1,
       thickness: 1,
       indent: 68, // Căn chỉnh thụt qua phần icon
-      color: Theme.of(context).colorScheme.outline.withOpacity(0.1),
+      color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.1),
     );
   }
 }

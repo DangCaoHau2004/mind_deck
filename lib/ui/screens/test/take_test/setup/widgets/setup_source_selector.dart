@@ -8,21 +8,12 @@ import 'package:mind_deck/ui/screens/test/take_test/bloc/test_setup_bloc.dart';
 import 'package:mind_deck/ui/screens/test/take_test/bloc/test_setup_event.dart';
 import 'package:mind_deck/ui/screens/test/take_test/bloc/test_setup_state.dart';
 import 'package:mind_deck/ui/screens/test/take_test/setup/add_source/add_source_screen.dart';
-import 'package:mind_deck/ui/screens/test/take_test/setup/widgets/customize_cards_screen.dart';
-import 'package:mind_deck/utils/color_utils.dart';
+import 'package:mind_deck/ui/screens/test/take_test/setup/widgets/customize_cards_screen.dart';import 'package:mind_deck/utils/color_utils.dart';
 
 class SetupSourceSelector extends StatelessWidget {
   final TestSetupConfigState state;
 
   const SetupSourceSelector({super.key, required this.state});
-
-  int _getTotalCardsCount(TestSetupConfigState state) {
-    int total = 0;
-    for (final deck in state.resolvedSourceDecks) {
-      total += deck.cards.length;
-    }
-    return total;
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -33,7 +24,9 @@ class SetupSourceSelector extends StatelessWidget {
       ...state.selectedFolders.map(
         (f) => {'type': TestSourceType.folder, 'id': f.id, 'name': f.name, 'color': f.color},
       ),
-      ...state.selectedTags.map((t) => {'type': TestSourceType.tag, 'id': t.id, 'name': t.name, 'color': null}),
+      ...state.selectedTags.map(
+        (t) => {'type': TestSourceType.tag, 'id': t.id, 'name': t.name, 'color': null},
+      ),
       ...state.selectedDecks.map(
         (d) => {'type': TestSourceType.deck, 'id': d.id, 'name': d.name, 'color': d.color},
       ),
@@ -141,7 +134,11 @@ class SetupSourceSelector extends StatelessWidget {
                           );
                           break;
                         case TestSourceType.tag:
-                          leadingIcon = Icon(Icons.tag_rounded, color: colorScheme.primary, size: 20);
+                          leadingIcon = Icon(
+                            Icons.tag_rounded,
+                            color: colorScheme.primary,
+                            size: 20,
+                          );
                           break;
                         case TestSourceType.deck:
                           leadingIcon = Container(
@@ -206,16 +203,40 @@ class SetupSourceSelector extends StatelessWidget {
                       top: BorderSide(color: colorScheme.outline.withValues(alpha: 0.1)),
                     ),
                   ),
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   child: Row(
                     children: [
                       Expanded(
-                        child: Text(
-                          'Sẽ ôn tập: ${state.selectedCardIds.length} / ${_getTotalCardsCount(state)} thẻ',
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                            fontWeight: FontWeight.bold,
-                            color: colorScheme.onSurface,
-                          ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Đã chọn: ${state.selectedCardIds.length} / ${state.totalCards} thẻ',
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: colorScheme.onSurface,
+                              ),
+                            ),
+                            if (state.totalDueCards > 0) ...[
+                              const SizedBox(height: 2),
+                              Row(
+                                children: [
+                                  Icon(Icons.bolt_rounded, size: 14, color: Colors.amber.shade800),
+                                  const SizedBox(width: 2),
+                                  Text(
+                                    state.onlyDueCards
+                                        ? 'Đang chỉ ôn ${state.selectedDueCardsCount} thẻ tới hạn'
+                                        : '${state.selectedDueCardsCount}/${state.totalDueCards} thẻ tới hạn được chọn',
+                                    style: theme.textTheme.bodySmall?.copyWith(
+                                      color: Colors.amber.shade900,
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 11,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ],
                         ),
                       ),
                       ElevatedButton.icon(
@@ -229,8 +250,8 @@ class SetupSourceSelector extends StatelessWidget {
                             ),
                           );
                         },
-                        icon: const Icon(Icons.checklist_rounded, size: 18),
-                        label: const Text('Chỉnh thẻ'),
+                        icon: const Icon(Icons.tune_rounded, size: 18),
+                        label: const Text('Tùy chỉnh thẻ'),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: colorScheme.surface,
                           foregroundColor: colorScheme.primary,

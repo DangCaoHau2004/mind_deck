@@ -129,9 +129,7 @@ class CustomDialog extends StatelessWidget {
                 child: Container(
                   padding: const EdgeInsets.all(16.0),
                   decoration: BoxDecoration(
-                    color:
-                        iconBackgroundColor ??
-                        colorScheme.error.withValues(alpha: 0.1),
+                    color: iconBackgroundColor ?? colorScheme.error.withValues(alpha: 0.1),
                     shape: BoxShape.circle,
                   ),
                   child:
@@ -161,8 +159,7 @@ class CustomDialog extends StatelessWidget {
                           ),
                     ),
               ),
-            if (titleWidget != null || title != null)
-              const SizedBox(height: 12),
+            if (titleWidget != null || title != null) const SizedBox(height: 12),
 
             // --- Content / Description ---
             if (contentWidget != null || description != null)
@@ -180,8 +177,7 @@ class CustomDialog extends StatelessWidget {
                           ),
                     ),
               ),
-            if (contentWidget != null || description != null)
-              const SizedBox(height: 32),
+            if (contentWidget != null || description != null) const SizedBox(height: 32),
 
             // --- Actions ---
             Row(
@@ -190,14 +186,10 @@ class CustomDialog extends StatelessWidget {
                   Expanded(
                     child: TextButton(
                       style: TextButton.styleFrom(
-                        backgroundColor:
-                            cancelButtonColor ?? colorScheme.surfaceContainer,
-                        foregroundColor:
-                            cancelTextColor ?? colorScheme.onSurface,
+                        backgroundColor: cancelButtonColor ?? colorScheme.surfaceContainer,
+                        foregroundColor: cancelTextColor ?? colorScheme.onSurface,
                         padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       ),
                       onPressed: () {
                         if (onCancel != null) {
@@ -220,15 +212,11 @@ class CustomDialog extends StatelessWidget {
                 Expanded(
                   child: ElevatedButton(
                     style: ElevatedButton.styleFrom(
-                      backgroundColor:
-                          confirmButtonColor ?? colorScheme.primary,
-                      foregroundColor:
-                          confirmTextColor ?? colorScheme.onPrimary,
+                      backgroundColor: confirmButtonColor ?? colorScheme.primary,
+                      foregroundColor: confirmTextColor ?? colorScheme.onPrimary,
                       elevation: 0,
                       padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     ),
                     onPressed: () {
                       if (onConfirm != null) {

@@ -1,5 +1,7 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:mind_deck/constants/app_error_codes.dart';
 import 'package:mind_deck/core/extensions/string_extension.dart';
+import 'package:mind_deck/core/failures.dart';
 import 'package:mind_deck/core/validators.dart';
 import 'package:mind_deck/data/repositories/auth_repository.dart';
 import 'package:mind_deck/services/storage_service.dart';
@@ -15,10 +17,7 @@ class SignUpBloc extends Bloc<SignUpEvent, SignUpState> {
     on<SignUpSubmitted>(_onSignUpSubmitted);
   }
 
-  Future<void> _onSignUpSubmitted(
-    SignUpSubmitted event,
-    Emitter<SignUpState> emit,
-  ) async {
+  Future<void> _onSignUpSubmitted(SignUpSubmitted event, Emitter<SignUpState> emit) async {
     final name = event.name.trim();
     final email = event.email.trim();
     final password = event.password;
@@ -27,37 +26,30 @@ class SignUpBloc extends Bloc<SignUpEvent, SignUpState> {
 
     // 1. Full name
     if (name.isEmpty) {
-      emit(SignUpFailure(error: 'auth_fullname_empty'.tr));
+      emit(SignUpFailure(failure: ValidationFailure('auth_fullname_empty'.tr)));
       return;
     }
     if (name.length > 100) {
-      emit(SignUpFailure(error: 'auth_fullname_too_long'.tr));
+      emit(SignUpFailure(failure: ValidationFailure('auth_fullname_too_long'.tr)));
       return;
     }
 
     // 2. Email
     if (!Validators.isValidEmail(email)) {
-      emit(SignUpFailure(error: 'auth_email_invalid'.tr));
+      emit(SignUpFailure(failure: ValidationFailure('auth_email_invalid'.tr)));
       return;
     }
 
     // 3. Password
-    if (password.length < 8 || password.length > 64) {
-      emit(SignUpFailure(error: 'auth_password_length_invalid'.tr));
-      return;
-    }
-    if (password.contains(' ')) {
-      emit(SignUpFailure(error: 'auth_password_no_space'.tr));
-      return;
-    }
-    if (!Validators.isValidPasswordCharacters(password)) {
-      emit(SignUpFailure(error: 'auth_password_invalid_characters'.tr));
+    final passwordError = Validators.passwordError(password);
+    if (passwordError != null) {
+      emit(SignUpFailure(failure: ValidationFailure(passwordError.tr)));
       return;
     }
 
     // 4. Confirm Password
     if (password != confirmPassword) {
-      emit(SignUpFailure(error: 'new_password_not_match'.tr));
+      emit(SignUpFailure(failure: ValidationFailure('new_password_not_match'.tr)));
       return;
     }
 
@@ -68,11 +60,11 @@ class SignUpBloc extends Bloc<SignUpEvent, SignUpState> {
         final currentYear = DateTime.now().year;
         final birthYear = dobDate.year;
         if (currentYear - birthYear < 1) {
-          emit(SignUpFailure(error: 'auth_dob_underage'.tr));
+          emit(SignUpFailure(failure: ValidationFailure('auth_dob_underage'.tr)));
           return;
         }
       } catch (_) {
-        emit(SignUpFailure(error: 'auth_dob_invalid'.tr));
+        emit(SignUpFailure(failure: ValidationFailure('auth_dob_invalid'.tr)));
         return;
       }
     }
@@ -88,6 +80,10 @@ class SignUpBloc extends Bloc<SignUpEvent, SignUpState> {
       );
       if (response.success && response.data != null) {
         final authData = response.data!;
+        if (authData.requireLogin) {
+          emit(SignUpRequireLogin());
+          return;
+        }
         await storageService.saveTokens(
           accessToken: authData.accessToken,
           refreshToken: authData.refreshToken,
@@ -95,11 +91,18 @@ class SignUpBloc extends Bloc<SignUpEvent, SignUpState> {
         emit(SignUpSuccess(authResponse: authData));
       } else {
         emit(
-          SignUpFailure(error: response.message ?? 'signup_failed'.tr),
+          SignUpFailure(
+            failure: UnknownFailure(
+              message: AppErrorCodes.requestFailed.tr,
+              errorCode: AppErrorCodes.requestFailed,
+            ),
+          ),
         );
       }
+    } on Failure catch (f) {
+      emit(SignUpFailure(failure: f));
     } catch (e) {
-      emit(SignUpFailure(error: e.toString()));
+      emit(SignUpFailure(failure: UnknownFailure(message: e.toString())));
     }
   }
 }

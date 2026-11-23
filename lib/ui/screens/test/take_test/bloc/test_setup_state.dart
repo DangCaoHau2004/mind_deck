@@ -20,6 +20,7 @@ class TestSetupConfigState extends TestSetupState {
   final List<TagModel> selectedTags;
   final List<ResolvedSourceDeck> resolvedSourceDecks;
   final Set<String> selectedCardIds;
+  final bool onlyDueCards;
   final bool timeLimitEnabled;
   final int timeLimitMinutes;
   final String questionSide; // 'front' | 'back' | 'mixed'
@@ -34,6 +35,7 @@ class TestSetupConfigState extends TestSetupState {
     this.selectedTags = const [],
     this.resolvedSourceDecks = const [],
     this.selectedCardIds = const {},
+    this.onlyDueCards = false,
     this.timeLimitEnabled = false,
     this.timeLimitMinutes = 15,
     this.questionSide = 'front',
@@ -49,12 +51,25 @@ class TestSetupConfigState extends TestSetupState {
     this.errorMessage,
   });
 
+  int get totalCards => resolvedSourceDecks.fold<int>(0, (sum, deck) => sum + deck.cards.length);
+
+  int get totalDueCards => resolvedSourceDecks.fold<int>(
+    0,
+    (sum, deck) => sum + deck.cards.where((c) => c.isDueCard).length,
+  );
+
+  int get selectedDueCardsCount => resolvedSourceDecks
+      .expand((deck) => deck.cards)
+      .where((c) => c.isDueCard && selectedCardIds.contains(c.id))
+      .length;
+
   TestSetupConfigState copyWith({
     List<DeckModel>? selectedDecks,
     List<FolderModel>? selectedFolders,
     List<TagModel>? selectedTags,
     List<ResolvedSourceDeck>? resolvedSourceDecks,
     Set<String>? selectedCardIds,
+    bool? onlyDueCards,
     bool? timeLimitEnabled,
     int? timeLimitMinutes,
     String? questionSide,
@@ -69,12 +84,12 @@ class TestSetupConfigState extends TestSetupState {
       selectedTags: selectedTags ?? this.selectedTags,
       resolvedSourceDecks: resolvedSourceDecks ?? this.resolvedSourceDecks,
       selectedCardIds: selectedCardIds ?? this.selectedCardIds,
+      onlyDueCards: onlyDueCards ?? this.onlyDueCards,
       timeLimitEnabled: timeLimitEnabled ?? this.timeLimitEnabled,
       timeLimitMinutes: timeLimitMinutes ?? this.timeLimitMinutes,
       questionSide: questionSide ?? this.questionSide,
       showAnswerInstantly: showAnswerInstantly ?? this.showAnswerInstantly,
-      selectedQuestionTypes:
-          selectedQuestionTypes ?? this.selectedQuestionTypes,
+      selectedQuestionTypes: selectedQuestionTypes ?? this.selectedQuestionTypes,
       isGenerating: isGenerating ?? this.isGenerating,
       errorMessage: errorMessage ?? this.errorMessage,
     );
@@ -87,6 +102,7 @@ class TestSetupConfigState extends TestSetupState {
     selectedTags,
     resolvedSourceDecks,
     selectedCardIds,
+    onlyDueCards,
     timeLimitEnabled,
     timeLimitMinutes,
     questionSide,
@@ -103,8 +119,7 @@ class TestSetupInProgressState extends TestSetupState {
   final int currentQuestionIndex;
   final int timeRemainingSeconds;
   final Map<int, dynamic> answersMap; // index -> câu trả lời
-  final Map<int, bool>
-  isAnswerCheckedMap; // index -> đã check chưa (ở chế độ hiển thị ngay)
+  final Map<int, bool> isAnswerCheckedMap; // index -> đã check chưa (ở chế độ hiển thị ngay)
   final Map<int, bool> answersCorrectnessMap; // index -> đúng/sai
   final Map<int, int> questionDurationMap; // index -> duration in ms
   final int correctCount;
@@ -151,13 +166,11 @@ class TestSetupInProgressState extends TestSetupState {
       timeRemainingSeconds: timeRemainingSeconds ?? this.timeRemainingSeconds,
       answersMap: answersMap ?? this.answersMap,
       isAnswerCheckedMap: isAnswerCheckedMap ?? this.isAnswerCheckedMap,
-      answersCorrectnessMap:
-          answersCorrectnessMap ?? this.answersCorrectnessMap,
+      answersCorrectnessMap: answersCorrectnessMap ?? this.answersCorrectnessMap,
       questionDurationMap: questionDurationMap ?? this.questionDurationMap,
       correctCount: correctCount ?? this.correctCount,
       startedAt: startedAt ?? this.startedAt,
-      currentQuestionStartedAt:
-          currentQuestionStartedAt ?? this.currentQuestionStartedAt,
+      currentQuestionStartedAt: currentQuestionStartedAt ?? this.currentQuestionStartedAt,
       errorMessage: errorMessage ?? this.errorMessage,
       isSubmitting: isSubmitting ?? this.isSubmitting,
     );
@@ -221,8 +234,7 @@ class TestSetupCompletedState extends TestSetupState {
       totalQuestions: totalQuestions ?? this.totalQuestions,
       timeSpentSeconds: timeSpentSeconds ?? this.timeSpentSeconds,
       answersMap: answersMap ?? this.answersMap,
-      answersCorrectnessMap:
-          answersCorrectnessMap ?? this.answersCorrectnessMap,
+      answersCorrectnessMap: answersCorrectnessMap ?? this.answersCorrectnessMap,
       questions: questions ?? this.questions,
       attemptId: attemptId ?? this.attemptId,
       errorMessage: errorMessage ?? this.errorMessage,

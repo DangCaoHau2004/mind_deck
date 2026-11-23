@@ -11,6 +11,8 @@ abstract class FolderRepository {
     String? icon,
     String? color,
     bool? isPublic,
+    List<String>? tagIds,
+    List<String>? deckIds,
   });
   Future<FolderListResponseModel> getFolders({
     int page = 1,
@@ -20,7 +22,17 @@ abstract class FolderRepository {
     String? order,
     bool? isStarred,
   });
-  Future<ApiResponse<FolderModel>> getFolderById(String id, {String? token});
+
+  /// Chi tiết thư mục kèm một trang bộ thẻ trong `FolderModel.decks`.
+  Future<ApiResponse<FolderModel>> getFolderById(
+    String id, {
+    int page = 1,
+    int limit = 20,
+    String? search,
+    String? sort,
+    String? order,
+    String? token,
+  });
   Future<ApiResponse<FolderModel>> updateFolder({
     required String id,
     String? name,
@@ -28,8 +40,11 @@ abstract class FolderRepository {
     String? icon,
     String? color,
     bool? isPublic,
+    List<String>? tagIds,
   });
-  Future<ApiResponse<void>> deleteFolder(String id, {required bool keepDecks});
+  Future<ApiResponse<void>> deleteFolder(String id);
+  Future<ApiResponse<void>> deleteFolders(List<String> ids);
+  Future<ApiResponse<void>> starFolders(List<String> ids, {required bool isStarred});
   Future<ApiResponse<void>> shareFolder(String id, {required String accessLevel});
   Future<ApiResponse<FolderModel>> cloneFolder(String id, {String? token});
   Future<ApiResponse<FolderModel>> starFolder(String id);
@@ -49,6 +64,8 @@ class FolderRepositoryImpl with ApiHandler implements FolderRepository {
     String? icon,
     String? color,
     bool? isPublic,
+    List<String>? tagIds,
+    List<String>? deckIds,
   }) async {
     return executeApi(() async {
       final requestData = {
@@ -57,6 +74,8 @@ class FolderRepositoryImpl with ApiHandler implements FolderRepository {
         'icon': ?icon,
         'color': ?color,
         'isPublic': ?isPublic,
+        'tagIds': ?tagIds,
+        if (deckIds != null && deckIds.isNotEmpty) 'deckIds': deckIds,
       };
       final response = await remoteDataSource.createFolder(requestData);
       return ApiResponse<FolderModel>.fromJson(
@@ -84,16 +103,30 @@ class FolderRepositoryImpl with ApiHandler implements FolderRepository {
         order: order,
         isStarred: isStarred,
       );
-      return FolderListResponseModel.fromJson(
-        response.data as Map<String, dynamic>,
-      );
+      return FolderListResponseModel.fromJson(response.data as Map<String, dynamic>);
     });
   }
 
   @override
-  Future<ApiResponse<FolderModel>> getFolderById(String id, {String? token}) async {
+  Future<ApiResponse<FolderModel>> getFolderById(
+    String id, {
+    int page = 1,
+    int limit = 20,
+    String? search,
+    String? sort,
+    String? order,
+    String? token,
+  }) async {
     return executeApi(() async {
-      final response = await remoteDataSource.getFolderById(id, token: token);
+      final response = await remoteDataSource.getFolderById(
+        id,
+        page: page,
+        limit: limit,
+        search: search,
+        sort: sort,
+        order: order,
+        token: token,
+      );
       return ApiResponse<FolderModel>.fromJson(response.data as Map<String, dynamic>, (json) {
         final folderJson = json['folder'] as Map<String, dynamic>? ?? json;
         return FolderModel.fromJson(folderJson);
@@ -109,6 +142,7 @@ class FolderRepositoryImpl with ApiHandler implements FolderRepository {
     String? icon,
     String? color,
     bool? isPublic,
+    List<String>? tagIds,
   }) async {
     return executeApi(() async {
       final requestData = {
@@ -117,6 +151,7 @@ class FolderRepositoryImpl with ApiHandler implements FolderRepository {
         'icon': ?icon,
         'color': ?color,
         'isPublic': ?isPublic,
+        'tagIds': ?tagIds,
       };
       final response = await remoteDataSource.updateFolder(id, requestData);
       return ApiResponse<FolderModel>.fromJson(
@@ -127,9 +162,25 @@ class FolderRepositoryImpl with ApiHandler implements FolderRepository {
   }
 
   @override
-  Future<ApiResponse<void>> deleteFolder(String id, {required bool keepDecks}) async {
+  Future<ApiResponse<void>> deleteFolder(String id) async {
     return executeApi(() async {
-      final response = await remoteDataSource.deleteFolder(id, keepDecks: keepDecks);
+      final response = await remoteDataSource.deleteFolder(id);
+      return ApiResponse<void>.fromJson(response.data as Map<String, dynamic>, (_) => {});
+    });
+  }
+
+  @override
+  Future<ApiResponse<void>> deleteFolders(List<String> ids) async {
+    return executeApi(() async {
+      final response = await remoteDataSource.deleteFolders(ids);
+      return ApiResponse<void>.fromJson(response.data as Map<String, dynamic>, (_) => {});
+    });
+  }
+
+  @override
+  Future<ApiResponse<void>> starFolders(List<String> ids, {required bool isStarred}) async {
+    return executeApi(() async {
+      final response = await remoteDataSource.starFolders(ids, isStarred: isStarred);
       return ApiResponse<void>.fromJson(response.data as Map<String, dynamic>, (_) => {});
     });
   }

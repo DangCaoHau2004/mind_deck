@@ -1,13 +1,22 @@
 import 'package:flutter/material.dart';
-import 'package:mind_deck/data/models/deck_model.dart';
-import 'package:mind_deck/data/models/enums.dart';
+import 'package:flutter/services.dart';
 import 'package:mind_deck/constants/app_icons.dart';
+import 'package:mind_deck/core/extensions/string_extension.dart';
+import 'package:mind_deck/data/models/deck_model.dart';
+import 'package:mind_deck/data/models/tag_model.dart';
+import 'package:mind_deck/ui/commons/due_badge.dart';
+import 'package:mind_deck/ui/commons/goal_type_pill.dart';
+import 'package:mind_deck/ui/commons/tag_pill.dart';
 import 'package:mind_deck/utils/color_utils.dart';
+import 'package:skeletonizer/skeletonizer.dart';
 
 class DeckItemWidget extends StatelessWidget {
   final DeckModel deck;
   final bool isSelected;
   final bool isSelectionMode;
+
+  /// Hiện dòng thư mục chứa học phần (tắt khi đang xem bên trong một thư mục).
+  final bool showFolder;
   final VoidCallback? onTap;
   final VoidCallback? onLongPress;
   final VoidCallback? onStarTap;
@@ -17,223 +26,226 @@ class DeckItemWidget extends StatelessWidget {
     required this.deck,
     required this.isSelected,
     required this.isSelectionMode,
+    this.showFolder = true,
     this.onTap,
     this.onLongPress,
     this.onStarTap,
   });
 
+  static const int _maxVisibleTags = 2;
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final themeColor = ColorUtils.parseHex(deck.color);
-    final bool isLight = ColorUtils.isLightColor(themeColor);
-    final Color contentColor = ColorUtils.getContrastColor(themeColor);
+    final colorScheme = theme.colorScheme;
+    final mutedColor = colorScheme.onSurface.withValues(alpha: 0.6);
+    final tags = deck.tags ?? const <TagModel>[];
+    final extraTags = tags.length - _maxVisibleTags;
+    final hasFolder = deck.folders.isNotEmpty;
+    final folderColor = hasFolder
+        ? ColorUtils.parseHex(deck.folders.first.color)
+        : colorScheme.primary;
+    final extraFolders = deck.folders.length - 1;
+    final isPublic = deck.isPublic || deck.shareMode == 'public';
 
-    return GestureDetector(
-      onLongPress: onLongPress,
-      onTap: onTap,
-      child: Container(
-        margin: const EdgeInsets.only(top: 16, bottom: 12, left: 24, right: 24),
-        child: Stack(
-          clipBehavior: Clip.none,
-          children: [
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(18),
-              decoration: BoxDecoration(
-                color: isSelected ? themeColor.withValues(alpha: 0.8) : themeColor,
-                borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(30),
-                  topRight: Radius.circular(8),
-                  bottomLeft: Radius.circular(8),
-                  bottomRight: Radius.circular(30),
-                ),
-                border: isSelected
-                    ? Border.all(color: contentColor, width: 2)
-                    : (isLight ? Border.all(color: Colors.grey.shade300, width: 1) : null),
-                boxShadow: [
-                  BoxShadow(
-                    color: isLight
-                        ? Colors.black.withValues(alpha: 0.05)
-                        : themeColor.withValues(alpha: 0.3),
-                    blurRadius: 12,
-                    offset: const Offset(0, 6),
-                  ),
-                ],
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.only(right: 50.0),
-                    child: Text(
-                      deck.name,
-                      style: theme.textTheme.titleLarge?.copyWith(
-                        color: contentColor,
-                        fontWeight: FontWeight.w900,
-                        height: 1.25,
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Wrap(
-                    spacing: 8.0,
-                    runSpacing: 8.0,
-                    crossAxisAlignment: WrapCrossAlignment.center,
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
+      child: Material(
+        color: isSelected
+            ? Color.alphaBlend(colorScheme.primary.withValues(alpha: 0.08), colorScheme.surface)
+            : colorScheme.surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: BorderSide(
+            color: isSelected ? colorScheme.primary : colorScheme.outline.withValues(alpha: 0.2),
+            width: isSelected ? 2 : 1,
+          ),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: () {
+            if (isSelectionMode) HapticFeedback.selectionClick();
+            onTap?.call();
+          },
+          onLongPress: onLongPress == null
+              ? null
+              : () {
+                  HapticFeedback.mediumImpact();
+                  onLongPress!();
+                },
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(14, 14, 8, 14),
+            child: Row(
+              children: [
+                // Icon hai thẻ xếp chồng + số thẻ ngay bên dưới
+                SizedBox(
+                  width: 64,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-                        decoration: BoxDecoration(
-                          color: isLight
-                              ? Colors.black.withValues(alpha: 0.05)
-                              : Colors.black.withValues(alpha: 0.2),
-                          borderRadius: BorderRadius.circular(8),
+                      Skeleton.leaf(child: _DeckIcon(deck: deck)),
+                      const SizedBox(height: 6),
+                      Text(
+                        'deck_card_count'.tr.replaceAll(
+                          '{count}',
+                          '${deck.cardCount ?? deck.flashcards?.length ?? 0}',
                         ),
-                        child: Text(
-                          '${deck.cardCount ?? deck.flashcards?.length ?? 0} thẻ',
-                          style: theme.textTheme.labelMedium?.copyWith(
-                            color: contentColor,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
+                        style: theme.textTheme.bodyMedium?.copyWith(color: mutedColor),
+                        maxLines: 1,
                       ),
-                      if (deck.goalType == GoalType.longTerm)
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-                          decoration: BoxDecoration(
-                            color: isLight
-                                ? Colors.black.withValues(alpha: 0.05)
-                                : Colors.white.withValues(alpha: 0.2),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Text(
-                            'Dài hạn',
-                            style: theme.textTheme.labelSmall?.copyWith(
-                              color: contentColor,
-                              fontWeight: FontWeight.w800,
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        deck.name,
+                        style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      if (showFolder) ...[
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            Icon(
+                              hasFolder ? Icons.folder_rounded : Icons.folder_open_outlined,
+                              size: 18,
+                              color: hasFolder ? folderColor : mutedColor,
                             ),
-                          ),
-                        ),
-                      if (deck.goalType == GoalType.shortTerm)
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-                          decoration: BoxDecoration(
-                            color: isLight
-                                ? Colors.black.withValues(alpha: 0.05)
-                                : Colors.white.withValues(alpha: 0.2),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Text(
-                            'Ngắn hạn',
-                            style: theme.textTheme.labelSmall?.copyWith(
-                              color: contentColor,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                        ),
-                      if (deck.tags != null && deck.tags!.isNotEmpty)
-                        ...deck.tags!
-                            .take(2)
-                            .map(
-                              (tag) => Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-                                decoration: BoxDecoration(
-                                  color: isLight
-                                      ? Colors.black.withValues(alpha: 0.05)
-                                      : Colors.white.withValues(alpha: 0.2),
-                                  borderRadius: BorderRadius.circular(8),
+                            const SizedBox(width: 6),
+                            Flexible(
+                              child: Text(
+                                hasFolder
+                                    ? (extraFolders > 0
+                                          ? '${deck.folders.first.name} +$extraFolders'
+                                          : deck.folders.first.name)
+                                    : 'deck_no_folder'.tr,
+                                style: theme.textTheme.bodyMedium?.copyWith(
+                                  color: hasFolder ? folderColor : mutedColor,
+                                  fontWeight: hasFolder ? FontWeight.w600 : null,
                                 ),
-                                child: Text(
-                                  '#${tag.name}',
-                                  style: theme.textTheme.labelSmall?.copyWith(
-                                    color: contentColor,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                               ),
                             ),
-                      if (deck.tags != null && deck.tags!.length > 2)
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-                          decoration: BoxDecoration(
-                            color: isLight
-                                ? Colors.black.withValues(alpha: 0.05)
-                                : Colors.white.withValues(alpha: 0.2),
-                            borderRadius: BorderRadius.circular(8),
+                          ],
+                        ),
+                      ],
+                      // Luôn chừa chỗ cho hàng tag để thẻ không tag vẫn cao bằng thẻ có tag
+                      const SizedBox(height: 8),
+                      SizedBox(
+                        height: 30,
+                        child: Row(
+                          children: [
+                            GoalTypePill(goalType: deck.goalType),
+                            for (final tag in tags.take(_maxVisibleTags))
+                              Flexible(
+                                child: TagPill(text: '#${tag.name}', hex: tag.color),
+                              ),
+                            if (extraTags > 0) TagPill(text: '+$extraTags'),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (isSelectionMode)
+                  Padding(
+                    padding: const EdgeInsets.all(10),
+                    child: Icon(
+                      isSelected
+                          ? Icons.check_circle_rounded
+                          : Icons.radio_button_unchecked_rounded,
+                      color: isSelected
+                          ? colorScheme.primary
+                          : colorScheme.onSurface.withValues(alpha: 0.35),
+                      size: 26,
+                    ),
+                  )
+                else
+                  Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (onStarTap != null)
+                        IconButton(
+                          onPressed: () {
+                            HapticFeedback.lightImpact();
+                            onStarTap!();
+                          },
+                          icon: Icon(
+                            deck.isStarred ? Icons.star_rounded : Icons.star_outline_rounded,
+                            color: deck.isStarred
+                                ? Colors.amber
+                                : colorScheme.onSurface.withValues(alpha: 0.35),
+                            size: 30,
                           ),
-                          child: Text(
-                            '+${deck.tags!.length - 2}',
-                            style: theme.textTheme.labelSmall?.copyWith(
-                              color: contentColor,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
+                        ),
+                      // Chỉ hiện icon khóa cho học phần riêng tư, công khai thì không cần nói
+                      if (!isPublic)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          child: Icon(Icons.lock_outline_rounded, size: 20, color: mutedColor),
                         ),
                     ],
                   ),
-                ],
-              ),
+              ],
             ),
-            Positioned(
-              top: -12,
-              right: 16,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: isSelected ? const Color(0xFF4CAF50) : themeColor,
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: isSelected
-                            ? Colors.white
-                            : (isLight ? Colors.grey.shade300 : Colors.white),
-                        width: 4,
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.2),
-                          blurRadius: 8,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                    child: Icon(
-                      isSelected ? Icons.check_rounded : AppIcons.getIconFromKey(deck.icon),
-                      color: contentColor,
-                      size: 24,
-                    ),
-                  ),
-                  if (onStarTap != null) ...[
-                    const SizedBox(height: 8),
-                    GestureDetector(
-                      onTap: onStarTap,
-                      child: Container(
-                        padding: const EdgeInsets.all(6),
-                        decoration: BoxDecoration(
-                          color: isLight
-                              ? Colors.black.withValues(alpha: 0.05)
-                              : Colors.white.withValues(alpha: 0.15),
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(
-                          deck.isStarred ? Icons.star_rounded : Icons.star_outline_rounded,
-                          color: Colors.amberAccent,
-                          size: 28,
-                        ),
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          ],
+          ),
         ),
+      ),
+    );
+  }
+}
+
+/// Icon học phần: hai thẻ xếp chồng theo màu học phần; góc phải trên có số thẻ cần ôn.
+class _DeckIcon extends StatelessWidget {
+  final DeckModel deck;
+
+  const _DeckIcon({required this.deck});
+
+  @override
+  Widget build(BuildContext context) {
+    final color = ColorUtils.parseHex(deck.color);
+    final due = deck.dueCount ?? 0;
+
+    return SizedBox(
+      width: 56,
+      height: 52,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Positioned(
+            right: 0,
+            top: 0,
+            width: 42,
+            height: 42,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.35),
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+          ),
+          Positioned(
+            left: 0,
+            bottom: 0,
+            width: 42,
+            height: 42,
+            child: DecoratedBox(
+              decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(12)),
+              child: Icon(
+                AppIcons.getIconFromKey(deck.icon),
+                color: ColorUtils.getContrastColor(color),
+                size: 22,
+              ),
+            ),
+          ),
+          if (due > 0) Positioned(right: -6, top: -8, child: DueBadge(count: due)),
+        ],
       ),
     );
   }

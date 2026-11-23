@@ -6,11 +6,7 @@ class DeckDetailExpandableTags extends StatefulWidget {
   final List<TagModel> tags;
   final int maxVisible;
 
-  const DeckDetailExpandableTags({
-    super.key,
-    required this.tags,
-    this.maxVisible = 3,
-  });
+  const DeckDetailExpandableTags({super.key, required this.tags, this.maxVisible = 3});
 
   @override
   State<DeckDetailExpandableTags> createState() => _DeckDetailExpandableTagsState();
@@ -38,29 +34,25 @@ class _DeckDetailExpandableTagsState extends State<DeckDetailExpandableTags> {
       runSpacing: 8,
       crossAxisAlignment: WrapCrossAlignment.center,
       children: [
-        ...displayedTags.map(
-          (tag) {
-            final tagColor = ColorUtils.parseHex(tag.color ?? '#1565C0');
-            return Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: tagColor.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                  color: tagColor.withValues(alpha: 0.5),
-                ),
+        ...displayedTags.map((tag) {
+          final tagColor = ColorUtils.parseHex(tag.color ?? '#1565C0');
+          return Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: tagColor.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: tagColor.withValues(alpha: 0.5)),
+            ),
+            child: Text(
+              '#${tag.name}',
+              style: theme.textTheme.labelMedium?.copyWith(
+                color: tagColor,
+                fontWeight: FontWeight.bold,
+                height: 1.2,
               ),
-              child: Text(
-                '#${tag.name}',
-                style: theme.textTheme.labelMedium?.copyWith(
-                  color: tagColor,
-                  fontWeight: FontWeight.bold,
-                  height: 1.2,
-                ),
-              ),
-            );
-          },
-        ),
+            ),
+          );
+        }),
         if (!_isExpanded && hasHiddenTags)
           _buildActionButton(
             text: '+$hiddenCount',
@@ -90,9 +82,7 @@ class _DeckDetailExpandableTagsState extends State<DeckDetailExpandableTags> {
         decoration: BoxDecoration(
           color: theme.colorScheme.primary.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: theme.colorScheme.primary.withValues(alpha: 0.3),
-          ),
+          border: Border.all(color: theme.colorScheme.primary.withValues(alpha: 0.3)),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,

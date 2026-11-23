@@ -37,12 +37,19 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
     }
   }
 
+  /// Báo cáo từ admin luôn đã giải quyết nên hiện nhãn nguồn thay cho trạng thái.
+  Color _statusColorOf(ReportModel report) =>
+      report.isFromAdmin ? Colors.deepOrange : _getStatusColor(report.status);
+
+  String _statusTextOf(ReportModel report) =>
+      report.isFromAdmin ? 'Từ quản trị viên' : _getStatusText(report.status);
+
   String _getStatusText(ReportStatus status) {
     switch (status) {
       case ReportStatus.pending:
         return 'Chờ xử lý';
       case ReportStatus.processing:
-        return 'Đang xử lý';
+        return 'Đang xem xét';
       case ReportStatus.resolved:
         return 'Đã giải quyết';
       case ReportStatus.dismissed:
@@ -65,6 +72,18 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
     }
   }
 
+  String _targetText(ReportModel report) {
+    final type = switch (report.targetType) {
+      ReportTargetType.deck => 'Bộ thẻ',
+      ReportTargetType.folder => 'Thư mục',
+      ReportTargetType.user => 'Người dùng',
+      ReportTargetType.classroom => 'Lớp học',
+      ReportTargetType.system => 'Hệ thống',
+    };
+    final name = report.targetName;
+    return name == null || name.isEmpty ? type : '$type · $name';
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -75,7 +94,12 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
       appBar: AppBar(
         backgroundColor: colorScheme.surface,
         elevation: 0,
-        title: const Text('Chi tiết phản ánh'),
+        title: BlocBuilder<ReportDetailBloc, ReportDetailState>(
+          buildWhen: (a, b) => a.report?.source != b.report?.source,
+          builder: (context, state) => Text(
+            state.report?.isFromAdmin == true ? 'Thông báo từ quản trị viên' : 'Chi tiết phản ánh',
+          ),
+        ),
         centerTitle: true,
       ),
       body: BlocBuilder<ReportDetailBloc, ReportDetailState>(
@@ -137,13 +161,13 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                             decoration: BoxDecoration(
-                              color: _getStatusColor(report.status).withValues(alpha: 0.1),
+                              color: _statusColorOf(report).withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(8),
                             ),
                             child: Text(
-                              _getStatusText(report.status),
+                              _statusTextOf(report),
                               style: theme.textTheme.labelMedium?.copyWith(
-                                color: _getStatusColor(report.status),
+                                color: _statusColorOf(report),
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
@@ -164,13 +188,30 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
                         _getTypeText(report.type),
                         style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
                       ),
+                      if (report.targetType != ReportTargetType.system) ...[
+                        const SizedBox(height: 16),
+                        Text(
+                          'Đối tượng bị báo cáo:',
+                          style: theme.textTheme.labelLarge?.copyWith(color: colorScheme.outline),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          _targetText(report),
+                          style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                        ),
+                      ],
                       const SizedBox(height: 16),
                       Text(
-                        'Nội dung chi tiết:',
+                        report.isFromAdmin ? 'Lý do:' : 'Nội dung chi tiết:',
                         style: theme.textTheme.labelLarge?.copyWith(color: colorScheme.outline),
                       ),
                       const SizedBox(height: 4),
-                      Text(report.description, style: theme.textTheme.bodyLarge),
+                      Text(
+                        report.isFromAdmin && report.description.isEmpty
+                            ? (report.resolutionNote ?? '')
+                            : report.description,
+                        style: theme.textTheme.bodyLarge,
+                      ),
                       if (report.attachments.isNotEmpty) ...[
                         const SizedBox(height: 24),
                         Text(
@@ -183,7 +224,9 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
                     ],
                   ),
                 ),
-                if (report.status != ReportStatus.pending && report.resolutionNote != null) ...[
+                if (!report.isFromAdmin &&
+                    report.status != ReportStatus.pending &&
+                    report.resolutionNote != null) ...[
                   const SizedBox(height: 24),
                   Container(
                     padding: const EdgeInsets.all(20),
@@ -213,10 +256,11 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
                           report.resolutionNote!,
                           style: theme.textTheme.bodyLarge?.copyWith(color: colorScheme.onSurface),
                         ),
-                        if (report.updatedAt.isAfter(report.createdAt)) ...[
+                        if (report.updatedAt != null &&
+                            report.updatedAt!.isAfter(report.createdAt)) ...[
                           const SizedBox(height: 12),
                           Text(
-                            'Cập nhật lúc: ${DateFormat('dd/MM/yyyy HH:mm').format(report.updatedAt.toLocal())}',
+                            'Cập nhật lúc: ${DateFormat('dd/MM/yyyy HH:mm').format(report.updatedAt!.toLocal())}',
                             style: theme.textTheme.labelSmall?.copyWith(
                               color: colorScheme.primary.withValues(alpha: 0.8),
                             ),

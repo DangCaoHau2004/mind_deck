@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:mind_deck/core/extensions/string_extension.dart';
 import 'common_image_viewer.dart';
+import 'package:mind_deck/utils/image_url_utils.dart';
 
 class CommonImageGallery extends StatelessWidget {
   final List<String> images;
@@ -54,7 +55,7 @@ class CommonImageGallery extends StatelessWidget {
       return Image.file(
         File(cleanPath),
         fit: imageFit,
-        errorBuilder: (_, __, ___) => _buildErrorPlaceholder(colorScheme),
+        errorBuilder: (_, _, _) => _buildErrorPlaceholder(colorScheme),
       );
     }
     // nếu có dạng http hoặc https thì là network
@@ -62,14 +63,14 @@ class CommonImageGallery extends StatelessWidget {
       return Image.network(
         path,
         fit: imageFit,
-        errorBuilder: (_, __, ___) => _buildErrorPlaceholder(colorScheme),
+        errorBuilder: (_, _, _) => _buildErrorPlaceholder(colorScheme),
       );
     }
     // mặc định là như này và nếu lỗi thì nó hiển thị trang lỗi
     return Image.network(
-      '$baseUrl$path',
+      baseUrl.isEmpty ? getImageUrl(path) : '$baseUrl$path',
       fit: imageFit,
-      errorBuilder: (_, __, ___) => _buildErrorPlaceholder(colorScheme),
+      errorBuilder: (_, _, _) => _buildErrorPlaceholder(colorScheme),
     );
   }
 

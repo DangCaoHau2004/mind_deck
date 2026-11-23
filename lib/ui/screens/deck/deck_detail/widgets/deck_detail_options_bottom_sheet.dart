@@ -14,11 +14,18 @@ class DeckDetailOptionsBottomSheet {
     required String deckId,
     String? token,
     required bool isDeckOwner,
+    bool canEditClassCopy = false,
+    bool canCloneClassCopy = false,
     required VoidCallback onDeleteDeck,
     required VoidCallback onCloneDeck,
   }) {
     final theme = Theme.of(parentContext);
     final deckDetailBloc = parentContext.read<DeckDetailBloc>();
+    // Bản sao lớp: chỉ giảng viên sửa, không xóa; clone theo quyền của lớp.
+    // Deck cá nhân: chỉ chủ deck sửa/xóa.
+    final canEdit = deck.isClassCopy ? canEditClassCopy : isDeckOwner;
+    final canDelete = !deck.isClassCopy && isDeckOwner;
+    final canClone = deck.isClassCopy ? canCloneClassCopy : deck.canClone;
 
     return showModalBottomSheet(
       context: parentContext,
@@ -65,34 +72,35 @@ class DeckDetailOptionsBottomSheet {
                             ),
                           ),
                           const SizedBox(height: 16),
-                          _buildBottomSheetItem(
-                            context,
-                            theme,
-                            icon: Icons.edit_rounded,
-                            text: 'Sửa thông tin bộ thẻ',
-                            onTap: () {
-                              context
-                                  .pushNamed(
-                                    AppRoute.deckEdit.name,
-                                    pathParameters: {'id': deck.id},
-                                    extra: deck,
-                                  )
-                                  .then((result) {
-                                    if (result != null && context.mounted) {
-                                      if (result is String) {
-                                        CustomToast.show(
-                                          context,
-                                          CustomToast.success(message: result),
+                          if (canEdit)
+                            _buildBottomSheetItem(
+                              context,
+                              theme,
+                              icon: Icons.edit_rounded,
+                              text: 'Sửa thông tin bộ thẻ',
+                              onTap: () {
+                                context
+                                    .pushNamed(
+                                      AppRoute.deckEdit.name,
+                                      pathParameters: {'id': deck.id},
+                                      extra: deck,
+                                    )
+                                    .then((result) {
+                                      if (result != null && context.mounted) {
+                                        if (result is String) {
+                                          CustomToast.show(
+                                            context,
+                                            CustomToast.success(message: result),
+                                          );
+                                        }
+                                        context.read<DeckDetailBloc>().add(
+                                          DeckDetailRefreshed(deckId),
                                         );
                                       }
-                                      context.read<DeckDetailBloc>().add(
-                                        DeckDetailRefreshed(deckId),
-                                      );
-                                    }
-                                  });
-                            },
-                          ),
-                          if (deck.canClone)
+                                    });
+                              },
+                            ),
+                          if (canClone)
                             _buildBottomSheetItem(
                               context,
                               theme,
@@ -103,17 +111,18 @@ class DeckDetailOptionsBottomSheet {
                                 onCloneDeck();
                               },
                             ),
-                          _buildBottomSheetItem(
-                            context,
-                            theme,
-                            icon: Icons.delete_outline_rounded,
-                            text: 'Xóa bộ thẻ này',
-                            color: theme.colorScheme.error,
-                            onTap: () {
-                              context.pop();
-                              onDeleteDeck();
-                            },
-                          ),
+                          if (canDelete)
+                            _buildBottomSheetItem(
+                              context,
+                              theme,
+                              icon: Icons.delete_outline_rounded,
+                              text: 'Xóa bộ thẻ này',
+                              color: theme.colorScheme.error,
+                              onTap: () {
+                                context.pop();
+                                onDeleteDeck();
+                              },
+                            ),
                         ],
                       ),
                     ),

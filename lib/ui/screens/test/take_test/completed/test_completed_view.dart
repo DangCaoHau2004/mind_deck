@@ -3,6 +3,9 @@ import 'package:mind_deck/ui/screens/test/take_test/bloc/test_setup_state.dart';
 import 'package:mind_deck/ui/screens/test/take_test/completed/widgets/test_result_header_card.dart';
 import 'package:mind_deck/ui/screens/test/take_test/completed/widgets/test_result_stats_row.dart';
 import 'package:mind_deck/ui/screens/test/take_test/completed/widgets/test_result_answer_review_card.dart';
+import 'package:mind_deck/configs/di.dart';
+import 'package:mind_deck/constants/ad_units.dart';
+import 'package:mind_deck/services/ad_service.dart';
 
 class TestCompletedView extends StatelessWidget {
   final TestSetupCompletedState state;
@@ -116,8 +119,9 @@ class TestCompletedView extends StatelessWidget {
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                   elevation: 0,
                 ),
-                onPressed: () {
-                  if (Navigator.of(context).canPop()) {
+                onPressed: () async {
+                  await DI().sl<AdService>().showInterstitial(AdUnit.interstitialTestResult);
+                  if (context.mounted && Navigator.of(context).canPop()) {
                     Navigator.of(context).pop();
                   }
                 },

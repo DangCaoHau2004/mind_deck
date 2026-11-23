@@ -12,10 +12,8 @@ class GoogleAuthRemoteDataSourceImpl implements GoogleAuthRemoteDataSource {
   Future<String?> getGoogleToken() async {
     try {
       if (!_isInitialized) {
-        await _googleSignIn.initialize(
-          serverClientId:
-              '942508726745-9v9bamvmgtl27qiopr73jof981djpna5.apps.googleusercontent.com', // Thay ID của bạn vào
-        );
+        // Không truyền serverClientId: plugin Android tự lấy mã web trong google-services.json của flavor.
+        await _googleSignIn.initialize();
         _isInitialized = true;
       }
       await _googleSignIn.signOut();

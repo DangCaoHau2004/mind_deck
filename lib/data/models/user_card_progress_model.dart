@@ -33,9 +33,7 @@ class UserCardProgressModel {
       stability: (json['stability'] as num?)?.toDouble(),
       dueDate: json['dueDate'] != null
           ? DateTime.tryParse(json['dueDate'].toString())
-          : (json['due_date'] != null
-                ? DateTime.tryParse(json['due_date'].toString())
-                : null),
+          : (json['due_date'] != null ? DateTime.tryParse(json['due_date'].toString()) : null),
       lastReview: json['lastReview'] != null
           ? DateTime.tryParse(json['lastReview'].toString())
           : (json['last_review'] != null

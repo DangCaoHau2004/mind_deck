@@ -6,12 +6,7 @@ class CustomOtpInput extends StatefulWidget {
   final void Function(String)? onChanged;
   final void Function(String)? onCompleted;
 
-  const CustomOtpInput({
-    super.key,
-    this.length = 6,
-    this.onChanged,
-    this.onCompleted,
-  });
+  const CustomOtpInput({super.key, this.length = 6, this.onChanged, this.onCompleted});
 
   @override
   State<CustomOtpInput> createState() => _CustomOtpInputState();
@@ -25,10 +20,7 @@ class _CustomOtpInputState extends State<CustomOtpInput> {
   void initState() {
     super.initState();
     _focusNodes = List.generate(widget.length, (index) => FocusNode());
-    _controllers = List.generate(
-      widget.length,
-      (index) => TextEditingController(),
-    );
+    _controllers = List.generate(widget.length, (index) => TextEditingController());
   }
 
   @override
@@ -91,14 +83,11 @@ class _CustomOtpInputState extends State<CustomOtpInput> {
             decoration: InputDecoration(
               counterText: '',
               filled: true,
-              fillColor:
-                  colorScheme.surfaceContainer, // Khớp với CustomTextField
+              fillColor: colorScheme.surfaceContainer, // Khớp với CustomTextField
               contentPadding: EdgeInsets.zero,
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(
-                  color: colorScheme.outline.withValues(alpha: 0.5),
-                ),
+                borderSide: BorderSide(color: colorScheme.outline.withValues(alpha: 0.5)),
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),

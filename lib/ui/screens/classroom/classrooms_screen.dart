@@ -11,6 +11,8 @@ import 'package:mind_deck/ui/screens/classroom/bloc/class_list_bloc.dart';
 import 'package:mind_deck/ui/screens/classroom/bloc/class_list_event.dart';
 import 'package:mind_deck/ui/screens/classroom/bloc/class_list_state.dart';
 import 'package:mind_deck/ui/screens/classroom/widgets/class_item_card.dart';
+import 'package:mind_deck/ui/commons/custom_toast.dart';
+import 'package:mind_deck/ui/screens/classroom/widgets/class_invitation_card.dart';
 import 'package:mind_deck/ui/screens/classroom/widgets/join_class_modal.dart';
 export 'package:mind_deck/ui/screens/classroom/widgets/class_item_card.dart';
 export 'package:mind_deck/ui/screens/classroom/widgets/join_class_modal.dart';
@@ -74,15 +76,29 @@ class _ClassRoomsScreenState extends State<ClassRoomsScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Expanded(
-              child: BlocBuilder<ClassListBloc, ClassListState>(
+              child: BlocConsumer<ClassListBloc, ClassListState>(
+                // Toast cho thao tác chấp nhận / từ chối lời mời từ danh sách.
+                listenWhen: (prev, current) => prev.noticeId != current.noticeId,
+                listener: (context, state) {
+                  final notice = state.notice;
+                  if (notice == null) return;
+                  CustomToast.show(
+                    context,
+                    state.noticeIsError
+                        ? CustomToast.danger(message: notice)
+                        : CustomToast.success(message: notice),
+                  );
+                },
                 builder: (context, state) {
+                  Future<void> onRefresh() async {
+                    final bloc = context.read<ClassListBloc>();
+                    bloc.add(ClassListLoaded());
+                    await bloc.stream.firstWhere((s) => s.status != ClassListStatus.loading);
+                  }
+
                   Widget buildRefreshable(Widget child) {
                     return CommonRefresh(
-                      onRefresh: () async {
-                        final bloc = context.read<ClassListBloc>();
-                        bloc.add(ClassListLoaded());
-                        await bloc.stream.firstWhere((s) => s.status != ClassListStatus.loading);
-                      },
+                      onRefresh: onRefresh,
                       slivers: [SliverFillRemaining(child: child)],
                     );
                   }
@@ -96,19 +112,71 @@ class _ClassRoomsScreenState extends State<ClassRoomsScreen> {
                     );
                   }
 
+                  // Lời mời đang chờ trả lời luôn nằm trên cùng, kể cả khi chưa có lớp nào.
+                  final invitations = state.invitations;
+                  final invitationsSliver = invitations.isEmpty
+                      ? null
+                      : SliverPadding(
+                          padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
+                          sliver: SliverList.list(
+                            children: [
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 10, left: 4),
+                                child: Text(
+                                  "Lời mời tham gia (${invitations.length})",
+                                  style: theme.textTheme.titleSmall?.copyWith(
+                                    fontWeight: FontWeight.w800,
+                                    color: colorScheme.onSurfaceVariant,
+                                  ),
+                                ),
+                              ),
+                              for (final invitation in invitations)
+                                ClassInvitationCard(
+                                  invitation: invitation,
+                                  busy:
+                                      state.isProcessing &&
+                                      state.respondingClassId == invitation.classId,
+                                  onAccept: () => context.read<ClassListBloc>().add(
+                                    ClassInvitationResponded(
+                                      classId: invitation.classId,
+                                      accept: true,
+                                      notify: true,
+                                    ),
+                                  ),
+                                  onDecline: () => context.read<ClassListBloc>().add(
+                                    ClassInvitationResponded(
+                                      classId: invitation.classId,
+                                      accept: false,
+                                      notify: true,
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        );
+
                   if (state.classes.isEmpty) {
-                    return buildRefreshable(
-                      const CommonEmpty(title: "Bạn chưa tham gia lớp học nào."),
+                    if (invitationsSliver == null) {
+                      return buildRefreshable(
+                        const CommonEmpty(title: "Bạn chưa tham gia lớp học nào."),
+                      );
+                    }
+                    return CommonRefresh(
+                      onRefresh: onRefresh,
+                      slivers: [
+                        invitationsSliver,
+                        const SliverFillRemaining(
+                          hasScrollBody: false,
+                          child: CommonEmpty(title: "Bạn chưa tham gia lớp học nào."),
+                        ),
+                      ],
                     );
                   }
 
                   return CommonRefresh(
-                    onRefresh: () async {
-                      final bloc = context.read<ClassListBloc>();
-                      bloc.add(ClassListLoaded());
-                      await bloc.stream.firstWhere((s) => s.status != ClassListStatus.loading);
-                    },
+                    onRefresh: onRefresh,
                     slivers: [
+                      ?invitationsSliver,
                       SliverPadding(
                         padding: const EdgeInsets.fromLTRB(24, 16, 24, 90),
                         sliver: SliverList.builder(
@@ -117,12 +185,16 @@ class _ClassRoomsScreenState extends State<ClassRoomsScreen> {
                             final classModel = state.classes[index];
                             return ClassItemCard(
                               classModel: classModel,
-                              onTap: () {
-                                context.pushNamed(
+                              onTap: () async {
+                                await context.pushNamed(
                                   AppRoute.classroomDetail.name,
                                   pathParameters: {'id': classModel.id},
                                   extra: classModel.toJson(),
                                 );
+                                // Có thể đã rời / xóa lớp bên trong: làm mới danh sách khi quay lại.
+                                if (context.mounted) {
+                                  context.read<ClassListBloc>().add(ClassListLoaded());
+                                }
                               },
                             );
                           },

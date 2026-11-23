@@ -34,13 +34,21 @@ class MediaService {
     }
   }
 
-  Future<List<File>> pickMultipleImages() async {
+  Future<List<File>> pickMultipleImages({
+    double? maxWidth,
+    double? maxHeight,
+    int imageQuality = 80,
+  }) async {
     final hasPermission = await requestGalleryPermission();
     if (!hasPermission) {
       throw PermissionFailure(message: 'permission_gallery_denied'.tr);
     }
     try {
-      final List<XFile> images = await _picker.pickMultiImage(imageQuality: 80);
+      final List<XFile> images = await _picker.pickMultiImage(
+        maxWidth: maxWidth,
+        maxHeight: maxHeight,
+        imageQuality: imageQuality,
+      );
       if (images.isEmpty) return [];
       return images.map((xFile) => File(xFile.path)).toList();
     } catch (e) {
@@ -48,13 +56,18 @@ class MediaService {
     }
   }
 
-  Future<File?> takePhoto() async {
+  Future<File?> takePhoto({double? maxWidth, double? maxHeight, int imageQuality = 80}) async {
     final hasPermission = await requestCameraPermission();
     if (!hasPermission) {
       throw PermissionFailure(message: 'permission_camera_denied'.tr);
     }
     try {
-      final XFile? image = await _picker.pickImage(source: ImageSource.camera, imageQuality: 80);
+      final XFile? image = await _picker.pickImage(
+        source: ImageSource.camera,
+        maxWidth: maxWidth,
+        maxHeight: maxHeight,
+        imageQuality: imageQuality,
+      );
       return image != null ? File(image.path) : null;
     } catch (e) {
       throw UnknownFailure(message: '${'error_take_photo'.tr} $e');

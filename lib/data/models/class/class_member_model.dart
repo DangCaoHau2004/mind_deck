@@ -7,6 +7,12 @@ class ClassMemberModel {
   final ClassRole role;
   final DateTime joinedAt;
 
+  /// `null` với học viên khi lớp không bật `showMemberEmails`.
+  final String? email;
+
+  /// ≠ null chỉ cho biết người này từng được mời (không phải trạng thái hiện tại).
+  final DateTime? invitedAt;
+
   // UI optimized fields
   final UserModel? user;
 
@@ -15,8 +21,12 @@ class ClassMemberModel {
     required this.userId,
     required this.role,
     required this.joinedAt,
+    this.email,
+    this.invitedAt,
     this.user,
   });
+
+  String get fullName => user?.fullName ?? '';
 
   factory ClassMemberModel.fromJson(Map<String, dynamic> json) {
     return ClassMemberModel(
@@ -26,6 +36,8 @@ class ClassMemberModel {
       joinedAt:
           DateTime.tryParse(json['joinedAt']?.toString() ?? json['joined_at']?.toString() ?? '') ??
           DateTime.now(),
+      email: json['email'] as String?,
+      invitedAt: DateTime.tryParse(json['invitedAt']?.toString() ?? ''),
 
       // Relation
       user: json['user'] != null
@@ -54,6 +66,8 @@ class ClassMemberModel {
       'userId': userId,
       'role': role.toJson(),
       'joinedAt': joinedAt.toIso8601String(),
+      if (email != null) 'email': email,
+      if (invitedAt != null) 'invitedAt': invitedAt!.toIso8601String(),
       if (user != null) 'user': user!.toJson(),
     };
   }
@@ -63,6 +77,8 @@ class ClassMemberModel {
     String? userId,
     ClassRole? role,
     DateTime? joinedAt,
+    String? email,
+    DateTime? invitedAt,
     UserModel? user,
   }) {
     return ClassMemberModel(
@@ -70,7 +86,35 @@ class ClassMemberModel {
       userId: userId ?? this.userId,
       role: role ?? this.role,
       joinedAt: joinedAt ?? this.joinedAt,
+      email: email ?? this.email,
+      invitedAt: invitedAt ?? this.invitedAt,
       user: user ?? this.user,
+    );
+  }
+}
+
+/// Kết quả `DELETE /classes/:id/members/:userId` (từ chối / thu hồi lời mời / đuổi).
+class RemoveMemberResult {
+  final bool removed;
+  final bool kicked;
+  final bool wasApproved;
+
+  /// pending | invited | approved
+  final String? previousStatus;
+
+  const RemoveMemberResult({
+    this.removed = false,
+    this.kicked = false,
+    this.wasApproved = false,
+    this.previousStatus,
+  });
+
+  factory RemoveMemberResult.fromJson(Map<String, dynamic> json) {
+    return RemoveMemberResult(
+      removed: json['removed'] as bool? ?? false,
+      kicked: json['kicked'] as bool? ?? false,
+      wasApproved: json['wasApproved'] as bool? ?? false,
+      previousStatus: json['previousStatus'] as String?,
     );
   }
 }

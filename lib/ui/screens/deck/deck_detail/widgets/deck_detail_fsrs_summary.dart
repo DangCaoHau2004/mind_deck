@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:mind_deck/core/extensions/card_state_extension.dart';
+import 'package:mind_deck/core/extensions/string_extension.dart';
 import 'package:mind_deck/data/models/deck_model.dart';
 import 'package:mind_deck/data/models/enums.dart';
-import 'package:mind_deck/utils/extensions/card_state_extension.dart';
 
+/// Thẻ "Trạng thái ghi nhớ (FSRS)": một thanh chia đoạn theo tỉ lệ số thẻ ở từng trạng thái, bên dưới là
+/// số lượng và tên trạng thái.
 class DeckDetailFsrsSummary extends StatelessWidget {
   final DeckModel deck;
 
@@ -11,106 +14,93 @@ class DeckDetailFsrsSummary extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
 
-    int newCount = 0;
-    int learningCount = 0;
-    int reviewCount = 0;
-    int relearningCount = 0;
-    int masteredCount = 0;
-
-    if (deck.flashcards != null) {
-      for (final card in deck.flashcards!) {
-        final state = card.progress?.state ?? CardState.newCard;
-        switch (state) {
-          case CardState.newCard:
-            newCount++;
-            break;
-          case CardState.learning:
-            learningCount++;
-            break;
-          case CardState.review:
-            reviewCount++;
-            break;
-          case CardState.relearning:
-            relearningCount++;
-            break;
-          case CardState.mastered:
-            masteredCount++;
-            break;
-        }
-      }
+    final counts = {for (final s in CardState.values) s: 0};
+    for (final card in deck.flashcards ?? const []) {
+      final state = card.progress?.state ?? CardState.newCard;
+      counts[state] = counts[state]! + 1;
     }
+    final total = counts.values.fold<int>(0, (a, b) => a + b);
 
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(18, 16, 18, 14),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: colorScheme.outline.withValues(alpha: 0.15)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Trạng thái học tập (FSRS)',
-            style: theme.textTheme.titleSmall?.copyWith(
-              fontWeight: FontWeight.bold,
-              color: theme.colorScheme.onSurface,
-            ),
-          ),
-          const SizedBox(height: 14),
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              _buildProgressIndicatorItem(CardState.newCard, newCount, theme),
-              _buildProgressIndicatorItem(CardState.learning, learningCount, theme),
-              _buildProgressIndicatorItem(CardState.review, reviewCount, theme),
-              _buildProgressIndicatorItem(CardState.relearning, relearningCount, theme),
-              _buildProgressIndicatorItem(CardState.mastered, masteredCount, theme),
+              Expanded(
+                child: Text(
+                  'deck_fsrs_title'.tr,
+                  style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+                ),
+              ),
+              Text(
+                'FSRS',
+                style: theme.textTheme.labelLarge?.copyWith(
+                  color: colorScheme.onSurface.withValues(alpha: 0.5),
+                  letterSpacing: 0.5,
+                ),
+              ),
             ],
           ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildProgressIndicatorItem(CardState state, int count, ThemeData theme) {
-    return Expanded(
-      child: Column(
-        children: [
-          Text(
-            '$count',
-            style: theme.textTheme.titleMedium?.copyWith(
-              color: state.color,
-              fontWeight: FontWeight.w800,
+          const SizedBox(height: 12),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(6),
+            child: SizedBox(
+              height: 12,
+              child: total == 0
+                  ? ColoredBox(color: CardState.newCard.color, child: const SizedBox.expand())
+                  : Row(
+                      children: [
+                        for (final state in CardState.values)
+                          if (counts[state]! > 0) ...[
+                            Expanded(
+                              flex: counts[state]!,
+                              child: ColoredBox(color: state.color, child: const SizedBox.expand()),
+                            ),
+                            const SizedBox(width: 2),
+                          ],
+                      ],
+                    ),
             ),
           ),
-          const SizedBox(height: 6),
-          Container(
-            height: 5,
-            margin: const EdgeInsets.symmetric(horizontal: 4),
-            decoration: BoxDecoration(
-              color: state.color,
-              borderRadius: BorderRadius.circular(2.5),
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            state.label,
-            style: theme.textTheme.labelSmall?.copyWith(
-              color: Colors.grey.shade600,
-              fontSize: 10.5,
-              fontWeight: FontWeight.w600,
-            ),
-            textAlign: TextAlign.center,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              for (final state in CardState.values)
+                Expanded(
+                  child: Column(
+                    children: [
+                      Text(
+                        '${counts[state]}',
+                        style: theme.textTheme.headlineSmall?.copyWith(
+                          color: state == CardState.newCard
+                              ? colorScheme.onSurface.withValues(alpha: 0.7)
+                              : state.color,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        state.label,
+                        style: theme.textTheme.labelMedium?.copyWith(
+                          color: colorScheme.onSurface.withValues(alpha: 0.6),
+                        ),
+                        textAlign: TextAlign.center,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+            ],
           ),
         ],
       ),

@@ -1,10 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:get_it/get_it.dart';
-import 'package:mind_deck/data/repositories/folder_repository.dart';
-import 'package:mind_deck/data/repositories/deck_repository.dart';
-import 'package:mind_deck/ui/commons/custom_toast.dart';
 import 'package:mind_deck/navigation/app_routes.dart';
+import 'package:mind_deck/ui/screens/discover/discover_save_helper.dart';
 import 'package:mind_deck/data/models/discovery/discovery_suggested_content_model.dart';
 
 class DiscoverTrendingListItem extends StatelessWidget {
@@ -131,64 +128,8 @@ class DiscoverTrendingListItem extends StatelessWidget {
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
                 icon: Icon(Icons.bookmark_add_outlined, color: itemColor, size: 20),
-                onPressed: () async {
-                  try {
-                    CustomToast.show(
-                      context,
-                      CustomToast.general(message: 'Đang lưu vào thư viện...'),
-                    );
-
-                    if (isFolder) {
-                      final response = await GetIt.instance<FolderRepository>().cloneFolder(
-                        item.id,
-                      );
-                      if (response.success && context.mounted) {
-                        ScaffoldMessenger.of(context).hideCurrentSnackBar();
-                        CustomToast.show(
-                          context,
-                          CustomToast.success(message: 'Đã lưu thư mục thành công!'),
-                        );
-                        context.pushNamed(
-                          AppRoute.folderDetail.name,
-                          pathParameters: {'id': response.data!.id},
-                        );
-                      } else if (context.mounted) {
-                        ScaffoldMessenger.of(context).hideCurrentSnackBar();
-                        CustomToast.show(
-                          context,
-                          CustomToast.danger(message: response.message ?? 'Lỗi khi lưu thư mục'),
-                        );
-                      }
-                    } else {
-                      final response = await GetIt.instance<DeckRepository>().cloneDeck(item.id);
-                      if (response.success && context.mounted) {
-                        ScaffoldMessenger.of(context).hideCurrentSnackBar();
-                        CustomToast.show(
-                          context,
-                          CustomToast.success(message: 'Đã lưu bộ thẻ thành công!'),
-                        );
-                        context.pushNamed(
-                          AppRoute.deckDetail.name,
-                          pathParameters: {'id': response.data!.id},
-                        );
-                      } else if (context.mounted) {
-                        ScaffoldMessenger.of(context).hideCurrentSnackBar();
-                        CustomToast.show(
-                          context,
-                          CustomToast.danger(message: response.message ?? 'Lỗi khi lưu bộ thẻ'),
-                        );
-                      }
-                    }
-                  } catch (e) {
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).hideCurrentSnackBar();
-                      CustomToast.show(
-                        context,
-                        CustomToast.danger(message: 'Đã có lỗi xảy ra: $e'),
-                      );
-                    }
-                  }
-                },
+                onPressed: () =>
+                    DiscoverSaveHelper.saveToLibrary(context, id: item.id, isFolder: isFolder),
               ),
             ),
           ],

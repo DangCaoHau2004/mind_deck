@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mind_deck/constants/app_assets.dart';
+import 'package:mind_deck/core/extensions/failure_extension.dart';
 import 'package:mind_deck/core/extensions/string_extension.dart';
 import 'package:mind_deck/navigation/app_routes.dart';
 import 'package:mind_deck/ui/commons/input_screens/custom_text_field.dart';
@@ -40,13 +41,10 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
           if (state is ForgotPasswordOtpSentSuccess) {
             context.pushNamed(
               AppRoute.verifyForgotOtp.name,
-              extra: {
-                'email': state.email,
-                'cooldown': state.cooldownRemaining,
-              },
+              extra: {'email': state.email, 'cooldown': state.cooldownRemaining},
             );
           } else if (state is ForgotPasswordFailure) {
-            CustomToast.show(context, CustomToast.danger(message: state.error));
+            CustomToast.show(context, CustomToast.danger(message: state.failure.displayMessage));
           }
         },
         builder: (context, state) {
@@ -61,45 +59,31 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
             ),
             body: SafeArea(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 24.0,
-                  vertical: 8.0,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 8.0),
                 child: Column(
                   children: [
                     Hero(
                       tag: 'app_logo',
                       child: Transform.scale(
                         scale: 1.3,
-                        child: Image.asset(
-                          AppAssets.iconTransparent,
-                          width: 200,
-                          height: 200,
-                        ),
+                        child: Image.asset(AppAssets.iconTransparent, width: 200, height: 200),
                       ),
                     ),
                     Text(
                       'forgot_password_title'.tr,
-                      style: textTheme.headlineMedium?.copyWith(
-                        fontWeight: FontWeight.w900,
-                      ),
+                      style: textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w900),
                     ),
                     const SizedBox(height: 8),
                     Text(
                       'forgot_password_subtitle'.tr,
                       textAlign: TextAlign.center,
-                      style: textTheme.bodyLarge?.copyWith(
-                        color: colorScheme.onSurfaceVariant,
-                      ),
+                      style: textTheme.bodyLarge?.copyWith(color: colorScheme.onSurfaceVariant),
                     ),
                     const SizedBox(height: 40),
                     CustomTextField(
                       controller: _emailController,
                       hintText: 'forgot_password_email_hint'.tr,
-                      prefixIcon: Icon(
-                        Icons.mail_outline,
-                        color: colorScheme.onSurfaceVariant,
-                      ),
+                      prefixIcon: Icon(Icons.mail_outline, color: colorScheme.onSurfaceVariant),
                     ),
                     const SizedBox(height: 32),
                     SizedBox(
@@ -110,21 +94,15 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                             ? null
                             : () {
                                 context.read<ForgotPasswordBloc>().add(
-                                  ForgotPasswordEmailSubmitted(
-                                    email: _emailController.text.trim(),
-                                  ),
+                                  ForgotPasswordEmailSubmitted(email: _emailController.text.trim()),
                                 );
                               },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: colorScheme.primary,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                          ),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                         ),
                         child: state is ForgotPasswordLoading
-                            ? const CircularProgressIndicator(
-                                color: Colors.white,
-                              )
+                            ? const CircularProgressIndicator(color: Colors.white)
                             : Text(
                                 'forgot_password_button'.tr,
                                 style: textTheme.titleMedium?.copyWith(

@@ -3,20 +3,15 @@ import 'package:mind_deck/data/repositories/discovery_repository.dart';
 import 'discover_popular_event.dart';
 import 'discover_popular_state.dart';
 
-class DiscoverPopularBloc
-    extends Bloc<DiscoverPopularEvent, DiscoverPopularState> {
+class DiscoverPopularBloc extends Bloc<DiscoverPopularEvent, DiscoverPopularState> {
   final DiscoveryRepository discoveryRepository;
 
-  DiscoverPopularBloc({required this.discoveryRepository})
-    : super(const DiscoverPopularState()) {
+  DiscoverPopularBloc({required this.discoveryRepository}) : super(const DiscoverPopularState()) {
     on<DiscoverPopularLoaded>(_onLoaded);
     on<DiscoverPopularRefreshed>(_onRefreshed);
   }
 
-  Future<void> _onLoaded(
-    DiscoverPopularLoaded event,
-    Emitter<DiscoverPopularState> emit,
-  ) async {
+  Future<void> _onLoaded(DiscoverPopularLoaded event, Emitter<DiscoverPopularState> emit) async {
     if (state.hasReachedMax && event.page > 1) return;
 
     if (event.page == 1) {
@@ -30,12 +25,7 @@ class DiscoverPopularBloc
       );
       if (response.success) {
         if (response.data.isEmpty) {
-          emit(
-            state.copyWith(
-              hasReachedMax: true,
-              status: DiscoverPopularStatus.success,
-            ),
-          );
+          emit(state.copyWith(hasReachedMax: true, status: DiscoverPopularStatus.success));
         } else {
           emit(
             state.copyWith(
@@ -48,20 +38,10 @@ class DiscoverPopularBloc
           );
         }
       } else {
-        emit(
-          state.copyWith(
-            status: DiscoverPopularStatus.failure,
-            errorMessage: response.message,
-          ),
-        );
+        emit(state.copyWith(status: DiscoverPopularStatus.failure, errorMessage: response.message));
       }
     } catch (e) {
-      emit(
-        state.copyWith(
-          status: DiscoverPopularStatus.failure,
-          errorMessage: e.toString(),
-        ),
-      );
+      emit(state.copyWith(status: DiscoverPopularStatus.failure, errorMessage: e.toString()));
     }
   }
 
@@ -69,14 +49,9 @@ class DiscoverPopularBloc
     DiscoverPopularRefreshed event,
     Emitter<DiscoverPopularState> emit,
   ) async {
-    emit(
-      state.copyWith(isRefreshing: true, hasReachedMax: false, currentPage: 1),
-    );
+    emit(state.copyWith(isRefreshing: true, hasReachedMax: false, currentPage: 1));
     try {
-      final response = await discoveryRepository.getPopularContent(
-        page: 1,
-        limit: 20,
-      );
+      final response = await discoveryRepository.getPopularContent(page: 1, limit: 20);
       if (response.success) {
         emit(
           state.copyWith(

@@ -26,8 +26,7 @@ class DiscoverySuggestedContentModel {
       type: json['type'] as String? ?? '',
       id: json['id'] as String? ?? '',
       name: json['name'] as String? ?? '',
-      savedCount:
-          json['savedCount'] as int? ?? json['saved_count'] as int? ?? 0,
+      savedCount: json['savedCount'] as int? ?? json['saved_count'] as int? ?? 0,
       cardCount: json['cardCount'] as int? ?? json['card_count'] as int?,
       deckCount: json['deckCount'] as int? ?? json['deck_count'] as int?,
       ownerName: json['ownerName'] as String? ?? json['owner_name'] as String?,

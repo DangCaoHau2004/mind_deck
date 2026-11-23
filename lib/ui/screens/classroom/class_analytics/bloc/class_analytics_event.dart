@@ -12,10 +12,14 @@ abstract class ClassAnalyticsEvent extends Equatable {
 class ClassAnalyticsLoaded extends ClassAnalyticsEvent {
   final String classId;
 
-  const ClassAnalyticsLoaded(this.classId);
+  /// Giảng viên (owner/admin/tutor) xem được cả lớp, chọn học viên và tiến độ bài giao.
+  /// Học viên chỉ xem số liệu của chính mình (BE bỏ qua `student_id` của học viên).
+  final bool isTeacher;
+
+  const ClassAnalyticsLoaded(this.classId, {this.isTeacher = false});
 
   @override
-  List<Object?> get props => [classId];
+  List<Object?> get props => [classId, isTeacher];
 }
 
 class ClassAnalyticsRefreshed extends ClassAnalyticsEvent {

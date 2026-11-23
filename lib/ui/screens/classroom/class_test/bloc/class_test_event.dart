@@ -12,11 +12,7 @@ class ClassTestStarted extends ClassTestEvent {
   final String assignmentId;
   final String testId;
 
-  const ClassTestStarted({
-    required this.classId,
-    required this.assignmentId,
-    required this.testId,
-  });
+  const ClassTestStarted({required this.classId, required this.assignmentId, required this.testId});
 
   @override
   List<Object?> get props => [classId, assignmentId, testId];
@@ -40,14 +36,19 @@ class ClassTestAnswerSelected extends ClassTestEvent {
 }
 
 class ClassTestTimerTicked extends ClassTestEvent {
-  final int secondsRemaining;
-
-  const ClassTestTimerTicked(this.secondsRemaining);
-
-  @override
-  List<Object?> get props => [secondsRemaining];
+  const ClassTestTimerTicked();
 }
 
 class ClassTestSubmitRequested extends ClassTestEvent {
   const ClassTestSubmitRequested();
+}
+
+/// Phiên làm bài không còn dùng được (hết hạn / bài bị xóa / không còn thuộc diện được giao...).
+class ClassTestSessionLost extends ClassTestEvent {
+  final String message;
+
+  const ClassTestSessionLost(this.message);
+
+  @override
+  List<Object?> get props => [message];
 }

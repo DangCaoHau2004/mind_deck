@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:mind_deck/ui/screens/study_flashcard/bloc/flashcard_study_bloc.dart';
 import 'package:mind_deck/ui/screens/study_flashcard/bloc/flashcard_study_event.dart';
 import 'package:mind_deck/ui/screens/study_flashcard/bloc/flashcard_study_state.dart';
+import 'package:mind_deck/ui/commons/custom_dialog.dart';
 import 'package:mind_deck/ui/commons/custom_toast.dart';
 import 'package:mind_deck/ui/commons/state_screens/common_loading.dart';
 import 'package:mind_deck/ui/commons/state_screens/common_failure.dart';
@@ -13,10 +14,16 @@ import 'widgets/flashcard_study_progress_badge.dart';
 import 'widgets/flashcard_study_settings_modal.dart';
 import 'widgets/flashcard_study_completed_view.dart';
 import 'package:mind_deck/utils/study_flow_helper.dart';
+import 'package:mind_deck/configs/di.dart';
+import 'package:mind_deck/constants/ad_units.dart';
+import 'package:mind_deck/services/ad_service.dart';
 
 class FlashcardStudyScreen extends StatefulWidget {
   final VoidCallback? onCompleted;
-  const FlashcardStudyScreen({super.key, this.onCompleted});
+
+  /// Có khi phiên bắt đầu theo bộ thẻ: "Học lại" gửi `restart: true` cho bộ thẻ này.
+  final String? restartDeckId;
+  const FlashcardStudyScreen({super.key, this.onCompleted, this.restartDeckId});
 
   @override
   State<FlashcardStudyScreen> createState() => _FlashcardStudyScreenState();
@@ -91,31 +98,27 @@ class _FlashcardStudyScreenState extends State<FlashcardStudyScreen> with Widget
     });
   }
 
-  Future<bool> _showExitConfirmationDialog(BuildContext context) async {
-    final theme = Theme.of(context);
-    final result = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text('Tạm dừng phiên học?'),
-        content: const Text(
-          'Tiến trình học của bạn đã được tự động lưu. Bạn có chắc chắn muốn thoát?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => ctx.pop(false),
-            child: Text('Tiếp tục học', style: TextStyle(color: theme.colorScheme.outline)),
-          ),
-          FilledButton(
-            onPressed: () => ctx.pop(true),
-            style: FilledButton.styleFrom(
-              backgroundColor: theme.colorScheme.error,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            ),
-            child: const Text('Thoát'),
-          ),
-        ],
-      ),
+  String _formatTimer(int totalSeconds) {
+    final minutes = totalSeconds ~/ 60;
+    final seconds = totalSeconds % 60;
+    return '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
+  }
+
+  Future<bool> _showExitConfirmationDialog(BuildContext context, {bool isReadOnly = false}) async {
+    final colorScheme = Theme.of(context).colorScheme;
+    final result = await CustomDialog.show<bool>(
+      context,
+      icon: Icons.pause_circle_outline_rounded,
+      iconColor: colorScheme.error,
+      iconBackgroundColor: colorScheme.error.withValues(alpha: 0.1),
+      title: 'Tạm dừng phiên học?',
+      description: isReadOnly
+          ? 'Đây là phiên học thử nên tiến trình không được lưu. Bạn có chắc chắn muốn thoát?'
+          : 'Tiến trình học của bạn đã được tự động lưu. Bạn có chắc chắn muốn thoát?',
+      cancelText: 'Tiếp tục học',
+      confirmText: 'Thoát',
+      confirmButtonColor: colorScheme.error,
+      confirmTextColor: Colors.white,
     );
     return result ?? false;
   }
@@ -125,12 +128,17 @@ class _FlashcardStudyScreenState extends State<FlashcardStudyScreen> with Widget
     final theme = Theme.of(context);
 
     return BlocConsumer<FlashcardStudyBloc, FlashcardStudyState>(
-      listenWhen: (prev, curr) => prev.status != curr.status,
+      listenWhen: (prev, curr) => prev.status != curr.status || prev.isTimedOut != curr.isTimedOut,
       listener: (context, state) {
         if (state.status == StudyStatus.completed && widget.onCompleted != null) {
           widget.onCompleted!();
         } else if (state.status == StudyStatus.error && state.errorMessage != null) {
           CustomToast.show(context, CustomToast.danger(message: state.errorMessage!));
+        } else if (state.isTimedOut) {
+          CustomToast.show(
+            context,
+            CustomToast.danger(message: 'Hết thời gian ôn tập! Đang tự động nộp bài...'),
+          );
         }
       },
       builder: (context, state) {
@@ -140,22 +148,16 @@ class _FlashcardStudyScreenState extends State<FlashcardStudyScreen> with Widget
 
         if (state.status == StudyStatus.error) {
           return Scaffold(
-            body: Center(
-              child: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    CommonFailure(errorMessage: state.errorMessage),
-                    const SizedBox(height: 24),
-                    ElevatedButton.icon(
-                      onPressed: () => context.pop(),
-                      icon: const Icon(Icons.arrow_back_rounded),
-                      label: const Text('Quay lại'),
-                    ),
-                  ],
-                ),
+            backgroundColor: theme.colorScheme.surfaceContainer,
+            appBar: AppBar(
+              backgroundColor: Colors.transparent,
+              elevation: 0,
+              leading: IconButton(
+                icon: Icon(Icons.arrow_back_ios_new_rounded, color: theme.colorScheme.onSurface),
+                onPressed: () => context.pop(),
               ),
             ),
+            body: Center(child: CommonFailure(errorMessage: state.errorMessage)),
           );
         }
 
@@ -163,25 +165,39 @@ class _FlashcardStudyScreenState extends State<FlashcardStudyScreen> with Widget
           return FlashcardStudyCompletedView(
             cards: state.cards,
             onRetry: () {
-              final deckId = state.cards.firstOrNull?.deckId;
+              final deckId = widget.restartDeckId;
               if (deckId != null && deckId.isNotEmpty) {
-                StudyFlowHelper.start(context: context, deckId: deckId, replace: true);
+                StudyFlowHelper.start(
+                  context: context,
+                  deckId: deckId,
+                  replace: true,
+                  restart: true,
+                );
               } else {
                 final cardIds = state.cards.map((c) => c.id).toList();
                 StudyFlowHelper.start(context: context, cardIds: cardIds, replace: true);
               }
             },
-            onBack: () => context.pop(),
+            onBack: () async {
+              await DI().sl<AdService>().showInterstitial(AdUnit.interstitialStudyComplete);
+              if (context.mounted) context.pop();
+            },
           );
         }
 
         final currentCard = state.currentCard;
-
+        // lý do dùng popscope ở đây mà lại ko viết thẳng vào trong cái iconbtn ở scaffold là do
+        // user có thể vuốt ngang để back lại cái tab cũ mà nếu như chỉ viết ở cái action btn
+        // thì nó sẽ ko bắt được trường hợp này nếu dùng popscope thì nó sẽ bắt toàn bộ các trường hợp
+        // định back về màn trước sau đó xử lý trước khi back
         return PopScope(
           canPop: false,
           onPopInvokedWithResult: (didPop, result) async {
             if (didPop) return;
-            final shouldPop = await _showExitConfirmationDialog(context);
+            final shouldPop = await _showExitConfirmationDialog(
+              context,
+              isReadOnly: state.isReadOnly,
+            );
             if (shouldPop && context.mounted) {
               context.read<FlashcardStudyBloc>().add(SyncProgressEvent(immediate: true));
               context.pop();
@@ -195,12 +211,8 @@ class _FlashcardStudyScreenState extends State<FlashcardStudyScreen> with Widget
               centerTitle: true,
               leading: IconButton(
                 icon: Icon(Icons.close_rounded, color: theme.colorScheme.onSurface),
-                onPressed: () async {
-                  final shouldPop = await _showExitConfirmationDialog(context);
-                  if (shouldPop && context.mounted) {
-                    context.read<FlashcardStudyBloc>().add(SyncProgressEvent(immediate: true));
-                    context.pop();
-                  }
+                onPressed: () {
+                  Navigator.maybePop(context);
                 },
               ),
               title: Column(
@@ -210,9 +222,50 @@ class _FlashcardStudyScreenState extends State<FlashcardStudyScreen> with Widget
                     style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 4),
-                  Text(
-                    '${state.currentIndex + 1} / ${state.currentRoundCards.length}',
-                    style: theme.textTheme.labelMedium?.copyWith(color: theme.colorScheme.outline),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        '${state.currentIndex + 1} / ${state.currentRoundCards.length}',
+                        style: theme.textTheme.labelMedium?.copyWith(
+                          color: theme.colorScheme.outline,
+                        ),
+                      ),
+                      if (state.timeLimitSeconds > 0) ...[
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: state.remainingSeconds <= 60
+                                ? theme.colorScheme.errorContainer
+                                : theme.colorScheme.primaryContainer,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.timer_outlined,
+                                size: 12,
+                                color: state.remainingSeconds <= 60
+                                    ? theme.colorScheme.error
+                                    : theme.colorScheme.primary,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                _formatTimer(state.remainingSeconds),
+                                style: theme.textTheme.labelSmall?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                  color: state.remainingSeconds <= 60
+                                      ? theme.colorScheme.error
+                                      : theme.colorScheme.primary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                 ],
               ),
@@ -240,6 +293,7 @@ class _FlashcardStudyScreenState extends State<FlashcardStudyScreen> with Widget
                 children: [
                   Column(
                     children: [
+                      if (state.isReadOnly) const _TrialBanner(),
                       Padding(
                         padding: const EdgeInsets.symmetric(vertical: 8.0),
                         child: Row(
@@ -370,6 +424,39 @@ class _FlashcardStudyScreenState extends State<FlashcardStudyScreen> with Widget
           ),
         );
       },
+    );
+  }
+}
+
+/// Học thử deck của người khác: không lưu tiến trình, không ảnh hưởng lịch ôn (FSRS).
+class _TrialBanner extends StatelessWidget {
+  const _TrialBanner();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.tertiaryContainer,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.visibility_outlined, size: 18, color: theme.colorScheme.onTertiaryContainer),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'Học thử – không lưu tiến trình và không tính vào lịch ôn tập',
+              style: theme.textTheme.labelMedium?.copyWith(
+                color: theme.colorScheme.onTertiaryContainer,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

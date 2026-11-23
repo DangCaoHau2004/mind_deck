@@ -17,9 +17,7 @@ class SyncDownResponseModel {
 
   factory SyncDownResponseModel.fromJson(Map<String, dynamic> json) {
     return SyncDownResponseModel(
-      timestamp:
-          DateTime.tryParse(json['timestamp']?.toString() ?? '') ??
-          DateTime.now(),
+      timestamp: DateTime.tryParse(json['timestamp']?.toString() ?? '') ?? DateTime.now(),
       updatedFolders:
           (json['updatedFolders'] as List<dynamic>?)
               ?.map((e) => FolderModel.fromJson(e as Map<String, dynamic>))

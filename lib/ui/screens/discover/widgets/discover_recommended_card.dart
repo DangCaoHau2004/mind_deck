@@ -32,10 +32,7 @@ class DiscoverRecommendedCard extends StatelessWidget {
 
     return InkWell(
       onTap: () {
-        context.pushNamed(
-          AppRoute.deckDetail.name,
-          pathParameters: {'id': item.id},
-        );
+        context.pushNamed(AppRoute.deckDetail.name, pathParameters: {'id': item.id});
       },
       child: Container(
         width: 280,
@@ -83,9 +80,7 @@ class DiscoverRecommendedCard extends StatelessWidget {
                           children: [
                             CircleAvatar(
                               radius: 10,
-                              backgroundColor: Colors.white.withValues(
-                                alpha: 60 / 255,
-                              ),
+                              backgroundColor: Colors.white.withValues(alpha: 60 / 255),
                               child: const Icon(
                                 Icons.person_rounded,
                                 size: 12,
@@ -96,26 +91,19 @@ class DiscoverRecommendedCard extends StatelessWidget {
                             Text(
                               item.authorName ?? 'Ẩn danh',
                               style: textTheme.labelSmall?.copyWith(
-                                color: Colors.white.withValues(
-                                  alpha: 230 / 255,
-                                ),
+                                color: Colors.white.withValues(alpha: 230 / 255),
                               ),
                             ),
                           ],
                         ),
                         Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 5,
-                          ),
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
                           decoration: BoxDecoration(
                             color: Colors.white.withValues(alpha: 50 / 255),
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Text(
-                            item.goalType == GoalType.longTerm
-                                ? 'Dài hạn'
-                                : 'Ngắn hạn',
+                            item.goalType == GoalType.longTerm ? 'Dài hạn' : 'Ngắn hạn',
                             style: textTheme.labelSmall?.copyWith(
                               color: Colors.white,
                               fontWeight: FontWeight.w800,
@@ -135,8 +123,7 @@ class DiscoverRecommendedCard extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    if (item.description != null &&
-                        item.description!.isNotEmpty) ...[
+                    if (item.description != null && item.description!.isNotEmpty) ...[
                       const SizedBox(height: 6),
                       Text(
                         item.description!,
@@ -148,10 +135,7 @@ class DiscoverRecommendedCard extends StatelessWidget {
                       ),
                     ],
                     const SizedBox(height: 12),
-                    Divider(
-                      color: Colors.white.withValues(alpha: 40 / 255),
-                      height: 1,
-                    ),
+                    Divider(color: Colors.white.withValues(alpha: 40 / 255), height: 1),
                     const SizedBox(height: 12),
                     Row(
                       children: [
@@ -160,16 +144,9 @@ class DiscoverRecommendedCard extends StatelessWidget {
                             item.tags!.take(2).length,
                             (index) => Container(
                               margin: const EdgeInsets.only(right: 6),
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 4,
-                              ),
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                               decoration: BoxDecoration(
-                                border: Border.all(
-                                  color: Colors.white.withValues(
-                                    alpha: 80 / 255,
-                                  ),
-                                ),
+                                border: Border.all(color: Colors.white.withValues(alpha: 80 / 255)),
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               child: Text(
@@ -190,9 +167,7 @@ class DiscoverRecommendedCard extends StatelessWidget {
                         const SizedBox(width: 4),
                         Text(
                           '${item.cardCount ?? 0}',
-                          style: textTheme.labelSmall?.copyWith(
-                            color: Colors.white,
-                          ),
+                          style: textTheme.labelSmall?.copyWith(color: Colors.white),
                         ),
                         const SizedBox(width: 10),
                         Icon(
@@ -203,9 +178,7 @@ class DiscoverRecommendedCard extends StatelessWidget {
                         const SizedBox(width: 4),
                         Text(
                           '${item.savedCount}',
-                          style: textTheme.labelSmall?.copyWith(
-                            color: Colors.white,
-                          ),
+                          style: textTheme.labelSmall?.copyWith(color: Colors.white),
                         ),
                       ],
                     ),

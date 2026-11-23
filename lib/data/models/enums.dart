@@ -17,12 +17,15 @@ enum UserRole {
 
 enum UserPlan {
   free,
-  premium;
+  plus,
+  pro;
 
   static UserPlan fromString(String? val) {
     switch (val?.toLowerCase()) {
-      case 'premium':
-        return UserPlan.premium;
+      case 'plus':
+        return UserPlan.plus;
+      case 'pro':
+        return UserPlan.pro;
       case 'free':
       default:
         return UserPlan.free;
@@ -107,7 +110,8 @@ enum ClassRole {
 enum SearchType {
   folder,
   deck,
-  tag;
+  tag,
+  classroom;
 
   static SearchType fromString(String? val) {
     switch (val?.toLowerCase()) {
@@ -115,20 +119,33 @@ enum SearchType {
         return SearchType.deck;
       case 'tag':
         return SearchType.tag;
+      case 'class':
+        return SearchType.classroom;
       case 'folder':
       default:
         return SearchType.folder;
     }
   }
 
-  String toJson() => name;
+  String toJson() => this == SearchType.classroom ? 'class' : name;
 }
 
 enum NotificationType {
   system('system'),
   srsDue('srs_due'),
+  dailyStudyTime('daily_study_time'),
+  reportResolved('report_resolved'),
   streakWarning('streak_warning'),
   classUpdate('class_update'),
+  classInvite('class_invite'),
+  classInviteResponse('class_invite_response'),
+  classTestStart('class_test_start'),
+  classMemberLeft('class_member_left'),
+  classAssignment('class_assignment'),
+  classAnnouncement('class_announcement'),
+  classJoinRequest('class_join_request'),
+  classJoinApproved('class_join_approved'),
+  classSubmission('class_submission'),
   morningMotivation('morning_motivation');
 
   final String value;
@@ -138,17 +155,42 @@ enum NotificationType {
     switch (val?.toLowerCase()) {
       case 'srs_due':
         return NotificationType.srsDue;
+      case 'daily_study_time':
+        return NotificationType.dailyStudyTime;
+      case 'report_resolved':
+        return NotificationType.reportResolved;
       case 'streak_warning':
         return NotificationType.streakWarning;
       case 'class_update':
         return NotificationType.classUpdate;
       case 'morning_motivation':
         return NotificationType.morningMotivation;
+      case 'class_invite':
+        return NotificationType.classInvite;
+      case 'class_invite_response':
+        return NotificationType.classInviteResponse;
+      case 'class_test_start':
+        return NotificationType.classTestStart;
+      case 'class_member_left':
+        return NotificationType.classMemberLeft;
+      case 'class_assignment':
+        return NotificationType.classAssignment;
+      case 'class_announcement':
+        return NotificationType.classAnnouncement;
+      case 'class_join_request':
+        return NotificationType.classJoinRequest;
+      case 'class_join_approved':
+        return NotificationType.classJoinApproved;
+      case 'class_submission':
+        return NotificationType.classSubmission;
       case 'system':
       default:
         return NotificationType.system;
     }
   }
+
+  /// Thông báo thuộc module Lớp học (title/content là tiếng Việt thật, không phải key i18n).
+  bool get isClass => value.startsWith('class_');
 
   String toJson() => value;
 }

@@ -78,11 +78,7 @@ class SetupQuestionTypesSelector extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(
-                    _getIcon(t),
-                    color: isSelected ? activeColor : defaultIconColor,
-                    size: 26,
-                  ),
+                  Icon(_getIcon(t), color: isSelected ? activeColor : defaultIconColor, size: 26),
                   const SizedBox(height: 12),
                   Text(
                     t.title,

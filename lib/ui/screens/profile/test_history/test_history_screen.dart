@@ -10,6 +10,8 @@ import 'package:mind_deck/ui/screens/profile/test_history/bloc/test_history_even
 import 'package:mind_deck/ui/screens/profile/test_history/bloc/test_history_state.dart';
 import 'package:mind_deck/ui/commons/input_screens/custom_dropdown.dart';
 import 'package:intl/intl.dart';
+import 'package:mind_deck/constants/ad_units.dart';
+import 'package:mind_deck/ui/commons/ads/banner_ad_slot.dart';
 
 class TestHistoryScreen extends StatefulWidget {
   const TestHistoryScreen({super.key});
@@ -75,6 +77,7 @@ class _TestHistoryScreenState extends State<TestHistoryScreen> {
         centerTitle: true,
         elevation: 0,
       ),
+      bottomNavigationBar: const BannerAdSlot(unit: AdUnit.bannerTestHistory),
       body: BlocBuilder<TestHistoryBloc, TestHistoryState>(
         builder: (context, state) {
           final bool isInitialLoading =
@@ -82,15 +85,11 @@ class _TestHistoryScreenState extends State<TestHistoryScreen> {
                   state.status == TestHistoryStatus.loading) &&
               state.history.isEmpty;
           final bool isInitialError =
-              state.status == TestHistoryStatus.failure &&
-              state.history.isEmpty;
+              state.status == TestHistoryStatus.failure && state.history.isEmpty;
 
           return Column(
             children: [
-              _buildUnifiedFilterPanel(
-                context,
-                state,
-              ), // Đổi sang UI Filter mới
+              _buildUnifiedFilterPanel(context, state), // Đổi sang UI Filter mới
               Expanded(
                 child: CommonRefresh(
                   controller: _scrollController,
@@ -99,15 +98,11 @@ class _TestHistoryScreenState extends State<TestHistoryScreen> {
                   },
                   slivers: [
                     if (isInitialLoading)
-                      const SliverFillRemaining(
-                        child: Center(child: CircularProgressIndicator()),
-                      )
+                      const SliverFillRemaining(child: Center(child: CircularProgressIndicator()))
                     else if (isInitialError)
                       SliverFillRemaining(
                         child: Center(
-                          child: CommonFailure(
-                            errorMessage: state.errorMessage ?? 'Có lỗi xảy ra',
-                          ),
+                          child: CommonFailure(errorMessage: state.errorMessage ?? 'Có lỗi xảy ra'),
                         ),
                       )
                     else if (state.history.isEmpty)
@@ -123,17 +118,14 @@ class _TestHistoryScreenState extends State<TestHistoryScreen> {
                             if (index >= state.history.length) {
                               return const Padding(
                                 padding: EdgeInsets.all(16.0),
-                                child: Center(
-                                  child: CircularProgressIndicator(),
-                                ),
+                                child: Center(child: CircularProgressIndicator()),
                               );
                             }
 
                             final item = state.history[index];
 
                             // Giữ nguyên logic Filter
-                            if (state.searchQuery != null &&
-                                state.searchQuery!.isNotEmpty) {
+                            if (state.searchQuery != null && state.searchQuery!.isNotEmpty) {
                               if (!item.testName.toLowerCase().contains(
                                 state.searchQuery!.toLowerCase(),
                               )) {
@@ -142,17 +134,14 @@ class _TestHistoryScreenState extends State<TestHistoryScreen> {
                             }
 
                             // Tính toán màu chủ đạo cho item này
-                            final scoreColor = _getScoreColor(
-                              item.correctAnswers,
-                              item.totalQuestions,
-                            );
+                            // Đề tắt xem điểm (`showScore = false`): không hiện điểm / số câu đúng.
+                            final scoreColor = item.showScore
+                                ? _getScoreColor(item.correctAnswers, item.totalQuestions)
+                                : Colors.blueGrey.shade400;
 
                             // --- BẮT ĐẦU UI PHÁ CÁCH: TIMELINE + WATERMARK CARD ---
                             return Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                                vertical: 10,
-                              ),
+                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                               child: Row(
                                 crossAxisAlignment: CrossAxisAlignment.center,
                                 children: [
@@ -160,35 +149,30 @@ class _TestHistoryScreenState extends State<TestHistoryScreen> {
                                   SizedBox(
                                     width: 56,
                                     child: Column(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.center,
+                                      mainAxisAlignment: MainAxisAlignment.center,
                                       children: [
                                         Text(
                                           item.completedAt != null
-                                              ? DateFormat('HH:mm').format(
-                                                  item.completedAt!.toLocal(),
-                                                )
+                                              ? DateFormat(
+                                                  'HH:mm',
+                                                ).format(item.completedAt!.toLocal())
                                               : '--:--',
-                                          style: theme.textTheme.titleMedium
-                                              ?.copyWith(
-                                                fontWeight: FontWeight.w900,
-                                                color:
-                                                    theme.colorScheme.onSurface,
-                                              ),
+                                          style: theme.textTheme.titleMedium?.copyWith(
+                                            fontWeight: FontWeight.w900,
+                                            color: theme.colorScheme.onSurface,
+                                          ),
                                         ),
                                         const SizedBox(height: 2),
                                         Text(
                                           item.completedAt != null
-                                              ? DateFormat('dd/MM').format(
-                                                  item.completedAt!.toLocal(),
-                                                )
+                                              ? DateFormat(
+                                                  'dd/MM',
+                                                ).format(item.completedAt!.toLocal())
                                               : 'Đang làm',
-                                          style: theme.textTheme.labelSmall
-                                              ?.copyWith(
-                                                color:
-                                                    theme.colorScheme.outline,
-                                                fontWeight: FontWeight.w600,
-                                              ),
+                                          style: theme.textTheme.labelSmall?.copyWith(
+                                            color: theme.colorScheme.outline,
+                                            fontWeight: FontWeight.w600,
+                                          ),
                                         ),
                                       ],
                                     ),
@@ -204,14 +188,10 @@ class _TestHistoryScreenState extends State<TestHistoryScreen> {
                                         Container(
                                           decoration: BoxDecoration(
                                             color: Colors.white,
-                                            borderRadius: BorderRadius.circular(
-                                              24,
-                                            ),
+                                            borderRadius: BorderRadius.circular(24),
                                             boxShadow: [
                                               BoxShadow(
-                                                color: scoreColor.withValues(
-                                                  alpha: 0.1,
-                                                ),
+                                                color: scoreColor.withValues(alpha: 0.1),
                                                 blurRadius: 16,
                                                 offset: const Offset(0, 8),
                                               ),
@@ -220,21 +200,15 @@ class _TestHistoryScreenState extends State<TestHistoryScreen> {
                                           child: Material(
                                             color: Colors.transparent,
                                             child: InkWell(
-                                              borderRadius:
-                                                  BorderRadius.circular(24),
+                                              borderRadius: BorderRadius.circular(24),
                                               onTap: () {
                                                 context.pushNamed(
-                                                  AppRoute
-                                                      .testHistoryDetail
-                                                      .name,
-                                                  pathParameters: {
-                                                    'attemptId': item.id,
-                                                  },
+                                                  AppRoute.testHistoryDetail.name,
+                                                  pathParameters: {'attemptId': item.id},
                                                 );
                                               },
                                               child: ClipRRect(
-                                                borderRadius:
-                                                    BorderRadius.circular(24),
+                                                borderRadius: BorderRadius.circular(24),
                                                 child: Stack(
                                                   children: [
                                                     // Cột viền màu thể hiện trạng thái (Indicator Bar)
@@ -242,10 +216,7 @@ class _TestHistoryScreenState extends State<TestHistoryScreen> {
                                                       left: 0,
                                                       top: 0,
                                                       bottom: 0,
-                                                      child: Container(
-                                                        width: 6,
-                                                        color: scoreColor,
-                                                      ),
+                                                      child: Container(width: 6, color: scoreColor),
                                                     ),
 
                                                     // Điểm số Watermark in chìm siêu to khổng lồ
@@ -253,93 +224,68 @@ class _TestHistoryScreenState extends State<TestHistoryScreen> {
                                                       right: -10,
                                                       bottom: -15,
                                                       child: Text(
-                                                        '${item.correctAnswers}/${item.totalQuestions}',
+                                                        item.showScore
+                                                            ? '${item.correctAnswers}/${item.totalQuestions}'
+                                                            : '--',
                                                         style: TextStyle(
                                                           fontSize: 72,
-                                                          fontWeight:
-                                                              FontWeight.w900,
-                                                          color: scoreColor
-                                                              .withValues(
-                                                                alpha: 0.05,
-                                                              ),
-                                                          fontStyle:
-                                                              FontStyle.italic,
+                                                          fontWeight: FontWeight.w900,
+                                                          color: scoreColor.withValues(alpha: 0.05),
+                                                          fontStyle: FontStyle.italic,
                                                         ),
                                                       ),
                                                     ),
 
                                                     // Nội dung thực tế của thẻ
                                                     Padding(
-                                                      padding:
-                                                          const EdgeInsets.fromLTRB(
-                                                            24,
-                                                            16,
-                                                            16,
-                                                            16,
-                                                          ),
+                                                      padding: const EdgeInsets.fromLTRB(
+                                                        24,
+                                                        16,
+                                                        16,
+                                                        16,
+                                                      ),
                                                       child: Column(
                                                         crossAxisAlignment:
-                                                            CrossAxisAlignment
-                                                                .start,
+                                                            CrossAxisAlignment.start,
                                                         children: [
                                                           Text(
-                                                            item
-                                                                    .testName
-                                                                    .isNotEmpty
+                                                            item.testName.isNotEmpty
                                                                 ? item.testName
                                                                 : 'Bài kiểm tra',
-                                                            style: theme
-                                                                .textTheme
-                                                                .titleLarge
+                                                            style: theme.textTheme.titleLarge
                                                                 ?.copyWith(
-                                                                  fontWeight:
-                                                                      FontWeight
-                                                                          .w800,
-                                                                  letterSpacing:
-                                                                      -0.3,
+                                                                  fontWeight: FontWeight.w800,
+                                                                  letterSpacing: -0.3,
                                                                   height: 1.2,
                                                                 ),
                                                           ),
-                                                          const SizedBox(
-                                                            height: 12,
-                                                          ),
+                                                          const SizedBox(height: 12),
 
                                                           // Hiển thị Điểm số dạng nổi bật
                                                           Row(
                                                             children: [
                                                               Icon(
-                                                                Icons
-                                                                    .stars_rounded,
-                                                                color:
-                                                                    scoreColor,
+                                                                Icons.stars_rounded,
+                                                                color: scoreColor,
                                                                 size: 20,
                                                               ),
-                                                              const SizedBox(
-                                                                width: 6,
-                                                              ),
+                                                              const SizedBox(width: 6),
                                                               Text(
-                                                                'Đạt ${item.correctAnswers} / ${item.totalQuestions} câu',
-                                                                style: theme
-                                                                    .textTheme
-                                                                    .titleSmall
+                                                                item.showScore
+                                                                    ? 'Đạt ${item.correctAnswers} / ${item.totalQuestions} câu'
+                                                                    : 'Điểm do giảng viên công bố',
+                                                                style: theme.textTheme.titleSmall
                                                                     ?.copyWith(
-                                                                      color:
-                                                                          scoreColor,
-                                                                      fontWeight:
-                                                                          FontWeight
-                                                                              .w700,
+                                                                      color: scoreColor,
+                                                                      fontWeight: FontWeight.w700,
                                                                     ),
                                                               ),
                                                             ],
                                                           ),
 
                                                           // Danh sách Tags
-                                                          if (item
-                                                              .questionTypes
-                                                              .isNotEmpty) ...[
-                                                            const SizedBox(
-                                                              height: 16,
-                                                            ),
+                                                          if (item.questionTypes.isNotEmpty) ...[
+                                                            const SizedBox(height: 16),
                                                             Wrap(
                                                               spacing: 6,
                                                               runSpacing: 6,
@@ -349,28 +295,17 @@ class _TestHistoryScreenState extends State<TestHistoryScreen> {
                                                                 return Container(
                                                                   padding:
                                                                       const EdgeInsets.symmetric(
-                                                                        horizontal:
-                                                                            10,
-                                                                        vertical:
-                                                                            4,
+                                                                        horizontal: 10,
+                                                                        vertical: 4,
                                                                       ),
                                                                   decoration: BoxDecoration(
-                                                                    color: theme
-                                                                        .colorScheme
-                                                                        .primary
-                                                                        .withValues(
-                                                                          alpha:
-                                                                              0.5,
-                                                                        ),
+                                                                    color: theme.colorScheme.primary
+                                                                        .withValues(alpha: 0.5),
                                                                     borderRadius:
-                                                                        BorderRadius.circular(
-                                                                          8,
-                                                                        ),
+                                                                        BorderRadius.circular(8),
                                                                   ),
                                                                   child: Text(
-                                                                    _getQuestionTypeLabel(
-                                                                      qt,
-                                                                    ),
+                                                                    _getQuestionTypeLabel(qt),
                                                                     style: theme
                                                                         .textTheme
                                                                         .labelSmall
@@ -415,10 +350,7 @@ class _TestHistoryScreenState extends State<TestHistoryScreen> {
     );
   }
 
-  Widget _buildUnifiedFilterPanel(
-    BuildContext context,
-    TestHistoryState state,
-  ) {
+  Widget _buildUnifiedFilterPanel(BuildContext context, TestHistoryState state) {
     final theme = Theme.of(context);
     final questionTypesMap = {
       '': 'Tất cả dạng câu hỏi',
@@ -457,31 +389,18 @@ class _TestHistoryScreenState extends State<TestHistoryScreen> {
               controller: _searchController,
               textInputAction: TextInputAction.search,
               onSubmitted: (val) {
-                context.read<TestHistoryBloc>().add(
-                  TestHistoryFilterChanged(search: val),
-                );
+                context.read<TestHistoryBloc>().add(TestHistoryFilterChanged(search: val));
               },
               style: const TextStyle(fontWeight: FontWeight.w500),
               decoration: InputDecoration(
                 hintText: 'Tìm bài ôn tập...',
-                hintStyle: TextStyle(
-                  color: Colors.grey.shade400,
-                  fontWeight: FontWeight.w400,
-                ),
-                prefixIcon: Icon(
-                  Icons.search_rounded,
-                  color: theme.colorScheme.primary,
-                  size: 22,
-                ),
+                hintStyle: TextStyle(color: Colors.grey.shade400, fontWeight: FontWeight.w400),
+                prefixIcon: Icon(Icons.search_rounded, color: theme.colorScheme.primary, size: 22),
                 border: InputBorder.none,
                 contentPadding: const EdgeInsets.symmetric(vertical: 16),
                 suffixIcon: _searchController.text.isNotEmpty
                     ? IconButton(
-                        icon: Icon(
-                          Icons.cancel_rounded,
-                          size: 18,
-                          color: Colors.grey.shade400,
-                        ),
+                        icon: Icon(Icons.cancel_rounded, size: 18, color: Colors.grey.shade400),
                         onPressed: () {
                           _searchController.clear();
                           context.read<TestHistoryBloc>().add(
@@ -516,8 +435,7 @@ class _TestHistoryScreenState extends State<TestHistoryScreen> {
               backgroundColor: Colors.transparent,
               value: currentValue,
               items: questionTypesMap.keys.toList(),
-              itemLabelBuilder: (val) =>
-                  questionTypesMap[val] ?? 'Tất cả dạng câu hỏi',
+              itemLabelBuilder: (val) => questionTypesMap[val] ?? 'Tất cả dạng câu hỏi',
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
               onChanged: (val) {
                 final filterVal = val.isEmpty ? null : val;

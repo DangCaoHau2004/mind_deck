@@ -4,89 +4,60 @@ class AppStyles {
   static const String fontFamily = 'SF Pro Display';
 
   // ==========================================
+  // BÓNG ĐỔ CHUNG CHO THẺ (dùng cho toàn app, chỉnh ở đây là áp cho tất cả)
+  // ==========================================
+  static List<BoxShadow> cardShadow(ColorScheme colorScheme) => [
+    BoxShadow(
+      color: colorScheme.primary.withValues(alpha: 0.08),
+      blurRadius: 16,
+      offset: const Offset(0, 6),
+    ),
+  ];
+
+  // ==========================================
   // TEXT THEME (Giữ nguyên của bạn)
   // ==========================================
-  static final TextTheme textTheme = TextTheme(
-    displayLarge: const TextStyle(
+  static final TextTheme textTheme = const TextTheme(
+    displayLarge: TextStyle(
       fontFamily: fontFamily,
       fontSize: 40.0,
       fontWeight: FontWeight.bold,
       letterSpacing: -1.0,
     ),
-    displayMedium: const TextStyle(
+    displayMedium: TextStyle(
       fontFamily: fontFamily,
       fontSize: 32.0,
       fontWeight: FontWeight.bold,
       letterSpacing: -0.5,
     ),
-    displaySmall: const TextStyle(
-      fontFamily: fontFamily,
-      fontSize: 28.0,
-      fontWeight: FontWeight.bold,
-    ),
-    headlineLarge: const TextStyle(
+    displaySmall: TextStyle(fontFamily: fontFamily, fontSize: 28.0, fontWeight: FontWeight.bold),
+    headlineLarge: TextStyle(
       fontFamily: fontFamily,
       fontSize: 32.0,
       fontWeight: FontWeight.w800,
       height: 1.2,
     ),
-    headlineMedium: const TextStyle(
-      fontFamily: fontFamily,
-      fontSize: 24.0,
-      fontWeight: FontWeight.w700,
-    ),
-    headlineSmall: const TextStyle(
-      fontFamily: fontFamily,
-      fontSize: 20.0,
-      fontWeight: FontWeight.w700,
-    ),
-    titleLarge: const TextStyle(
-      fontFamily: fontFamily,
-      fontSize: 18.0,
-      fontWeight: FontWeight.w600,
-    ),
-    titleMedium: const TextStyle(
-      fontFamily: fontFamily,
-      fontSize: 16.0,
-      fontWeight: FontWeight.w600,
-    ),
-    titleSmall: const TextStyle(
-      fontFamily: fontFamily,
-      fontSize: 14.0,
-      fontWeight: FontWeight.w600,
-    ),
-    bodyLarge: const TextStyle(
+    headlineMedium: TextStyle(fontFamily: fontFamily, fontSize: 24.0, fontWeight: FontWeight.w700),
+    headlineSmall: TextStyle(fontFamily: fontFamily, fontSize: 20.0, fontWeight: FontWeight.w700),
+    titleLarge: TextStyle(fontFamily: fontFamily, fontSize: 18.0, fontWeight: FontWeight.w600),
+    titleMedium: TextStyle(fontFamily: fontFamily, fontSize: 16.0, fontWeight: FontWeight.w600),
+    titleSmall: TextStyle(fontFamily: fontFamily, fontSize: 14.0, fontWeight: FontWeight.w600),
+    bodyLarge: TextStyle(
       fontFamily: fontFamily,
       fontSize: 16.0,
       fontWeight: FontWeight.w400,
       height: 1.5,
     ),
-    bodyMedium: const TextStyle(
+    bodyMedium: TextStyle(
       fontFamily: fontFamily,
       fontSize: 14.0,
       fontWeight: FontWeight.w400,
       height: 1.5,
     ),
-    bodySmall: const TextStyle(
-      fontFamily: fontFamily,
-      fontSize: 12.0,
-      fontWeight: FontWeight.w400,
-    ),
-    labelLarge: const TextStyle(
-      fontFamily: fontFamily,
-      fontSize: 16.0,
-      fontWeight: FontWeight.w600,
-    ),
-    labelMedium: const TextStyle(
-      fontFamily: fontFamily,
-      fontSize: 14.0,
-      fontWeight: FontWeight.w600,
-    ),
-    labelSmall: const TextStyle(
-      fontFamily: fontFamily,
-      fontSize: 12.0,
-      fontWeight: FontWeight.w500,
-    ),
+    bodySmall: TextStyle(fontFamily: fontFamily, fontSize: 12.0, fontWeight: FontWeight.w400),
+    labelLarge: TextStyle(fontFamily: fontFamily, fontSize: 16.0, fontWeight: FontWeight.w600),
+    labelMedium: TextStyle(fontFamily: fontFamily, fontSize: 14.0, fontWeight: FontWeight.w600),
+    labelSmall: TextStyle(fontFamily: fontFamily, fontSize: 12.0, fontWeight: FontWeight.w500),
   );
 
   // ==========================================

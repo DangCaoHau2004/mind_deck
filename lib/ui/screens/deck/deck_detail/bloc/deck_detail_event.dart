@@ -31,9 +31,12 @@ class DeckDeleted extends DeckDetailEvent {
 
 class DeckDetailStarToggled extends DeckDetailEvent {
   final String id;
-  const DeckDetailStarToggled(this.id);
+
+  /// Trạng thái sao đang hiển thị trước khi bấm (màn truyền vào, vì dữ liệu đầy đủ có thể chưa về).
+  final bool isStarred;
+  const DeckDetailStarToggled(this.id, {required this.isStarred});
   @override
-  List<Object?> get props => [id];
+  List<Object?> get props => [id, isStarred];
 }
 
 class DeckShareUpdated extends DeckDetailEvent {

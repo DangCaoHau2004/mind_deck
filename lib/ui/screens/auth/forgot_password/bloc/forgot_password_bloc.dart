@@ -1,16 +1,16 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:mind_deck/constants/app_error_codes.dart';
 import 'package:mind_deck/core/extensions/string_extension.dart';
+import 'package:mind_deck/core/failures.dart';
 import 'package:mind_deck/core/validators.dart';
 import 'package:mind_deck/data/repositories/auth_repository.dart';
 import 'forgot_password_event.dart';
 import 'forgot_password_state.dart';
 
-class ForgotPasswordBloc
-    extends Bloc<ForgotPasswordEvent, ForgotPasswordState> {
+class ForgotPasswordBloc extends Bloc<ForgotPasswordEvent, ForgotPasswordState> {
   final AuthRepository authRepository;
 
-  ForgotPasswordBloc({required this.authRepository})
-    : super(ForgotPasswordInitial()) {
+  ForgotPasswordBloc({required this.authRepository}) : super(ForgotPasswordInitial()) {
     on<ForgotPasswordEmailSubmitted>(_onEmailSubmitted);
     on<ForgotPasswordOtpSubmitted>(_onOtpSubmitted);
     on<ForgotPasswordResetSubmitted>(_onResetSubmitted);
@@ -22,7 +22,7 @@ class ForgotPasswordBloc
   ) async {
     final email = event.email.trim();
     if (!Validators.isValidEmail(email)) {
-      emit(ForgotPasswordFailure(error: 'auth_email_invalid'.tr));
+      emit(ForgotPasswordFailure(failure: ValidationFailure('auth_email_invalid'.tr)));
       return;
     }
 
@@ -31,21 +31,21 @@ class ForgotPasswordBloc
       final response = await authRepository.forgotPassword(email: email);
       if (response.success) {
         final cooldown = response.data?.cooldownRemaining ?? 60;
-        emit(
-          ForgotPasswordOtpSentSuccess(
-            email: event.email,
-            cooldownRemaining: cooldown,
-          ),
-        );
+        emit(ForgotPasswordOtpSentSuccess(email: event.email, cooldownRemaining: cooldown));
       } else {
         emit(
           ForgotPasswordFailure(
-            error: response.message ?? 'forgot_send_otp_failed'.tr,
+            failure: UnknownFailure(
+              message: AppErrorCodes.requestFailed.tr,
+              errorCode: AppErrorCodes.requestFailed,
+            ),
           ),
         );
       }
+    } on Failure catch (f) {
+      emit(ForgotPasswordFailure(failure: f));
     } catch (e) {
-      emit(ForgotPasswordFailure(error: e.toString()));
+      emit(ForgotPasswordFailure(failure: UnknownFailure(message: e.toString())));
     }
   }
 
@@ -54,32 +54,31 @@ class ForgotPasswordBloc
     Emitter<ForgotPasswordState> emit,
   ) async {
     if (event.otp.length != 6) {
-      emit(ForgotPasswordFailure(error: 'otp_invalid'.tr));
+      emit(ForgotPasswordFailure(failure: ValidationFailure('otp_invalid'.tr)));
       return;
     }
 
     emit(ForgotPasswordLoading());
     try {
-      final response = await authRepository.verifyOtp(
-        email: event.email,
-        otp: event.otp,
-      );
+      final response = await authRepository.verifyOtp(email: event.email, otp: event.otp);
       if (response.success && response.data != null) {
         emit(
-          ForgotPasswordOtpVerifySuccess(
-            email: event.email,
-            resetToken: response.data!.resetToken,
-          ),
+          ForgotPasswordOtpVerifySuccess(email: event.email, resetToken: response.data!.resetToken),
         );
       } else {
         emit(
           ForgotPasswordFailure(
-            error: response.message ?? 'forgot_verify_otp_failed'.tr,
+            failure: UnknownFailure(
+              message: AppErrorCodes.requestFailed.tr,
+              errorCode: AppErrorCodes.requestFailed,
+            ),
           ),
         );
       }
+    } on Failure catch (f) {
+      emit(ForgotPasswordFailure(failure: f));
     } catch (e) {
-      emit(ForgotPasswordFailure(error: e.toString()));
+      emit(ForgotPasswordFailure(failure: UnknownFailure(message: e.toString())));
     }
   }
 
@@ -90,48 +89,19 @@ class ForgotPasswordBloc
     final newPassword = event.newPassword;
     final confirmPassword = event.confirmPassword;
 
-    if (newPassword.length < 8 || newPassword.length > 64) {
-      emit(
-        ForgotPasswordFailure(
-          error: 'auth_password_length_invalid'.tr,
-        ),
-      );
-      return;
-    }
-
-    if (newPassword.contains(' ')) {
-      emit(
-        ForgotPasswordFailure(
-          error: 'auth_password_no_space'.tr,
-        ),
-      );
-      return;
-    }
-
-    if (!Validators.isValidPasswordCharacters(newPassword)) {
-      emit(
-        ForgotPasswordFailure(
-          error: 'auth_password_invalid_characters'.tr,
-        ),
-      );
+    final passwordError = Validators.passwordError(newPassword);
+    if (passwordError != null) {
+      emit(ForgotPasswordFailure(failure: ValidationFailure(passwordError.tr)));
       return;
     }
 
     if (newPassword != confirmPassword) {
-      emit(
-        ForgotPasswordFailure(
-          error: 'new_password_not_match'.tr,
-        ),
-      );
+      emit(ForgotPasswordFailure(failure: ValidationFailure('new_password_not_match'.tr)));
       return;
     }
 
     if (event.resetToken.isEmpty) {
-      emit(
-        ForgotPasswordFailure(
-          error: 'auth_reset_session_invalid'.tr,
-        ),
-      );
+      emit(ForgotPasswordFailure(failure: ValidationFailure('auth_reset_session_invalid'.tr)));
       return;
     }
 
@@ -148,12 +118,17 @@ class ForgotPasswordBloc
       } else {
         emit(
           ForgotPasswordFailure(
-            error: response.message ?? 'forgot_reset_failed'.tr,
+            failure: UnknownFailure(
+              message: AppErrorCodes.requestFailed.tr,
+              errorCode: AppErrorCodes.requestFailed,
+            ),
           ),
         );
       }
+    } on Failure catch (f) {
+      emit(ForgotPasswordFailure(failure: f));
     } catch (e) {
-      emit(ForgotPasswordFailure(error: e.toString()));
+      emit(ForgotPasswordFailure(failure: UnknownFailure(message: e.toString())));
     }
   }
 }

@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import 'package:mind_deck/ui/commons/widgets/add_tag_sheet.dart';
 import 'package:mind_deck/data/models/deck_model.dart';
 import 'package:mind_deck/data/models/flashcard_model.dart';
 import 'package:mind_deck/data/models/enums.dart';
@@ -13,6 +14,12 @@ import 'widgets/import_modal.dart';
 import 'widgets/editable_card_widget.dart';
 import 'package:mind_deck/ui/commons/app_date_picker.dart';
 import 'package:mind_deck/ui/commons/custom_toast.dart';
+import 'package:mind_deck/ui/commons/deck_illustration.dart';
+import 'package:mind_deck/ui/commons/tag_pill.dart';
+import 'package:mind_deck/ui/commons/widgets/form_preview_frame.dart';
+import 'package:mind_deck/ui/commons/widgets/public_switch_card.dart';
+import 'package:mind_deck/ui/commons/widgets/tag_picker.dart';
+import 'package:mind_deck/core/extensions/string_extension.dart';
 import 'package:mind_deck/ui/screens/deck/deck_form/bloc/deck_form_bloc.dart';
 import 'package:mind_deck/ui/screens/deck/deck_form/bloc/deck_form_event.dart';
 import 'package:mind_deck/ui/screens/deck/deck_form/bloc/deck_form_state.dart';
@@ -42,7 +49,7 @@ class CreateDeckScreen extends StatelessWidget {
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
-          'Tạo bộ thẻ mới',
+          'deck_form_title_new'.tr,
           style: theme.textTheme.titleMedium?.copyWith(
             fontWeight: FontWeight.bold,
             color: Colors.black87,
@@ -127,8 +134,6 @@ class _SharedDeckFormState extends State<_SharedDeckForm> {
   GoalType _goalType = GoalType.longTerm;
   DateTime? _deadline;
   List<FlashcardModel> _flashcards = [];
-
-  bool _isTagsExpanded = false;
 
   late Color _selectedColor;
   late String _selectedIcon;
@@ -514,12 +519,49 @@ class _SharedDeckFormState extends State<_SharedDeckForm> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _buildMetadataSection(colorScheme, theme),
+                    _buildPreview(theme),
                     const SizedBox(height: 24),
-                    _buildStyleSection(colorScheme, theme),
+                    CustomTextField(
+                      controller: _nameController,
+                      label: 'Tên bộ thẻ',
+                      isRequired: true,
+                      large: true,
+                      hintText: 'deck_form_name_hint'.tr,
+                      validator: (val) {
+                        if (val == null || val.trim().isEmpty) {
+                          return 'Tên bộ thẻ không được để trống';
+                        }
+                        return null;
+                      },
+                    ),
                     const SizedBox(height: 24),
                     _buildGoalSection(colorScheme, theme),
                     const SizedBox(height: 24),
+                    BlocBuilder<DeckFormBloc, DeckFormState>(
+                      builder: (context, state) => TagPicker(
+                        availableTags: state.availableTags,
+                        isLoading: state.isLoadingTags,
+                        selectedTags: _selectedTags,
+                        onToggle: (tag) => setState(() {
+                          if (!_selectedTags.any((t) => t.id == tag.id)) {
+                            _selectedTags.add(tag);
+                          } else {
+                            _selectedTags.removeWhere((t) => t.id == tag.id);
+                          }
+                        }),
+                        onAddNew: _showAddTagDialog,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    PublicSwitchCard(
+                      subtitle: 'deck_form_public_subtitle'.tr,
+                      value: _isPublic,
+                      activeColor: _selectedColor,
+                      onChanged: (val) => setState(() => _isPublic = val),
+                    ),
+                    const SizedBox(height: 28),
+                    _buildStyleSection(colorScheme, theme),
+                    const SizedBox(height: 28),
                     _buildCardListSection(colorScheme, theme),
                     const SizedBox(height: 40),
                   ],
@@ -527,48 +569,66 @@ class _SharedDeckFormState extends State<_SharedDeckForm> {
               ),
             ),
           ),
-          SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.all(20.0).copyWith(top: 0),
-              child: BlocBuilder<DeckFormBloc, DeckFormState>(
-                builder: (context, state) {
-                  final isLoading = state.status == DeckFormStatus.loading;
-                  final isLightBtn = ColorUtils.isLightColor(_selectedColor);
-                  final btnTextColor = ColorUtils.getContrastColor(_selectedColor);
+          Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              border: Border(top: BorderSide(color: Colors.grey.shade200)),
+            ),
+            child: SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.all(20.0).copyWith(bottom: 16),
+                child: BlocBuilder<DeckFormBloc, DeckFormState>(
+                  builder: (context, state) {
+                    final isLoading = state.status == DeckFormStatus.loading;
+                    final isLightBtn = ColorUtils.isLightColor(_selectedColor);
+                    final btnTextColor = ColorUtils.getContrastColor(_selectedColor);
 
-                  return ElevatedButton(
-                    onPressed: isLoading ? null : _submitForm,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: _selectedColor,
-                      foregroundColor: btnTextColor,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      elevation: 5,
-                      minimumSize: const Size(double.infinity, 56),
-                      shadowColor: isLightBtn
-                          ? Colors.black.withValues(alpha: 0.1)
-                          : _selectedColor.withValues(alpha: 0.3),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(18),
-                        side: isLightBtn
-                            ? BorderSide(color: Colors.grey.shade300)
-                            : BorderSide.none,
-                      ),
-                    ),
-                    child: isLoading
-                        ? SizedBox(
-                            width: 24,
-                            height: 24,
-                            child: CircularProgressIndicator(color: btnTextColor, strokeWidth: 2),
-                          )
-                        : Text(
-                            isEditMode ? 'Lưu thay đổi' : 'Tạo bộ thẻ',
-                            style: theme.textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.bold,
-                              color: btnTextColor,
+                    // Chưa nhập tên thì nút xám, chưa bấm được
+                    return ListenableBuilder(
+                      listenable: _nameController,
+                      builder: (context, _) {
+                        final noName = _nameController.text.trim().isEmpty;
+                        return ElevatedButton(
+                          onPressed: isLoading || noName ? null : _submitForm,
+                          style: ElevatedButton.styleFrom(
+                            disabledBackgroundColor: const Color(0xFFE3E7F0),
+                            disabledForegroundColor: Colors.black45,
+                            backgroundColor: _selectedColor,
+                            foregroundColor: btnTextColor,
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            elevation: 5,
+                            minimumSize: const Size(double.infinity, 56),
+                            shadowColor: isLightBtn
+                                ? Colors.black.withValues(alpha: 0.1)
+                                : _selectedColor.withValues(alpha: 0.3),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(18),
+                              side: isLightBtn
+                                  ? BorderSide(color: Colors.grey.shade300)
+                                  : BorderSide.none,
                             ),
                           ),
-                  );
-                },
+                          child: isLoading
+                              ? SizedBox(
+                                  width: 24,
+                                  height: 24,
+                                  child: CircularProgressIndicator(
+                                    color: btnTextColor,
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : Text(
+                                  isEditMode ? 'Lưu thay đổi' : 'Tạo bộ thẻ',
+                                  style: theme.textTheme.titleMedium?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                    color: noName ? null : btnTextColor,
+                                  ),
+                                ),
+                        );
+                      },
+                    );
+                  },
+                ),
               ),
             ),
           ),
@@ -577,353 +637,137 @@ class _SharedDeckFormState extends State<_SharedDeckForm> {
     );
   }
 
-  Widget _buildMetadataSection(ColorScheme colorScheme, ThemeData theme) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: colorScheme.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: colorScheme.outline.withValues(alpha: 0.15)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+  /// Bản xem trước thẻ bộ thẻ theo các lựa chọn hiện tại.
+  Widget _buildPreview(ThemeData theme) {
+    final colorScheme = theme.colorScheme;
+
+    return FormPreviewFrame(
+      color: _selectedColor,
+      child: Row(
         children: [
-          Row(
-            children: [
-              Icon(Icons.info_outline_rounded, color: colorScheme.primary, size: 22),
-              const SizedBox(width: 8),
-              Text(
-                'Thông tin chung',
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 17,
-                ),
-              ),
-            ],
+          DeckIllustration(
+            color: _selectedColor,
+            icon: AppIcons.getIconFromKey(_selectedIcon),
+            size: 64,
           ),
-          const SizedBox(height: 20),
-          CustomTextField(
-            controller: _nameController,
-            label: 'Tên bộ thẻ',
-            isRequired: true,
-            hintText: 'Nhập tên bộ thẻ (Ví dụ: IELTS Vocab...)',
-            validator: (val) {
-              if (val == null || val.trim().isEmpty) {
-                return 'Tên bộ thẻ không được để trống';
-              }
-              return null;
-            },
-          ),
-          const SizedBox(height: 24),
-          BlocBuilder<DeckFormBloc, DeckFormState>(
-            builder: (context, state) {
-              return _buildTagsSection(colorScheme, theme, state.availableTags);
-            },
-          ),
-          const SizedBox(height: 20),
-          Divider(color: colorScheme.outline.withValues(alpha: 0.15)),
-          const SizedBox(height: 8),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Quyền riêng tư bộ thẻ',
-                    style: theme.textTheme.bodyLarge?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
+          const SizedBox(width: 12),
+          Expanded(
+            child: ListenableBuilder(
+              listenable: _nameController,
+              builder: (context, _) {
+                final name = _nameController.text.trim();
+                final count = 'deck_card_count'.tr.replaceAll('{count}', '${_flashcards.length}');
+                final goal =
+                    (_goalType == GoalType.longTerm ? 'deck_goal_long' : 'deck_goal_short').tr;
+                final status = (_isPublic ? 'library_public' : 'library_private').tr;
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      name.isEmpty ? 'deck_form_untitled'.tr : name,
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        color: name.isEmpty
+                            ? colorScheme.onSurface.withValues(alpha: 0.45)
+                            : colorScheme.onSurface,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    _isPublic
-                        ? 'Bộ thẻ hiển thị công khai cho mọi người'
-                        : 'Bộ thẻ chỉ hiển thị với riêng bạn',
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: colorScheme.onSurface.withValues(alpha: 0.6),
-                      fontSize: 13,
+                    const SizedBox(height: 4),
+                    Text(
+                      '$count · $goal · $status',
+                      style: theme.textTheme.bodyLarge?.copyWith(
+                        color: colorScheme.onSurface.withValues(alpha: 0.65),
+                      ),
                     ),
-                  ),
-                ],
-              ),
-              Switch(
-                value: _isPublic,
-                activeColor: colorScheme.onPrimary,
-                activeTrackColor: colorScheme.primary,
-                inactiveThumbColor: colorScheme.onSurface.withValues(alpha: 0.4),
-                inactiveTrackColor: colorScheme.surfaceContainer,
-                onChanged: (val) {
-                  setState(() {
-                    _isPublic = val;
-                  });
-                },
-              ),
-            ],
+                    if (_selectedTags.isNotEmpty) ...[
+                      const SizedBox(height: 6),
+                      Wrap(
+                        runSpacing: 4,
+                        children: [
+                          for (final tag in _selectedTags)
+                            TagPill(text: '#${tag.name}', hex: tag.color),
+                        ],
+                      ),
+                    ],
+                  ],
+                );
+              },
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildTagsSection(ColorScheme colorScheme, ThemeData theme, List<TagModel> availableTags) {
-    final showExpandButton = availableTags.length > 3;
-    final List<TagModel> tagsToShow = _isTagsExpanded
-        ? availableTags
-        : availableTags.take(3).toList();
+  Future<void> _showAddTagDialog() async {
+    final result = await AddTagSheet.show(
+      context,
+      availableTags: context.read<DeckFormBloc>().state.availableTags,
+    );
+    if (result == null || !mounted) return;
+    final existing = result.existing;
+    if (existing != null) {
+      // Tag đã có: dùng luôn, không tạo mới
+      if (!_selectedTags.any((t) => t.id == existing.id)) {
+        setState(() => _selectedTags.add(existing));
+      }
+    } else {
+      context.read<DeckFormBloc>().add(DeckFormAddTag(name: result.name, color: result.color));
+    }
+  }
 
+  Widget _buildStyleSection(ColorScheme colorScheme, ThemeData theme) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Nhãn dán (Tags):',
-          style: theme.textTheme.bodyLarge?.copyWith(
-            color: colorScheme.onSurface.withValues(alpha: 0.8),
+          'deck_form_color_title'.tr,
+          style: theme.textTheme.titleMedium?.copyWith(
             fontWeight: FontWeight.bold,
-            fontSize: 15,
+            color: Colors.black87,
           ),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 14),
         Wrap(
-          spacing: 8,
-          runSpacing: 8,
+          spacing: 14,
+          runSpacing: 14,
           children: [
-            ...tagsToShow.map((tag) {
-              final isSelected = _selectedTags.any((t) => t.id == tag.id);
-              final tagColor = ColorUtils.parseHex(tag.color ?? '#8B5CF6');
-
-              return GestureDetector(
-                onTap: () {
-                  setState(() {
-                    if (isSelected) {
-                      _selectedTags.removeWhere((t) => t.id == tag.id);
-                    } else {
-                      _selectedTags.add(tag);
-                    }
-                  });
-                },
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: isSelected
-                        ? tagColor.withValues(alpha: 0.18)
-                        : colorScheme.surfaceContainer,
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                      color: isSelected ? tagColor : colorScheme.outline.withValues(alpha: 0.15),
-                      width: isSelected ? 1.5 : 1.0,
-                    ),
-                  ),
-                  child: Text(
-                    '#${tag.name}',
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: isSelected ? tagColor : colorScheme.onSurface.withValues(alpha: 0.7),
-                      fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                      fontSize: 13,
-                    ),
-                  ),
-                ),
-              );
-            }),
-            if (showExpandButton)
-              GestureDetector(
-                onTap: () {
-                  setState(() {
-                    _isTagsExpanded = !_isTagsExpanded;
-                  });
-                },
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: colorScheme.surfaceContainer,
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: colorScheme.primary.withValues(alpha: 0.5)),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        _isTagsExpanded ? Icons.remove_rounded : Icons.add_rounded,
-                        color: colorScheme.primary,
-                        size: 14,
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        _isTagsExpanded ? 'Thu gọn' : '${availableTags.length - 3} nhãn khác',
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          color: colorScheme.primary,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 13,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            GestureDetector(
-              onTap: _showAddTagDialog,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                decoration: BoxDecoration(
-                  color: colorScheme.surfaceContainer,
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: colorScheme.primary.withValues(alpha: 0.5)),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.edit_rounded, color: colorScheme.primary, size: 14),
-                    const SizedBox(width: 4),
-                    Text(
-                      'Tự nhập tag...',
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: colorScheme.primary,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 13,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
+            ..._availableColors.map((color) => _buildColorItem(color)),
+            if (!_availableColors.contains(_selectedColor)) _buildColorItem(_selectedColor),
+            _buildStaticColorPickerButton(),
           ],
+        ),
+        const SizedBox(height: 28),
+        Text(
+          'deck_form_icon_title'.tr,
+          style: theme.textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.bold,
+            color: Colors.black87,
+          ),
+        ),
+        const SizedBox(height: 14),
+        Container(
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            color: colorScheme.surfaceContainer,
+            borderRadius: const BorderRadius.only(
+              topLeft: Radius.circular(28),
+              bottomRight: Radius.circular(28),
+              topRight: Radius.circular(8),
+              bottomLeft: Radius.circular(8),
+            ),
+            border: Border.all(color: colorScheme.outline.withValues(alpha: 0.15)),
+          ),
+          child: Wrap(
+            spacing: 16,
+            runSpacing: 16,
+            alignment: WrapAlignment.center,
+            children: AppIcons.availableIconKeys.map((iconKey) => _buildIconItem(iconKey)).toList(),
+          ),
         ),
       ],
-    );
-  }
-
-  void _showAddTagDialog() {
-    final textController = TextEditingController();
-    final colorScheme = Theme.of(context).colorScheme;
-
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          backgroundColor: colorScheme.surface,
-          title: Text(
-            'Thêm Tag Mới',
-            style: TextStyle(
-              color: colorScheme.onSurface,
-              fontWeight: FontWeight.bold,
-              fontSize: 18,
-            ),
-          ),
-          content: CustomTextField(
-            controller: textController,
-            label: 'Tên nhãn dán',
-            hintText: 'Nhập tên nhãn (ví dụ: IELTS, Math...)',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text(
-                'Hủy',
-                style: TextStyle(color: colorScheme.onSurface.withValues(alpha: 0.7), fontSize: 15),
-              ),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: colorScheme.primary,
-                foregroundColor: colorScheme.onPrimary,
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              ),
-              onPressed: () {
-                final name = textController.text.trim();
-                if (name.isNotEmpty) {
-                  context.read<DeckFormBloc>().add(DeckFormAddTag(name: name, color: '#8B5CF6'));
-                }
-                Navigator.pop(context);
-              },
-              child: const Text(
-                'Thêm',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
-              ),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  Widget _buildStyleSection(ColorScheme colorScheme, ThemeData theme) {
-    final buttonColor = ColorUtils.isLightColor(_selectedColor) ? Colors.black87 : _selectedColor;
-
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: colorScheme.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: colorScheme.outline.withValues(alpha: 0.15)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(Icons.palette_outlined, color: buttonColor, size: 22),
-              const SizedBox(width: 8),
-              Text(
-                'Màu sắc & Biểu tượng',
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 17,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
-          Text(
-            'Màu sắc chủ đạo',
-            style: theme.textTheme.titleSmall?.copyWith(
-              fontWeight: FontWeight.bold,
-              color: Colors.black87,
-            ),
-          ),
-          const SizedBox(height: 14),
-          Wrap(
-            spacing: 14,
-            runSpacing: 14,
-            children: [
-              ..._availableColors.map((color) => _buildColorItem(color)),
-              if (!_availableColors.contains(_selectedColor)) _buildColorItem(_selectedColor),
-              _buildStaticColorPickerButton(),
-            ],
-          ),
-          const SizedBox(height: 34),
-          Text(
-            'Biểu tượng học phần',
-            style: theme.textTheme.titleSmall?.copyWith(
-              fontWeight: FontWeight.bold,
-              color: Colors.black87,
-            ),
-          ),
-          const SizedBox(height: 14),
-          Container(
-            padding: const EdgeInsets.all(18),
-            decoration: BoxDecoration(
-              color: colorScheme.surfaceContainer,
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(28),
-                bottomRight: Radius.circular(28),
-                topRight: Radius.circular(8),
-                bottomLeft: Radius.circular(8),
-              ),
-              border: Border.all(color: colorScheme.outline.withValues(alpha: 0.15)),
-            ),
-            child: Wrap(
-              spacing: 16,
-              runSpacing: 16,
-              alignment: WrapAlignment.center,
-              children: AppIcons.availableIconKeys
-                  .map((iconKey) => _buildIconItem(iconKey))
-                  .toList(),
-            ),
-          ),
-        ],
-      ),
     );
   }
 
@@ -1034,197 +878,121 @@ class _SharedDeckFormState extends State<_SharedDeckForm> {
     );
   }
 
+  /// Mục tiêu ghi nhớ: hai thẻ chọn Ngắn hạn / Dài hạn; ngắn hạn thì thêm ô chọn ngày thi (deadline).
   Widget _buildGoalSection(ColorScheme colorScheme, ThemeData theme) {
     final isShortTerm = _goalType == GoalType.shortTerm;
 
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: colorScheme.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: colorScheme.outline.withValues(alpha: 0.15)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(Icons.track_changes_rounded, color: colorScheme.primary, size: 22),
-              const SizedBox(width: 8),
-              Text(
-                'Mục tiêu học tập & Ghi nhớ',
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 17,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(
-                child: GestureDetector(
-                  onTap: () {
-                    setState(() {
-                      _goalType = GoalType.longTerm;
-                    });
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: !isShortTerm
-                          ? colorScheme.primary.withValues(alpha: 0.1)
-                          : colorScheme.surfaceContainer,
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(
-                        color: !isShortTerm
-                            ? colorScheme.primary
-                            : colorScheme.outline.withValues(alpha: 0.15),
-                        width: !isShortTerm ? 1.5 : 1.0,
-                      ),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Icon(
-                          Icons.all_inclusive_rounded,
-                          color: !isShortTerm
-                              ? colorScheme.primary
-                              : colorScheme.onSurface.withValues(alpha: 0.5),
-                          size: 26,
-                        ),
-                        const SizedBox(height: 10),
-                        Text(
-                          'Trí nhớ vĩnh cửu',
-                          style: theme.textTheme.titleSmall?.copyWith(
-                            color: colorScheme.onSurface,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 14,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Thuật toán FSRS tiêu chuẩn giãn cách dài lâu.',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: colorScheme.onSurface.withValues(alpha: 0.5),
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: GestureDetector(
-                  onTap: () {
-                    setState(() {
-                      _goalType = GoalType.shortTerm;
-                    });
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: isShortTerm
-                          ? colorScheme.primary.withValues(alpha: 0.1)
-                          : colorScheme.surfaceContainer,
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(
-                        color: isShortTerm
-                            ? colorScheme.primary
-                            : colorScheme.outline.withValues(alpha: 0.15),
-                        width: isShortTerm ? 1.5 : 1.0,
-                      ),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Icon(
-                          Icons.timer_rounded,
-                          color: isShortTerm
-                              ? colorScheme.primary
-                              : colorScheme.onSurface.withValues(alpha: 0.5),
-                          size: 26,
-                        ),
-                        const SizedBox(height: 10),
-                        Text(
-                          'Trí nhớ ngắn hạn',
-                          style: theme.textTheme.titleSmall?.copyWith(
-                            color: colorScheme.onSurface,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 14,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Nhồi nhét trước kỳ thi, cần nhập Deadline.',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: colorScheme.onSurface.withValues(alpha: 0.5),
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          if (isShortTerm) ...[
-            const SizedBox(height: 16),
-            InkWell(
-              onTap: _selectDeadline,
-              borderRadius: BorderRadius.circular(12),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                decoration: BoxDecoration(
-                  color: colorScheme.surfaceContainer,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: colorScheme.primary.withValues(alpha: 0.3)),
-                ),
-                child: Row(
-                  children: [
-                    Icon(Icons.calendar_today_rounded, color: colorScheme.primary, size: 20),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Ngày thi cử / Deadline:',
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: colorScheme.onSurface.withValues(alpha: 0.5),
-                              fontSize: 12,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            _deadline == null
-                                ? 'Chọn ngày thi của bạn...'
-                                : DateFormat('dd/MM/yyyy (EEEE)').format(_deadline!),
-                            style: theme.textTheme.bodyMedium?.copyWith(
-                              color: colorScheme.onSurface,
-                              fontSize: 14,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Icon(
-                      Icons.arrow_forward_ios_rounded,
-                      color: colorScheme.onSurface.withValues(alpha: 0.5),
-                      size: 14,
-                    ),
-                  ],
-                ),
+    Widget option(GoalType type, String title, String subtitle) {
+      final selected = _goalType == type;
+      return Expanded(
+        child: GestureDetector(
+          onTap: () => setState(() => _goalType = type),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: selected ? colorScheme.primary.withValues(alpha: 0.08) : Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: selected ? colorScheme.primary : colorScheme.outline.withValues(alpha: 0.2),
+                width: selected ? 1.5 : 1,
               ),
             ),
-          ],
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w800,
+                    color: selected ? colorScheme.primary : colorScheme.onSurface,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  subtitle,
+                  style: theme.textTheme.bodyLarge?.copyWith(
+                    color: colorScheme.onSurface.withValues(alpha: 0.6),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'deck_form_goal_title'.tr,
+          style: theme.textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.bold,
+            color: Colors.black87,
+          ),
+        ),
+        const SizedBox(height: 12),
+        IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              option(GoalType.shortTerm, 'deck_goal_short'.tr, 'deck_form_goal_short_hint'.tr),
+              const SizedBox(width: 12),
+              option(GoalType.longTerm, 'deck_goal_long'.tr, 'deck_form_goal_long_hint'.tr),
+            ],
+          ),
+        ),
+        if (isShortTerm) ...[
+          const SizedBox(height: 12),
+          InkWell(
+            onTap: _selectDeadline,
+            borderRadius: BorderRadius.circular(16),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              decoration: BoxDecoration(
+                color: colorScheme.surfaceContainer,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: colorScheme.primary.withValues(alpha: 0.3)),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.calendar_today_rounded, color: colorScheme.primary, size: 20),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Ngày thi cử / Deadline:',
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: colorScheme.onSurface.withValues(alpha: 0.5),
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          _deadline == null
+                              ? 'Chọn ngày thi của bạn...'
+                              : DateFormat('dd/MM/yyyy (EEEE)').format(_deadline!),
+                          style: theme.textTheme.bodyLarge?.copyWith(
+                            color: colorScheme.onSurface,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Icon(
+                    Icons.arrow_forward_ios_rounded,
+                    color: colorScheme.onSurface.withValues(alpha: 0.5),
+                    size: 14,
+                  ),
+                ],
+              ),
+            ),
+          ),
         ],
-      ),
+      ],
     );
   }
 
@@ -1266,7 +1034,7 @@ class _SharedDeckFormState extends State<_SharedDeckForm> {
                     'Xóa hết',
                     style: TextStyle(
                       color: Colors.redAccent,
-                      fontSize: 14,
+                      fontSize: 16,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
@@ -1292,10 +1060,7 @@ class _SharedDeckFormState extends State<_SharedDeckForm> {
                     color: colorScheme.primary,
                     size: 18,
                   ),
-                  label: Text(
-                    'Thêm thẻ thủ công',
-                    style: theme.textTheme.bodyMedium?.copyWith(fontSize: 14),
-                  ),
+                  label: Text('Thêm thẻ thủ công', style: theme.textTheme.bodyLarge),
                 ),
               ),
               const SizedBox(width: 10),
@@ -1312,10 +1077,9 @@ class _SharedDeckFormState extends State<_SharedDeckForm> {
                   icon: const Icon(Icons.cloud_download_rounded, size: 18),
                   label: Text(
                     'Import hàng loạt',
-                    style: theme.textTheme.bodyMedium?.copyWith(
+                    style: theme.textTheme.bodyLarge?.copyWith(
                       fontWeight: FontWeight.bold,
                       color: colorScheme.onPrimary,
-                      fontSize: 14,
                     ),
                   ),
                 ),
@@ -1339,7 +1103,6 @@ class _SharedDeckFormState extends State<_SharedDeckForm> {
                           'Chưa có flashcard nào trong bộ thẻ.\nChọn Import hàng loạt hoặc Thêm thẻ thủ công!',
                           style: theme.textTheme.bodyMedium?.copyWith(
                             color: colorScheme.onSurface.withValues(alpha: 0.5),
-                            fontSize: 13,
                           ),
                           textAlign: TextAlign.center,
                         ),
@@ -1358,11 +1121,13 @@ class _SharedDeckFormState extends State<_SharedDeckForm> {
                       index: index + 1,
                       card: card,
                       onDelete: () => _removeCard(index),
-                      onChanged: (front, back, imageUrl) {
+                      onChanged: (front, back, imageUrl, imageCredit) {
                         _flashcards[index] = card.copyWith(
                           frontText: front,
                           backText: back,
                           frontImageUrl: imageUrl,
+                          frontImageCredit: imageCredit,
+                          clearFrontImage: true,
                           updatedAt: DateTime.now(),
                         );
                       },

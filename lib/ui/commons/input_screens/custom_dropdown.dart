@@ -15,6 +15,9 @@ class CustomDropdown<T> extends StatelessWidget {
   final Color? backgroundColor;
   final bool hasBorder;
 
+  /// Có truyền thì nút hiển thị chỉ còn chữ đang chọn + widget này (không khung, không mũi tên).
+  final Widget? trailing;
+
   const CustomDropdown({
     super.key,
     required this.value,
@@ -31,6 +34,7 @@ class CustomDropdown<T> extends StatelessWidget {
     ), // Sửa padding cho bằng CustomTextField
     this.backgroundColor,
     this.hasBorder = true,
+    this.trailing,
   });
 
   double _calculateMaxWidth(TextStyle? style) {
@@ -75,12 +79,15 @@ class CustomDropdown<T> extends StatelessWidget {
             clipBehavior: Clip.hardEdge,
             constraints: BoxConstraints(minWidth: finalWidth, maxWidth: finalWidth),
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-              side: BorderSide(color: colorScheme.outline.withValues(alpha: 0.5), width: 1),
+              borderRadius: BorderRadius.circular(16),
+              side: BorderSide(color: colorScheme.primary.withValues(alpha: 0.15), width: 1),
             ),
-            offset: const Offset(0, 48), // Đẩy offset xuống một chút vì padding to ra
+            offset: Offset(0, trailing != null ? 32 : 48), // Đẩy xuống một chút vì padding to ra
             color: colorScheme.surface,
-            elevation: 3,
+            // Tắt lớp phủ màu của Material 3 để nền menu trong, không bị ngả xám
+            surfaceTintColor: Colors.transparent,
+            shadowColor: colorScheme.primary.withValues(alpha: 0.25),
+            elevation: 6,
             itemBuilder: (BuildContext context) {
               return items.map((T item) {
                 final isSelected = item == value;
@@ -95,7 +102,7 @@ class CustomDropdown<T> extends StatelessWidget {
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     decoration: BoxDecoration(
                       color: isSelected
-                          ? colorScheme.primary.withValues(alpha: 0.15)
+                          ? colorScheme.primary.withValues(alpha: 0.1)
                           : Colors.transparent,
                     ),
                     child: itemBuilder != null
@@ -112,37 +119,52 @@ class CustomDropdown<T> extends StatelessWidget {
               }).toList();
             },
             // DƯỚI NÀY LÀ KHUNG HIỂN THỊ LÚC CHƯA MỞ MENU
-            child: Container(
-              width: finalWidth,
-              padding: padding, // Dùng padding truyền vào (đã set lại 16)
-              decoration: BoxDecoration(
-                color: backgroundColor ?? colorScheme.surfaceContainer,
-                borderRadius: BorderRadius.circular(12),
-                // ĐÃ FIX BORDER: Copy y hệt outline của CustomTextField
-                border: hasBorder
-                    ? Border.all(color: colorScheme.outline.withValues(alpha: 0.5), width: 1)
-                    : null,
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Expanded(
-                    child: itemBuilder != null
-                        ? itemBuilder!(value, true)
-                        : Text(
-                            itemLabelBuilder(value),
-                            style: textTheme.bodyMedium?.copyWith(
-                              color: value == null
-                                  ? colorScheme.onSurfaceVariant.withValues(alpha: 0.6)
-                                  : colorScheme.onSurface,
-                            ),
-                          ),
+            child: trailing != null
+                ? Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        itemLabelBuilder(value),
+                        style: textTheme.titleMedium?.copyWith(
+                          color: colorScheme.primary,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      trailing!,
+                    ],
+                  )
+                : Container(
+                    width: finalWidth,
+                    padding: padding, // Dùng padding truyền vào (đã set lại 16)
+                    decoration: BoxDecoration(
+                      color: backgroundColor ?? colorScheme.surfaceContainer,
+                      borderRadius: BorderRadius.circular(12),
+                      // ĐÃ FIX BORDER: Copy y hệt outline của CustomTextField
+                      border: hasBorder
+                          ? Border.all(color: colorScheme.outline.withValues(alpha: 0.5), width: 1)
+                          : null,
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: itemBuilder != null
+                              ? itemBuilder!(value, true)
+                              : Text(
+                                  itemLabelBuilder(value),
+                                  style: textTheme.bodyMedium?.copyWith(
+                                    color: value == null
+                                        ? colorScheme.onSurfaceVariant.withValues(alpha: 0.6)
+                                        : colorScheme.onSurface,
+                                  ),
+                                ),
+                        ),
+                        const SizedBox(width: 4),
+                        Icon(Icons.arrow_drop_down, size: 20, color: colorScheme.onSurfaceVariant),
+                      ],
+                    ),
                   ),
-                  const SizedBox(width: 4),
-                  Icon(Icons.arrow_drop_down, size: 20, color: colorScheme.onSurfaceVariant),
-                ],
-              ),
-            ),
           ),
         );
       },

@@ -19,7 +19,9 @@ import 'package:mind_deck/ui/screens/auth/bloc/auth_state.dart';
 import 'package:mind_deck/ui/screens/auth/forgot_password/forgot_password_screen.dart';
 import 'package:mind_deck/ui/screens/auth/forgot_password/otp_verification_screen.dart';
 import 'package:mind_deck/ui/screens/auth/forgot_password/create_new_password_screen.dart';
-import 'package:mind_deck/ui/screens/dashboard/dashboard_screen.dart';
+import 'package:mind_deck/ui/screens/home/bloc/home_bloc.dart';
+import 'package:mind_deck/ui/screens/home/bloc/home_event.dart';
+import 'package:mind_deck/ui/screens/home/home_screen.dart';
 import 'package:mind_deck/ui/screens/deck/bloc/library_deck_bloc.dart';
 import 'package:mind_deck/ui/screens/deck/bloc/library_deck_event.dart';
 import 'package:mind_deck/ui/screens/deck/library_deck_tab.dart';
@@ -42,7 +44,7 @@ import 'package:mind_deck/ui/screens/test/take_test/bloc/test_setup_event.dart';
 import 'package:mind_deck/ui/screens/test/take_test/take_test_screen.dart';
 import 'package:mind_deck/ui/screens/study_flashcard/flashcard_study_screen.dart';
 import 'package:mind_deck/data/models/flashcard_model.dart';
-import 'package:mind_deck/ui/screens/home/home_screen.dart';
+import 'package:mind_deck/ui/screens/main_shell/main_shell.dart';
 import 'package:mind_deck/ui/screens/discover/discover_screen.dart';
 import 'package:mind_deck/ui/screens/discover/popular_content/discover_popular_screen.dart';
 import 'package:mind_deck/ui/screens/profile/profile_screen.dart';
@@ -63,7 +65,17 @@ import 'package:mind_deck/ui/screens/discover/bloc/discover_bloc.dart';
 import 'package:mind_deck/ui/screens/discover/popular_content/bloc/discover_popular_bloc.dart';
 import 'package:mind_deck/ui/screens/report/report_form/bloc/report_form_bloc.dart';
 import 'package:mind_deck/ui/screens/report/report_detail/bloc/report_detail_bloc.dart';
+import 'package:mind_deck/data/models/report_model.dart';
 import 'package:mind_deck/ui/screens/notification/notification_list_screen.dart';
+import 'package:mind_deck/data/models/document_import/document_import_models.dart';
+import 'package:mind_deck/ui/screens/document_import/bloc/document_import_bloc.dart';
+import 'package:mind_deck/ui/screens/document_import/bloc/document_import_draft_bloc.dart';
+import 'package:mind_deck/ui/screens/document_import/bloc/document_import_list_bloc.dart';
+import 'package:mind_deck/ui/screens/document_import/document_import_draft_screen.dart';
+import 'package:mind_deck/ui/screens/document_import/document_import_list_screen.dart';
+import 'package:mind_deck/ui/screens/document_import/document_import_screen.dart';
+import 'package:mind_deck/ui/screens/notification/settings/notification_settings_screen.dart';
+import 'package:mind_deck/ui/screens/coin/coin_screen.dart';
 
 class AppRouter {
   final GlobalKey<NavigatorState> rootNavigatorKey = GlobalKey<NavigatorState>();
@@ -88,7 +100,8 @@ class AppRouter {
     final authState = DI().sl<AuthBloc>().state;
 
     final bool isUnknown = authState is AuthUnknown;
-    final bool isAuth = authState is AuthAuthenticated;
+    // Offline (có token, chưa tải được hồ sơ) vẫn được vào app.
+    final bool isAuth = authState is AuthAuthenticated || authState is AuthAuthenticatedOffline;
 
     // 1. KHI APP VỪA MỞ LÊN (ĐANG CHECK TOKEN)
     if (isUnknown) {
@@ -120,8 +133,8 @@ class AppRouter {
         _savedDeepLink = null; // Xóa đi để không bị kẹt lần sau
         return linkToGo; // Nhảy thẳng vào màn Folder/Deck!
       }
-      // Nếu không có link gì, cho vào Dashboard bình thường
-      return AppRoute.dashboard.path;
+      // Nếu không có link gì, cho vào Home bình thường
+      return AppRoute.home.path;
     }
 
     // Các trường hợp khác (như đang dùng app mà có link nhảy vào)
@@ -199,19 +212,28 @@ class AppRouter {
       builder: (context, state) => const NotificationListScreen(),
     ),
 
+    GoRoute(
+      name: AppRoute.notificationSettings.name,
+      path: AppRoute.notificationSettings.path,
+      builder: (context, state) => const NotificationSettingsScreen(),
+    ),
+
     // === ROOT STATEFUL SHELL ROUTE (CÓ BOTTOM NAVIGATION BAR LƠ LỬNG) ===
     StatefulShellRoute.indexedStack(
       builder: (context, state, navigationShell) {
-        return HomeScreen(navigationShell: navigationShell);
+        return MainShell(navigationShell: navigationShell);
       },
       branches: [
-        // Tab 0: Trang chủ (Dashboard)
+        // Tab 0: Trang chủ (Home)
         StatefulShellBranch(
           routes: [
             GoRoute(
-              name: AppRoute.dashboard.name,
-              path: AppRoute.dashboard.path,
-              builder: (context, state) => const DashboardScreen(),
+              name: AppRoute.home.name,
+              path: AppRoute.home.path,
+              builder: (context, state) => BlocProvider(
+                create: (_) => DI().sl<HomeBloc>()..add(const HomeLoadStarted()),
+                child: const HomeScreen(),
+              ),
             ),
           ],
         ),
@@ -330,15 +352,20 @@ class AppRouter {
                             DeckModel? initialDeck;
                             String? classId;
                             String? assignmentId;
+                            // Chỉ có ý nghĩa với bản sao lớp (do màn học liệu của lớp truyền sang).
+                            var canEditClassCopy = false;
+                            var canCloneClassCopy = false;
 
                             if (state.extra != null) {
                               if (state.extra is Map<String, dynamic>) {
                                 final extraMap = state.extra as Map<String, dynamic>;
+                                canEditClassCopy = extraMap['canEditClassCopy'] == true;
+                                canCloneClassCopy = extraMap['canCloneClassCopy'] == true;
                                 if (extraMap.containsKey('classId') &&
                                     extraMap.containsKey('assignmentId')) {
                                   classId = extraMap['classId'] as String?;
                                   assignmentId = extraMap['assignmentId'] as String?;
-                                } else {
+                                } else if (extraMap.containsKey('id')) {
                                   initialDeck = DeckModel.fromJson(extraMap);
                                 }
                               } else if (state.extra is DeckModel) {
@@ -354,6 +381,8 @@ class AppRouter {
                                 token: token,
                                 classId: classId,
                                 assignmentId: assignmentId,
+                                canEditClassCopy: canEditClassCopy,
+                                canCloneClassCopy: canCloneClassCopy,
                               ),
                             );
                           },
@@ -428,6 +457,12 @@ class AppRouter {
                 ),
                 GoRoute(
                   parentNavigatorKey: rootNavigatorKey,
+                  name: AppRoute.coins.name,
+                  path: AppRoute.coins.path,
+                  builder: (context, state) => const CoinScreen(),
+                ),
+                GoRoute(
+                  parentNavigatorKey: rootNavigatorKey,
                   name: AppRoute.classrooms.name,
                   path: AppRoute.classrooms.path,
                   builder: (context, state) => BlocProvider(
@@ -459,10 +494,22 @@ class AppRouter {
                       parentNavigatorKey: rootNavigatorKey,
                       name: AppRoute.reportCreate.name,
                       path: 'create',
-                      builder: (context, state) => BlocProvider(
-                        create: (_) => DI().sl<ReportFormBloc>(),
-                        child: const ReportFormScreen(),
-                      ),
+                      builder: (context, state) {
+                        // extra (tùy chọn): {targetType: 'deck'|'folder'|'class'|'user', targetId, targetName}
+                        final extra = state.extra is Map ? state.extra as Map : const {};
+                        final targetId = extra['targetId']?.toString();
+                        final targetType = targetId == null
+                            ? ReportTargetType.system
+                            : ReportTargetType.fromString(extra['targetType']?.toString());
+                        return BlocProvider(
+                          create: (_) => DI().sl<ReportFormBloc>(),
+                          child: ReportFormScreen(
+                            targetType: targetType,
+                            targetId: targetType == ReportTargetType.system ? null : targetId,
+                            targetName: extra['targetName']?.toString(),
+                          ),
+                        );
+                      },
                     ),
                     GoRoute(
                       parentNavigatorKey: rootNavigatorKey,
@@ -477,6 +524,38 @@ class AppRouter {
                       },
                     ),
                   ],
+                ),
+                GoRoute(
+                  parentNavigatorKey: rootNavigatorKey,
+                  name: AppRoute.documentImport.name,
+                  path: AppRoute.documentImport.path,
+                  builder: (context, state) => BlocProvider(
+                    create: (_) => DI().sl<DocumentImportBloc>(),
+                    child: DocumentImportScreen(resumeDraftId: state.uri.queryParameters['resume']),
+                  ),
+                ),
+                GoRoute(
+                  parentNavigatorKey: rootNavigatorKey,
+                  name: AppRoute.documentImportDrafts.name,
+                  path: AppRoute.documentImportDrafts.path,
+                  builder: (context, state) => BlocProvider(
+                    create: (_) => DI().sl<DocumentImportListBloc>(),
+                    child: const DocumentImportListScreen(),
+                  ),
+                ),
+                GoRoute(
+                  parentNavigatorKey: rootNavigatorKey,
+                  name: AppRoute.documentImportDraft.name,
+                  path: AppRoute.documentImportDraft.path,
+                  builder: (context, state) => BlocProvider(
+                    create: (_) => DI().sl<DocumentImportDraftBloc>(),
+                    child: DocumentImportDraftScreen(
+                      draftId: state.pathParameters['id']!,
+                      initialDraft: state.extra is DocumentImportDraft
+                          ? state.extra as DocumentImportDraft
+                          : null,
+                    ),
+                  ),
                 ),
                 GoRoute(
                   parentNavigatorKey: rootNavigatorKey,
@@ -521,8 +600,30 @@ class AppRouter {
         if (type == "deck") {
           initData = DeckModel.fromJson(extra['data'] as Map<String, dynamic>);
         }
+        // Ôn cùng lúc nhiều thư mục / học phần đã chọn ở Thư viện
+        if (type == "folders") {
+          initData = [
+            for (final json in extra['data'] as List<dynamic>)
+              FolderModel.fromJson(json as Map<String, dynamic>),
+          ];
+        }
+        if (type == "decks") {
+          initData = [
+            for (final json in extra['data'] as List<dynamic>)
+              DeckModel.fromJson(json as Map<String, dynamic>),
+          ];
+        }
+        // Mở thẳng phiên đề cá nhân đang dở (từ khối "Đang học dở" ở Home)
+        final resumeSessionId = extra['resumeSessionId'] as String?;
+        final resumeTestId = extra['resumeTestId'] as String?;
         return BlocProvider(
-          create: (_) => DI().sl<TestSetupBloc>()..add(TestSetupInitialized(initData: initData)),
+          create: (_) {
+            final bloc = DI().sl<TestSetupBloc>()..add(TestSetupInitialized(initData: initData));
+            if (resumeSessionId != null && resumeTestId != null) {
+              bloc.add(TestSetupResumeRequested(sessionId: resumeSessionId, testId: resumeTestId));
+            }
+            return bloc;
+          },
           child: const TakeTestScreen(),
         );
       },
@@ -567,11 +668,25 @@ class AppRouter {
             .toList();
         final rawLogs = extraMap?['reviewLogs'] as List<dynamic>? ?? [];
         final reviewLogs = rawLogs.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+        final timeLimitSeconds = (extraMap?['timeLimitSeconds'] as num?)?.toInt() ?? 0;
+        final elapsedSeconds = (extraMap?['elapsedSeconds'] as num?)?.toInt() ?? 0;
+        final showBackFirst = extraMap?['showBackFirst'] as bool? ?? false;
+        final readOnly = extraMap?['readOnly'] as bool? ?? false;
+        final restartDeckId = extraMap?['restartDeckId'] as String?;
         return BlocProvider(
-          create: (context) =>
-              FlashcardStudyBloc(studyRepository: DI().sl<StudyRepository>())
-                ..add(InitStudyEvent(sessionId: sessionId, cards: cards, reviewLogs: reviewLogs)),
-          child: const FlashcardStudyScreen(),
+          create: (context) => FlashcardStudyBloc(studyRepository: DI().sl<StudyRepository>())
+            ..add(
+              InitStudyEvent(
+                sessionId: sessionId,
+                cards: cards,
+                reviewLogs: reviewLogs,
+                timeLimitSeconds: timeLimitSeconds,
+                elapsedSeconds: elapsedSeconds,
+                showBackFirst: showBackFirst,
+                readOnly: readOnly,
+              ),
+            ),
+          child: FlashcardStudyScreen(restartDeckId: restartDeckId),
         );
       },
     ),

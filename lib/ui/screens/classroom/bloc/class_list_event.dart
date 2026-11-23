@@ -9,11 +9,12 @@ abstract class ClassListEvent extends Equatable {
 
 class ClassListLoaded extends ClassListEvent {}
 
+/// Tham gia lớp bằng mã lớp (`joinCode`) HOẶC bằng `classId` (lớp công khai).
 class ClassJoined extends ClassListEvent {
-  final String classId;
-  final String joinCode;
+  final String? classId;
+  final String? joinCode;
 
-  const ClassJoined({required this.classId, required this.joinCode});
+  const ClassJoined({this.classId, this.joinCode});
 
   @override
   List<Object?> get props => [classId, joinCode];
@@ -34,4 +35,22 @@ class ClassCreated extends ClassListEvent {
 
   @override
   List<Object?> get props => [name, description, requireApproval, isPublic];
+}
+
+/// Chấp nhận / từ chối lời mời vào lớp.
+/// `notify = true` (danh sách lời mời ở màn lớp) -> bloc phát `notice` để màn hình hiện toast;
+/// hộp thoại tham gia tự xử lý qua `processSuccess` / `processErrorMessage`.
+class ClassInvitationResponded extends ClassListEvent {
+  final String classId;
+  final bool accept;
+  final bool notify;
+
+  const ClassInvitationResponded({
+    required this.classId,
+    required this.accept,
+    this.notify = false,
+  });
+
+  @override
+  List<Object?> get props => [classId, accept, notify];
 }

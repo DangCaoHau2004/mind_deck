@@ -9,10 +9,7 @@ abstract class AuthRemoteDataSource {
     required String fullName,
     required String dateOfBirth,
   });
-  Future<Response> login({
-    required String email,
-    required String password,
-  });
+  Future<Response> login({required String email, required String password});
   Future<Response> loginGoogle({required String idToken});
   Future<Response> refreshToken({required String refreshToken});
   Future<Response> forgotPassword({required String email});
@@ -57,52 +54,28 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
   }
 
   @override
-  Future<Response> login({
-    required String email,
-    required String password,
-  }) {
-    return dio.post(
-      ApiEndpoints.login,
-      data: {
-        'email': email,
-        'password': password,
-      },
-    );
+  Future<Response> login({required String email, required String password}) {
+    return dio.post(ApiEndpoints.login, data: {'email': email, 'password': password});
   }
 
   @override
   Future<Response> loginGoogle({required String idToken}) {
-    return dio.post(
-      ApiEndpoints.loginGoogle,
-      data: {'idToken': idToken},
-    );
+    return dio.post(ApiEndpoints.loginGoogle, data: {'idToken': idToken});
   }
 
   @override
   Future<Response> refreshToken({required String refreshToken}) {
-    return dio.post(
-      ApiEndpoints.refreshToken,
-      data: {'refreshToken': refreshToken},
-    );
+    return dio.post(ApiEndpoints.refreshToken, data: {'refreshToken': refreshToken});
   }
 
   @override
   Future<Response> forgotPassword({required String email}) {
-    return dio.post(
-      ApiEndpoints.forgotPassword,
-      data: {'email': email},
-    );
+    return dio.post(ApiEndpoints.forgotPassword, data: {'email': email});
   }
 
   @override
   Future<Response> verifyOtp({required String email, required String otp}) {
-    return dio.post(
-      ApiEndpoints.verifyOtp,
-      data: {
-        'email': email,
-        'otp': otp,
-      },
-    );
+    return dio.post(ApiEndpoints.verifyOtp, data: {'email': email, 'otp': otp});
   }
 
   @override
@@ -141,11 +114,6 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
 
   @override
   Future<Response> logout({String? fcmToken}) {
-    return dio.post(
-      ApiEndpoints.logout,
-      data: {
-        'fcmToken': ?fcmToken,
-      },
-    );
+    return dio.post(ApiEndpoints.logout, data: {'fcmToken': ?fcmToken});
   }
 }

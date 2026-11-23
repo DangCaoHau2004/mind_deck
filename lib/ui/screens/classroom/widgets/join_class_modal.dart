@@ -3,6 +3,8 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mind_deck/configs/di.dart';
+import 'package:mind_deck/constants/class_error_messages.dart';
+import 'package:mind_deck/core/failures.dart';
 import 'package:mind_deck/data/models/class/class_model.dart';
 import 'package:mind_deck/data/repositories/class_repository.dart';
 import 'package:mind_deck/navigation/app_routes.dart';
@@ -62,9 +64,10 @@ class _JoinClassModalState extends State<JoinClassModal> {
           _isLoadingPreview = false;
         });
       }
-    } catch (e) {
+    } on Failure catch (f) {
+      if (!mounted) return;
       setState(() {
-        _previewError = 'Có lỗi xảy ra: ${e.toString()}';
+        _previewError = ClassErrorMessages.of(f);
         _isLoadingPreview = false;
       });
     }
@@ -231,10 +234,7 @@ class _JoinClassModalState extends State<JoinClassModal> {
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       gradient: LinearGradient(
-                        colors: [
-                          colorScheme.primary,
-                          colorScheme.secondary,
-                        ],
+                        colors: [colorScheme.primary, colorScheme.secondary],
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
                       ),
@@ -276,7 +276,11 @@ class _JoinClassModalState extends State<JoinClassModal> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(CupertinoIcons.person_2_fill, size: 18, color: colorScheme.onSurfaceVariant),
+                      Icon(
+                        CupertinoIcons.person_2_fill,
+                        size: 18,
+                        color: colorScheme.onSurfaceVariant,
+                      ),
                       const SizedBox(width: 8),
                       Text(
                         "${_previewClass!.memberCount} thành viên",
@@ -309,7 +313,15 @@ class _JoinClassModalState extends State<JoinClassModal> {
                       if (!state.isProcessing) {
                         if (state.processSuccess) {
                           Navigator.pop(context);
-                          if (_previewClass!.requireApproval) {
+                          final result = state.joinResult;
+                          if (result == null) {
+                            // Từ chối lời mời: không có kết quả tham gia.
+                            CustomToast.show(
+                              context,
+                              CustomToast.success(message: 'Đã từ chối lời mời'),
+                            );
+                          } else if (result.isPending) {
+                            // BE trả `pending` khi lớp bật duyệt (kể cả sau khi chấp nhận lời mời).
                             CustomToast.show(
                               context,
                               CustomToast.success(
@@ -321,10 +333,11 @@ class _JoinClassModalState extends State<JoinClassModal> {
                               context,
                               CustomToast.success(message: 'Đã tham gia lớp học!'),
                             );
+                            // Không truyền `extra`: dữ liệu xem trước chưa phải của thành viên,
+                            // để màn lớp tự tải lại đầy đủ (settings, permissions...).
                             context.pushNamed(
                               AppRoute.classroomDetail.name,
                               pathParameters: {'id': _previewClass!.id},
-                              extra: _previewClass!.toJson(),
                             );
                           }
                         } else if (state.processErrorMessage != null) {
@@ -367,6 +380,80 @@ class _JoinClassModalState extends State<JoinClassModal> {
                             ),
                           ),
                         );
+                      } else if (myStatus == 'invited') {
+                        // Đã được mời: Chấp nhận / Từ chối thay cho "Xin tham gia".
+                        ctaButton = Column(
+                          children: [
+                            Text(
+                              'Bạn được mời tham gia lớp học này',
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                color: colorScheme.onSurfaceVariant,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: OutlinedButton(
+                                    onPressed: state.isProcessing
+                                        ? null
+                                        : () => context.read<ClassListBloc>().add(
+                                            ClassInvitationResponded(
+                                              classId: _previewClass!.id,
+                                              accept: false,
+                                            ),
+                                          ),
+                                    style: OutlinedButton.styleFrom(
+                                      minimumSize: const Size(0, 60),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(20),
+                                      ),
+                                    ),
+                                    child: const Text('Từ chối'),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: ElevatedButton(
+                                    onPressed: state.isProcessing
+                                        ? null
+                                        : () => context.read<ClassListBloc>().add(
+                                            ClassInvitationResponded(
+                                              classId: _previewClass!.id,
+                                              accept: true,
+                                            ),
+                                          ),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: colorScheme.primary,
+                                      elevation: 0,
+                                      minimumSize: const Size(0, 60),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(20),
+                                      ),
+                                    ),
+                                    child: state.isProcessing
+                                        ? const SizedBox(
+                                            height: 24,
+                                            width: 24,
+                                            child: CircularProgressIndicator(
+                                              color: Colors.white,
+                                              strokeWidth: 3,
+                                            ),
+                                          )
+                                        : Text(
+                                            'Chấp nhận',
+                                            style: theme.textTheme.titleMedium?.copyWith(
+                                              color: Colors.white,
+                                              fontWeight: FontWeight.w900,
+                                            ),
+                                          ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        );
                       } else if (myStatus == 'pending') {
                         ctaButton = ElevatedButton(
                           onPressed: null,
@@ -392,10 +479,8 @@ class _JoinClassModalState extends State<JoinClassModal> {
                                   ? null
                                   : () {
                                       context.read<ClassListBloc>().add(
-                                        ClassJoined(
-                                          classId: _previewClass!.id,
-                                          joinCode: _joinCodeController.text.trim(),
-                                        ),
+                                        // Chỉ gửi mã lớp (BE nhận `joinCode` HOẶC `classId`).
+                                        ClassJoined(joinCode: _joinCodeController.text.trim()),
                                       );
                                     },
                               style: ElevatedButton.styleFrom(

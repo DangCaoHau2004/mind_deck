@@ -6,52 +6,99 @@ enum ClassAssignmentsStatus { initial, loading, success, failure }
 
 class ClassAssignmentsState extends Equatable {
   final ClassAssignmentsStatus status;
-  final List<ClassAssignmentModel> assignments;
-  final List<ClassAssignmentSubmissionModel> mySubmissions;
-  final List<ClassAssignmentSubmissionModel> overdueAssignments;
+  final bool isTeacher;
+
+  /// BE `tab=active`: giảng viên = chưa kết thúc (kể cả chưa bắt đầu); học viên = đang diễn ra mà chưa xong.
+  final List<ClassAssignmentModel> active;
+
+  /// BE `tab=history`. Lưu ý học viên đã nộp 1 lượt nhưng còn lượt vẫn nằm ở đây (hiện nút "Làm lại").
+  final List<ClassAssignmentModel> history;
+
+  /// `GET /assignments/overdue` (chỉ học viên; giảng viên luôn rỗng).
+  final List<ClassAssignmentSubmissionModel> overdue;
   final String? errorMessage;
 
   final bool isProcessing;
-  final String? processErrorMessage;
+
+  /// Thông báo một lần cho màn danh sách; `noticeId` tăng mỗi lần.
+  final String? notice;
+  final bool noticeIsError;
+  final int noticeId;
+
+  /// Lỗi khi tạo / sửa — hiện ở màn form (không lẫn với toast của danh sách).
+  final String? formError;
+  final int formErrorId;
+
+  /// Tăng mỗi khi tạo / sửa thành công để form tự đóng.
+  final int savedId;
 
   const ClassAssignmentsState({
     this.status = ClassAssignmentsStatus.initial,
-    this.assignments = const [],
-    this.mySubmissions = const [],
-    this.overdueAssignments = const [],
+    this.isTeacher = false,
+    this.active = const [],
+    this.history = const [],
+    this.overdue = const [],
     this.errorMessage,
     this.isProcessing = false,
-    this.processErrorMessage,
+    this.notice,
+    this.noticeIsError = false,
+    this.noticeId = 0,
+    this.formError,
+    this.formErrorId = 0,
+    this.savedId = 0,
   });
+
+  /// Học viên: bài đã làm xong hoặc đã làm ít nhất một lượt (kể cả còn lượt làm lại).
+  List<ClassAssignmentModel> get studentDone => [
+    for (final a in history)
+      if (a.my != null && (a.my!.status == AssignmentStatus.completed || a.my!.attemptsCount > 0))
+        a,
+  ];
 
   ClassAssignmentsState copyWith({
     ClassAssignmentsStatus? status,
-    List<ClassAssignmentModel>? assignments,
-    List<ClassAssignmentSubmissionModel>? mySubmissions,
-    List<ClassAssignmentSubmissionModel>? overdueAssignments,
+    bool? isTeacher,
+    List<ClassAssignmentModel>? active,
+    List<ClassAssignmentModel>? history,
+    List<ClassAssignmentSubmissionModel>? overdue,
     String? errorMessage,
     bool? isProcessing,
-    String? processErrorMessage,
+    String? notice,
+    bool noticeIsError = false,
+    String? formError,
+    bool saved = false,
   }) {
     return ClassAssignmentsState(
       status: status ?? this.status,
-      assignments: assignments ?? this.assignments,
-      mySubmissions: mySubmissions ?? this.mySubmissions,
-      overdueAssignments: overdueAssignments ?? this.overdueAssignments,
+      isTeacher: isTeacher ?? this.isTeacher,
+      active: active ?? this.active,
+      history: history ?? this.history,
+      overdue: overdue ?? this.overdue,
       errorMessage: errorMessage ?? this.errorMessage,
       isProcessing: isProcessing ?? this.isProcessing,
-      processErrorMessage: processErrorMessage,
+      notice: notice,
+      noticeIsError: noticeIsError,
+      noticeId: notice != null ? noticeId + 1 : noticeId,
+      formError: formError,
+      formErrorId: formError != null ? formErrorId + 1 : formErrorId,
+      savedId: saved ? savedId + 1 : savedId,
     );
   }
 
   @override
   List<Object?> get props => [
     status,
-    assignments,
-    mySubmissions,
-    overdueAssignments,
+    isTeacher,
+    active,
+    history,
+    overdue,
     errorMessage,
     isProcessing,
-    processErrorMessage,
+    notice,
+    noticeIsError,
+    noticeId,
+    formError,
+    formErrorId,
+    savedId,
   ];
 }

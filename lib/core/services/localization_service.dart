@@ -15,16 +15,13 @@ class LocalizationService {
   /// Luôn trả về Locale đảm bảo format ngày là dd/mm/yyyy
   /// vi: Locale('vi', 'VN')
   /// en: Locale('en', 'GB') (chuẩn Anh/quốc tế sử dụng dd/mm/yyyy)
-  Locale get currentLocale => _currentLanguageCode == 'vi'
-      ? const Locale('vi', 'VN')
-      : const Locale('en', 'GB');
+  Locale get currentLocale =>
+      _currentLanguageCode == 'vi' ? const Locale('vi', 'VN') : const Locale('en', 'GB');
 
   Future<void> load(String languageCode) async {
     _currentLanguageCode = languageCode;
     try {
-      String jsonString = await rootBundle.loadString(
-        'assets/langs/$languageCode.json',
-      );
+      String jsonString = await rootBundle.loadString('assets/langs/$languageCode.json');
       Map<String, dynamic> jsonMap = json.decode(jsonString);
       _localizedStrings = jsonMap;
     } catch (e) {

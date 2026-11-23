@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:mind_deck/data/models/enums.dart';
+import 'package:mind_deck/ui/commons/custom_toast.dart';
 import 'package:mind_deck/ui/screens/test/take_test/bloc/test_setup_bloc.dart';
 import 'package:mind_deck/ui/screens/test/take_test/bloc/test_setup_event.dart';
 import 'package:mind_deck/ui/screens/test/take_test/bloc/test_setup_state.dart';
 import 'package:mind_deck/ui/screens/test/take_test/setup/widgets/setup_source_selector.dart';
 import 'package:mind_deck/ui/screens/test/take_test/setup/widgets/setup_settings_card.dart';
+import 'package:mind_deck/utils/study_flow_helper.dart';
 
 class TestSetupView extends StatefulWidget {
   final TestSetupConfigState state;
@@ -24,6 +27,25 @@ class _TestSetupViewState extends State<TestSetupView> {
     super.dispose();
   }
 
+  void _startFlashcardStudy(BuildContext context, TestSetupConfigState state) {
+    if (state.selectedCardIds.isEmpty) {
+      CustomToast.show(
+        context,
+        CustomToast.danger(message: 'Vui lòng chọn ít nhất một thẻ câu hỏi để ôn tập.'),
+      );
+      return;
+    }
+
+    final timeLimitSeconds = state.timeLimitEnabled ? state.timeLimitMinutes * 60 : 0;
+    StudyFlowHelper.start(
+      context: context,
+      cardIds: state.selectedCardIds.toList(),
+      timeLimitSeconds: timeLimitSeconds,
+      questionSide: state.questionSide,
+      replace: true,
+    );
+  }
+
   void _showTestNameInputDialog(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
@@ -40,9 +62,7 @@ class _TestSetupViewState extends State<TestSetupView> {
             children: [
               Text(
                 'Nhập tên bài ôn tập (Để trống để tự tạo tên theo thời gian):',
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: colorScheme.onSurfaceVariant,
-                ),
+                style: theme.textTheme.bodyMedium?.copyWith(color: colorScheme.onSurfaceVariant),
               ),
               const SizedBox(height: 16),
               TextField(
@@ -147,7 +167,15 @@ class _TestSetupViewState extends State<TestSetupView> {
           shadowColor: Colors.transparent,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         ),
-        onPressed: isGenerating ? null : () => _showTestNameInputDialog(context),
+        onPressed: isGenerating
+            ? null
+            : () {
+                if (state.selectedQuestionTypes.contains(TestQuestionType.flashcard)) {
+                  _startFlashcardStudy(context, state);
+                } else {
+                  _showTestNameInputDialog(context);
+                }
+              },
         child: isGenerating
             ? const SizedBox(
                 width: 24,

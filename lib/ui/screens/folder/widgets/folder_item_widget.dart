@@ -1,14 +1,20 @@
 import 'package:flutter/material.dart';
+import 'package:mind_deck/ui/commons/folder_illustration.dart';
+import 'package:flutter/services.dart';
+import 'package:skeletonizer/skeletonizer.dart';
 import 'package:mind_deck/constants/app_icons.dart';
+import 'package:mind_deck/core/extensions/string_extension.dart';
 import 'package:mind_deck/data/models/folder_model.dart';
+import 'package:mind_deck/ui/commons/due_badge.dart';
+import 'package:mind_deck/ui/commons/tag_pill.dart';
+import 'package:mind_deck/data/models/tag_model.dart';
 import 'package:mind_deck/utils/color_utils.dart';
 
 class FolderItemWidget extends StatelessWidget {
   final FolderModel folder;
   final bool isSelected;
   final bool isSelectionMode;
-
-  // Bổ sung 3 callback để đẩy logic ra ngoài Screen/BLoC
+  final String? searchQuery;
   final VoidCallback? onTap;
   final VoidCallback? onLongPress;
   final VoidCallback? onStarTap;
@@ -16,166 +22,173 @@ class FolderItemWidget extends StatelessWidget {
   const FolderItemWidget({
     super.key,
     required this.folder,
-    required this.isSelected,
-    required this.isSelectionMode,
+    this.isSelected = false,
+    this.isSelectionMode = false,
+    this.searchQuery,
     this.onTap,
     this.onLongPress,
     this.onStarTap,
   });
 
+  static const int _maxVisibleTags = 2;
+
+  /// Tag khớp từ khóa tìm kiếm được đưa lên đầu.
+  List<TagModel> get _sortedTags {
+    final tags = folder.tags ?? const <TagModel>[];
+    final tokens = (searchQuery ?? '')
+        .toLowerCase()
+        .split(RegExp(r'\s+'))
+        .where((s) => s.isNotEmpty)
+        .map((s) => s.startsWith('#') ? s.substring(1) : s);
+    if (tokens.isEmpty) return tags;
+    bool matches(TagModel t) => tokens.any((k) => t.name.toLowerCase().contains(k));
+    return [...tags.where(matches), ...tags.where((t) => !matches(t))];
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final tags = _sortedTags;
+    final extraTags = tags.length - _maxVisibleTags;
 
-    // Tự động tính toán màu sắc tương phản (Giữ nguyên code gốc của bạn)
-    final themeColor = ColorUtils.parseHex(folder.color);
-    final bool isLight = ColorUtils.isLightColor(themeColor);
-    final Color contentColor = ColorUtils.getContrastColor(themeColor);
-    final Color subTextColor = isLight
-        ? Colors.black54
-        : Colors.white.withValues(alpha: 0.85);
-
-    return GestureDetector(
-      // GỌI CALLBACK ĐƯỢC TRUYỀN TỪ NGOÀI VÀO
-      onLongPress: onLongPress,
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-        child: Stack(
-          children: [
-            // "Tai" thư mục
-            Positioned(
-              top: 0,
-              left: 16,
-              child: Container(
-                width: 90,
-                height: 20,
-                decoration: BoxDecoration(
-                  color: themeColor.withValues(alpha: 0.9),
-                  borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(10),
-                  ),
-                  border: isLight
-                      ? Border.all(color: Colors.grey.shade300, width: 1)
-                      : null,
-                ),
-              ),
-            ),
-
-            // Khung thư mục chính
-            Container(
-              margin: const EdgeInsets.only(top: 14),
-              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-              decoration: BoxDecoration(
-                color: isSelected
-                    ? themeColor.withValues(alpha: 0.8)
-                    : themeColor,
-                borderRadius: BorderRadius.circular(16),
-                border: isSelected
-                    ? Border.all(color: contentColor, width: 2)
-                    : (isLight
-                          ? Border.all(color: Colors.grey.shade300, width: 1)
-                          : null),
-                boxShadow: [
-                  BoxShadow(
-                    color: isLight
-                        ? Colors.black.withValues(alpha: 0.05)
-                        : themeColor.withValues(alpha: 0.3),
-                    blurRadius: 10,
-                    offset: const Offset(0, 5),
-                  ),
-                ],
-              ),
-              child: Row(
-                children: [
-                  // Icon
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: isLight
-                          ? Colors.black.withValues(alpha: 0.05)
-                          : Colors.white.withValues(alpha: 0.2),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Icon(
-                      AppIcons.getIconFromKey(folder.icon),
-                      color: contentColor,
-                      size: 22,
-                    ),
-                  ),
-                  const SizedBox(width: 14),
-                  // Text Info
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          folder.name,
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            color: contentColor,
-                            fontWeight: FontWeight.bold,
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
+      child: Material(
+        color: isSelected
+            ? Color.alphaBlend(colorScheme.primary.withValues(alpha: 0.08), colorScheme.surface)
+            : colorScheme.surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: BorderSide(
+            color: isSelected ? colorScheme.primary : colorScheme.outline.withValues(alpha: 0.2),
+            width: isSelected ? 2 : 1,
+          ),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: () {
+            if (isSelectionMode) HapticFeedback.selectionClick();
+            onTap?.call();
+          },
+          onLongPress: () {
+            HapticFeedback.mediumImpact();
+            onLongPress?.call();
+          },
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(14, 14, 8, 14),
+            child: Row(
+              children: [
+                Skeleton.leaf(child: _FolderIcon(folder: folder)),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        folder.name,
+                        style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          Icon(
+                            folder.isPublic ? Icons.public_rounded : Icons.lock_outline_rounded,
+                            size: 16,
+                            color: colorScheme.onSurface.withValues(alpha: 0.6),
                           ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 2),
-                        if (folder.description != null &&
-                            folder.description!.isNotEmpty)
-                          Text(
-                            folder.description!,
-                            style: theme.textTheme.labelMedium?.copyWith(
-                              color: subTextColor,
+                          const SizedBox(width: 6),
+                          Flexible(
+                            child: Text(
+                              '${(folder.isPublic ? 'library_public' : 'library_private').tr} · '
+                              '${'folder_deck_count'.tr.replaceAll('{count}', '${folder.deckCount ?? folder.decks?.length ?? 0}')}',
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                color: colorScheme.onSurface.withValues(alpha: 0.6),
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
                           ),
-                      ],
-                    ),
-                  ),
-                  if (isSelectionMode)
-                    Icon(
-                      isSelected
-                          ? Icons.check_circle_rounded
-                          : Icons.radio_button_unchecked_rounded,
-                      color: isSelected ? contentColor : subTextColor,
-                      size: 26,
-                    )
-                  else ...[
-                    if (onStarTap != null)
-                      GestureDetector(
-                        behavior: HitTestBehavior.opaque,
-                        onTap: onStarTap,
-                        child: Container(
-                          padding: const EdgeInsets.all(6),
-                          decoration: BoxDecoration(
-                            color: isLight
-                                ? Colors.black.withValues(alpha: 0.05)
-                                : Colors.white.withValues(alpha: 0.15),
-                            shape: BoxShape.circle,
-                          ),
-                          child: Icon(
-                            folder.isStarred
-                                ? Icons.star_rounded
-                                : Icons.star_outline_rounded,
-                            color: folder.isStarred
-                                ? Colors.amberAccent
-                                : subTextColor,
-                            size: 22,
-                          ),
+                        ],
+                      ),
+                      // Luôn chừa chỗ cho hàng tag để thẻ không tag vẫn cao bằng thẻ có tag
+                      const SizedBox(height: 8),
+                      SizedBox(
+                        height: 30,
+                        child: Row(
+                          children: [
+                            for (final tag in tags.take(_maxVisibleTags))
+                              Flexible(
+                                child: TagPill(text: '#${tag.name}', hex: tag.color),
+                              ),
+                            if (extraTags > 0) TagPill(text: '+$extraTags'),
+                          ],
                         ),
                       ),
-                    const SizedBox(width: 8),
-                    Icon(
-                      Icons.chevron_right_rounded,
-                      color: subTextColor,
-                      size: 26,
-                    ),
-                  ],
-                ],
-              ),
+                    ],
+                  ),
+                ),
+                isSelectionMode
+                    ? Padding(
+                        padding: const EdgeInsets.all(10),
+                        child: Icon(
+                          isSelected
+                              ? Icons.check_circle_rounded
+                              : Icons.radio_button_unchecked_rounded,
+                          color: isSelected
+                              ? colorScheme.primary
+                              : colorScheme.onSurface.withValues(alpha: 0.35),
+                          size: 26,
+                        ),
+                      )
+                    : IconButton(
+                        onPressed: onStarTap == null
+                            ? null
+                            : () {
+                                HapticFeedback.lightImpact();
+                                onStarTap!();
+                              },
+                        icon: Icon(
+                          folder.isStarred ? Icons.star_rounded : Icons.star_outline_rounded,
+                          color: folder.isStarred
+                              ? Colors.amber
+                              : colorScheme.onSurface.withValues(alpha: 0.35),
+                          size: 30,
+                        ),
+                      ),
+              ],
             ),
-          ],
+          ),
         ),
+      ),
+    );
+  }
+}
+
+/// Icon thư mục trong danh sách (hình dùng chung); góc phải trên có số thẻ cần ôn.
+class _FolderIcon extends StatelessWidget {
+  final FolderModel folder;
+
+  const _FolderIcon({required this.folder});
+
+  @override
+  Widget build(BuildContext context) {
+    final due = folder.dueCount ?? 0;
+
+    return SizedBox(
+      width: 60,
+      height: 56,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          FolderIllustration(
+            color: ColorUtils.parseHex(folder.color),
+            icon: AppIcons.getIconFromKey(folder.icon),
+          ),
+          if (due > 0) Positioned(right: -8, top: -6, child: DueBadge(count: due)),
+        ],
       ),
     );
   }

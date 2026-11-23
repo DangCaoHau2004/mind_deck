@@ -5,7 +5,15 @@ abstract class Failure {
   final String message;
   final String errorCode;
   final int? statusCode;
-  Failure({required this.message, this.errorCode = AppErrorCodes.unknownError, this.statusCode});
+
+  /// Dữ liệu kèm theo lỗi từ BE (`params`), vd `duplicates`, `max`, `required`.
+  final Map<String, dynamic>? params;
+  Failure({
+    required this.message,
+    this.errorCode = AppErrorCodes.unknownError,
+    this.statusCode,
+    this.params,
+  });
   @override
   String toString() => message;
 }
@@ -15,6 +23,7 @@ class ServerFailure extends Failure {
     required super.message,
     super.errorCode = AppErrorCodes.systemInternalError,
     super.statusCode,
+    super.params,
   });
 }
 
@@ -24,6 +33,11 @@ class NetworkFailure extends Failure {
         message: message ?? 'error_no_internet'.tr,
         errorCode: errorCode ?? AppErrorCodes.networkError,
       );
+}
+
+class ValidationFailure extends Failure {
+  ValidationFailure(String message)
+    : super(message: message, errorCode: AppErrorCodes.validationError);
 }
 
 class CacheFailure extends Failure {

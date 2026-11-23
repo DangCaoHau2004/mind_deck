@@ -1,21 +1,25 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:mind_deck/core/extensions/string_extension.dart';
 import 'package:mind_deck/data/models/deck_model.dart';
 import 'package:mind_deck/navigation/app_routes.dart';
 import 'package:mind_deck/utils/study_flow_helper.dart';
 
 class DeckDetailActionButtons extends StatefulWidget {
   final DeckModel deck;
-  final Color mainThemeColor;
   final String? classId;
   final String? assignmentId;
+
+  /// Chủ deck cá nhân. Người khác chỉ được HỌC THỬ (không lưu tiến trình);
+  /// bản sao lớp học bình thường nhưng không tạo đề cá nhân được (BE lọc sạch thẻ).
+  final bool isOwner;
 
   const DeckDetailActionButtons({
     super.key,
     required this.deck,
-    required this.mainThemeColor,
     this.classId,
     this.assignmentId,
+    this.isOwner = true,
   });
 
   @override
@@ -30,47 +34,53 @@ class _DeckDetailActionButtonsState extends State<DeckDetailActionButtons> {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
+    final isTrial = !widget.isOwner && !widget.deck.isClassCopy;
+    final canMakePersonalTest = widget.isOwner && !widget.deck.isClassCopy;
+
     return Row(
       children: [
-        Expanded(
-          child: SizedBox(
-            height: 60,
-            child: ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: widget.mainThemeColor,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                elevation: 6,
-              ),
-              onPressed: () {
-                context.pushNamed(
-                  AppRoute.testSetup.name,
-                  extra: {"type": "deck", "data": widget.deck.toJson()},
-                );
-              },
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(Icons.assignment_rounded, size: 24),
-                  const SizedBox(width: 8),
-                  Text(
-                    'KIỂM TRA',
-                    style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
-                  ),
-                ],
+        if (canMakePersonalTest) ...[
+          Expanded(
+            child: SizedBox(
+              height: 60,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: colorScheme.primary,
+                  foregroundColor: colorScheme.onPrimary,
+                  shadowColor: colorScheme.primary.withValues(alpha: 0.5),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                  elevation: 6,
+                ),
+                onPressed: () {
+                  context.pushNamed(
+                    AppRoute.testSetup.name,
+                    extra: {"type": "deck", "data": widget.deck.toJson()},
+                  );
+                },
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.fact_check_outlined, size: 24),
+                    const SizedBox(width: 8),
+                    Text(
+                      'deck_action_test'.tr,
+                      style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
-        ),
-        const SizedBox(width: 12),
+          const SizedBox(width: 12),
+        ],
         Expanded(
           child: SizedBox(
             height: 60,
             child: ElevatedButton(
               style: ElevatedButton.styleFrom(
                 backgroundColor: colorScheme.surface,
-                foregroundColor: widget.mainThemeColor,
-                side: BorderSide(color: widget.mainThemeColor, width: 2),
+                foregroundColor: colorScheme.primary,
+                side: BorderSide(color: colorScheme.primary.withValues(alpha: 0.35), width: 1.5),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                 elevation: 0,
               ),
@@ -89,7 +99,7 @@ class _DeckDetailActionButtonsState extends State<DeckDetailActionButtons> {
                       height: 24,
                       child: CircularProgressIndicator(
                         strokeWidth: 2.5,
-                        color: widget.mainThemeColor,
+                        color: colorScheme.primary,
                       ),
                     )
                   : Row(
@@ -98,8 +108,8 @@ class _DeckDetailActionButtonsState extends State<DeckDetailActionButtons> {
                         const Icon(Icons.style_rounded, size: 24),
                         const SizedBox(width: 8),
                         Text(
-                          'FLASHCARD',
-                          style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
+                          (isTrial ? 'deck_action_trial' : 'deck_action_flashcard').tr,
+                          style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
                         ),
                       ],
                     ),

@@ -8,6 +8,7 @@ import 'package:mind_deck/data/data_sources/local/study_local_data_source.dart';
 import 'package:mind_deck/data/data_sources/remote/study_remote_data_source.dart';
 import 'package:mind_deck/data/repositories/study_repository.dart';
 import 'package:mind_deck/core/services/crashlytics_service.dart';
+import 'package:mind_deck/services/ad_service.dart';
 import 'package:mind_deck/services/media_service.dart';
 import 'package:mind_deck/services/storage_service.dart';
 import 'package:mind_deck/services/tts_service.dart';
@@ -64,9 +65,15 @@ import 'package:mind_deck/data/repositories/stats_repository.dart';
 import 'package:mind_deck/data/data_sources/remote/notification_remote_data_source.dart';
 import 'package:mind_deck/data/repositories/notification_repository.dart';
 import 'package:mind_deck/ui/screens/notification/bloc/notification_list_bloc.dart';
-import 'package:mind_deck/data/data_sources/remote/dashboard_remote_data_source.dart';
-import 'package:mind_deck/data/repositories/dashboard_repository.dart';
-import 'package:mind_deck/ui/screens/dashboard/bloc/dashboard_bloc.dart';
+import 'package:mind_deck/ui/screens/notification/settings/bloc/notification_settings_bloc.dart';
+import 'package:mind_deck/data/data_sources/remote/document_import_remote_data_source.dart';
+import 'package:mind_deck/data/repositories/document_import_repository.dart';
+import 'package:mind_deck/ui/screens/document_import/bloc/document_import_bloc.dart';
+import 'package:mind_deck/ui/screens/document_import/bloc/document_import_draft_bloc.dart';
+import 'package:mind_deck/ui/screens/document_import/bloc/document_import_list_bloc.dart';
+import 'package:mind_deck/data/data_sources/remote/home_remote_data_source.dart';
+import 'package:mind_deck/data/repositories/home_repository.dart';
+import 'package:mind_deck/ui/screens/home/bloc/home_bloc.dart';
 import 'package:mind_deck/data/models/class/class_model.dart';
 import 'package:mind_deck/ui/screens/classroom/bloc/class_list_bloc.dart';
 import 'package:mind_deck/ui/screens/classroom/class_hub/bloc/class_hub_bloc.dart';
@@ -76,10 +83,18 @@ import 'package:mind_deck/ui/screens/classroom/class_leaderboard/bloc/class_lead
 import 'package:mind_deck/ui/screens/classroom/class_assignments/bloc/class_assignments_bloc.dart';
 import 'package:mind_deck/ui/screens/classroom/class_analytics/bloc/class_analytics_bloc.dart';
 import 'package:mind_deck/ui/screens/classroom/class_test/bloc/class_test_bloc.dart';
+import 'package:mind_deck/ui/screens/classroom/class_tests/bloc/class_tests_bloc.dart';
 import 'package:mind_deck/ui/screens/classroom/class_settings/bloc/class_settings_bloc.dart';
 import 'package:hive/hive.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:mind_deck/ui/screens/deck/deck_form/image_search/image_search_bloc.dart';
+import 'package:mind_deck/constants/ad_units.dart';
+import 'package:mind_deck/data/data_sources/remote/coin_remote_data_source.dart';
+import 'package:mind_deck/data/repositories/coin_repository.dart';
+import 'package:mind_deck/services/coin_reward_service.dart';
+import 'package:mind_deck/ui/screens/auth/bloc/auth_state.dart';
+import 'package:mind_deck/ui/screens/coin/bloc/coin_cubit.dart';
 
 class DI {
   static DI? _instance;
@@ -104,6 +119,20 @@ class DI {
     sl.registerLazySingleton<MediaService>(() => MediaService(picker: sl()));
     sl.registerLazySingleton<StorageService>(() => StorageService());
     sl.registerLazySingleton<TTSService>(() => TTSService());
+    sl.registerLazySingleton<AdService>(() => AdService());
+    sl.registerLazySingleton<CoinRemoteDataSource>(() => CoinRemoteDataSourceImpl(dio: sl()));
+    sl.registerLazySingleton<CoinRepository>(() => CoinRepositoryImpl(remoteDataSource: sl()));
+    sl.registerLazySingleton<CoinRewardService>(
+      () => CoinRewardService(
+        repository: sl(),
+        userId: () {
+          final auth = sl<AuthBloc>().state;
+          return auth is AuthAuthenticated ? auth.user.id : null;
+        },
+        playVideo: (userId, placement) =>
+            sl<AdService>().showRewarded(AdUnit.rewardedCoin, userId: userId, placement: placement),
+      ),
+    );
     sl.registerLazySingleton<Dio>(() => AppDio.setupDio());
     sl.registerLazySingleton<AppRouter>(() => AppRouter());
 
@@ -124,6 +153,9 @@ class DI {
     sl.registerLazySingleton<SyncRemoteDataSource>(() => SyncRemoteDataSourceImpl(dio: sl()));
     sl.registerLazySingleton<TestRemoteDataSource>(() => TestRemoteDataSourceImpl(dio: sl()));
     sl.registerLazySingleton<ReportRemoteDataSource>(() => ReportRemoteDataSourceImpl(dio: sl()));
+    sl.registerLazySingleton<DocumentImportRemoteDataSource>(
+      () => DocumentImportRemoteDataSourceImpl(dio: sl()),
+    );
     sl.registerLazySingleton<DiscoveryRemoteDataSource>(
       () => DiscoveryRemoteDataSourceImpl(dio: sl()),
     );
@@ -133,9 +165,7 @@ class DI {
     sl.registerLazySingleton<NotificationRemoteDataSource>(
       () => NotificationRemoteDataSourceImpl(dio: sl()),
     );
-    sl.registerLazySingleton<DashboardRemoteDataSource>(
-      () => DashboardRemoteDataSourceImpl(dio: sl()),
-    );
+    sl.registerLazySingleton<HomeRemoteDataSource>(() => HomeRemoteDataSourceImpl(dio: sl()));
     sl.registerLazySingleton<StudyRemoteDataSource>(() => StudyRemoteDataSourceImpl(dio: sl()));
     sl.registerLazySingleton<StudyLocalDataSource>(
       () => StudyLocalDataSourceImpl(studyBox: sl(instanceName: 'studyBox')),
@@ -159,6 +189,9 @@ class DI {
     sl.registerLazySingleton<SyncRepository>(() => SyncRepositoryImpl(remoteDataSource: sl()));
     sl.registerLazySingleton<TestRepository>(() => TestRepositoryImpl(remoteDataSource: sl()));
     sl.registerLazySingleton<ReportRepository>(() => ReportRepositoryImpl(remoteDataSource: sl()));
+    sl.registerLazySingleton<DocumentImportRepository>(
+      () => DocumentImportRepositoryImpl(remoteDataSource: sl()),
+    );
     sl.registerLazySingleton<DiscoveryRepository>(
       () => DiscoveryRepositoryImpl(remoteDataSource: sl()),
     );
@@ -168,9 +201,7 @@ class DI {
     sl.registerLazySingleton<NotificationRepository>(
       () => NotificationRepositoryImpl(remoteDataSource: sl()),
     );
-    sl.registerLazySingleton<DashboardRepository>(
-      () => DashboardRepositoryImpl(remoteDataSource: sl()),
-    );
+    sl.registerLazySingleton<HomeRepository>(() => HomeRepositoryImpl(remoteDataSource: sl()));
 
     sl.registerLazySingleton<StudyRepository>(
       () => StudyRepositoryImpl(remoteDataSource: sl(), localDataSource: sl()),
@@ -187,6 +218,7 @@ class DI {
         authRepository: sl(),
         notificationRepository: sl(),
         studyRepository: sl(),
+        tagRepository: sl(),
         crashlyticsService: sl(),
       ),
     );
@@ -194,8 +226,11 @@ class DI {
     sl.registerFactory<SignUpBloc>(() => SignUpBloc(authRepository: sl(), storageService: sl()));
     sl.registerFactory<ForgotPasswordBloc>(() => ForgotPasswordBloc(authRepository: sl()));
 
-    sl.registerFactory<FolderFormBloc>(() => FolderFormBloc(folderRepository: sl()));
+    sl.registerFactory<FolderFormBloc>(
+      () => FolderFormBloc(folderRepository: sl(), tagRepository: sl()),
+    );
     sl.registerFactory(() => DeckFormBloc(deckRepository: sl(), tagRepository: sl()));
+    sl.registerFactory(() => ImageSearchBloc(repository: sl()));
     sl.registerFactory<FolderDetailBloc>(
       () => FolderDetailBloc(folderRepository: sl(), sharedRepository: sl()),
     );
@@ -230,10 +265,18 @@ class DI {
     sl.registerFactory<ClassTestBloc>(
       () => ClassTestBloc(testRepository: sl(), classRepository: sl()),
     );
+    sl.registerFactory<ClassTestsBloc>(() => ClassTestsBloc(repository: sl()));
     sl.registerFactory<NotificationListBloc>(
       () => NotificationListBloc(notificationRepository: sl()),
     );
-    sl.registerFactory<DashboardBloc>(() => DashboardBloc(repository: sl()));
+    sl.registerFactory<CoinCubit>(() => CoinCubit(repository: sl()));
+    sl.registerFactory<DocumentImportBloc>(() => DocumentImportBloc(repository: sl(), prefs: sl()));
+    sl.registerFactory<DocumentImportDraftBloc>(() => DocumentImportDraftBloc(repository: sl()));
+    sl.registerFactory<DocumentImportListBloc>(() => DocumentImportListBloc(repository: sl()));
+    sl.registerFactory<NotificationSettingsBloc>(
+      () => NotificationSettingsBloc(notificationRepository: sl()),
+    );
+    sl.registerFactory<HomeBloc>(() => HomeBloc(repository: sl(), studyRepository: sl()));
     sl.registerFactory<TestHistoryBloc>(() => TestHistoryBloc(testRepository: sl()));
     sl.registerFactory<TestHistoryDetailBloc>(() => TestHistoryDetailBloc(testRepository: sl()));
   }

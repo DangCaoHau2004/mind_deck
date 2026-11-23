@@ -13,7 +13,17 @@ import 'bloc/report_form_event.dart';
 import 'bloc/report_form_state.dart';
 
 class ReportFormScreen extends StatefulWidget {
-  const ReportFormScreen({super.key});
+  /// Đối tượng bị báo cáo; `system` (mặc định) = lỗi/hỗ trợ chung, không có `targetId`.
+  final ReportTargetType targetType;
+  final String? targetId;
+  final String? targetName;
+
+  const ReportFormScreen({
+    super.key,
+    this.targetType = ReportTargetType.system,
+    this.targetId,
+    this.targetName,
+  });
 
   @override
   State<ReportFormScreen> createState() => _ReportFormScreenState();
@@ -23,11 +33,25 @@ class _ReportFormScreenState extends State<ReportFormScreen> {
   final _formKey = GlobalKey<FormState>();
   final _descriptionController = TextEditingController();
 
-  ReportType _selectedType = ReportType.bugUi;
-  ReportTargetType _selectedTargetType = ReportTargetType.system;
-  final String? _targetId = null;
+  static const int _maxImages = 5;
+  static const int _maxDescription = 2000;
+
+  late ReportType _selectedType;
 
   final List<File> _selectedImages = [];
+
+  bool get _isSystem => widget.targetType == ReportTargetType.system;
+
+  /// BE: `payment_issue` chỉ đi với hệ thống; `content_violation` không đi với hệ thống.
+  List<ReportType> get _allowedTypes => _isSystem
+      ? ReportType.values.where((t) => t != ReportType.contentViolation).toList()
+      : ReportType.values.where((t) => t != ReportType.paymentIssue).toList();
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedType = _isSystem ? ReportType.bugUi : ReportType.contentViolation;
+  }
 
   @override
   void dispose() {
@@ -41,7 +65,7 @@ class _ReportFormScreenState extends State<ReportFormScreen> {
     if (images.isNotEmpty) {
       setState(() {
         for (var img in images) {
-          if (_selectedImages.length < 3) {
+          if (_selectedImages.length < _maxImages) {
             _selectedImages.add(img);
           }
         }
@@ -61,8 +85,8 @@ class _ReportFormScreenState extends State<ReportFormScreen> {
     context.read<ReportFormBloc>().add(
       ReportFormSubmitted(
         type: _selectedType,
-        targetType: _selectedTargetType,
-        targetId: _targetId,
+        targetType: widget.targetType,
+        targetId: _isSystem ? null : widget.targetId,
         description: _descriptionController.text.trim(),
         images: _selectedImages,
       ),
@@ -143,7 +167,7 @@ class _ReportFormScreenState extends State<ReportFormScreen> {
                     const SizedBox(height: 12),
                     CustomDropdown<ReportType>(
                       value: _selectedType,
-                      items: ReportType.values,
+                      items: _allowedTypes,
                       itemLabelBuilder: _getTypeText,
                       isExpanded: true,
                       onChanged: (val) {
@@ -152,21 +176,28 @@ class _ReportFormScreenState extends State<ReportFormScreen> {
                     ),
                     const SizedBox(height: 24),
 
-                    Text(
-                      'Phạm vi lỗi',
-                      style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-                    ),
-                    const SizedBox(height: 12),
-                    CustomDropdown<ReportTargetType>(
-                      value: _selectedTargetType,
-                      items: ReportTargetType.values,
-                      itemLabelBuilder: _getTargetTypeText,
-                      isExpanded: true,
-                      onChanged: (val) {
-                        setState(() => _selectedTargetType = val);
-                      },
-                    ),
-                    const SizedBox(height: 24),
+                    if (!_isSystem) ...[
+                      Text(
+                        'Đối tượng bị báo cáo',
+                        style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 12),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: colorScheme.surface,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: colorScheme.outlineVariant),
+                        ),
+                        child: Text(
+                          '${_getTargetTypeText(widget.targetType)}'
+                          '${(widget.targetName ?? '').isEmpty ? '' : ' · ${widget.targetName}'}',
+                          style: theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                    ],
 
                     Text(
                       'Mô tả chi tiết',
@@ -182,13 +213,16 @@ class _ReportFormScreenState extends State<ReportFormScreen> {
                         if (val == null || val.trim().isEmpty) {
                           return 'Vui lòng nhập mô tả chi tiết';
                         }
+                        if (val.trim().length > _maxDescription) {
+                          return 'Mô tả tối đa $_maxDescription ký tự';
+                        }
                         return null;
                       },
                     ),
                     const SizedBox(height: 24),
 
                     Text(
-                      'Ảnh đính kèm (Tùy chọn)',
+                      'Ảnh đính kèm (Tùy chọn, tối đa $_maxImages)',
                       style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 12),
@@ -223,7 +257,7 @@ class _ReportFormScreenState extends State<ReportFormScreen> {
                             ],
                           );
                         }),
-                        if (_selectedImages.length < 3)
+                        if (_selectedImages.length < _maxImages)
                           GestureDetector(
                             onTap: _pickImages,
                             child: Container(

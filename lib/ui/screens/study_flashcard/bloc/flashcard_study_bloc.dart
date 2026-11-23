@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:mind_deck/core/failures.dart';
 import 'package:mind_deck/data/models/flashcard_model.dart';
 import 'package:mind_deck/data/repositories/study_repository.dart';
 import 'flashcard_study_event.dart';
@@ -10,6 +11,7 @@ class FlashcardStudyBloc extends Bloc<FlashcardStudyEvent, FlashcardStudyState> 
   final Map<String, Map<String, dynamic>> _aggregatedAnswers = {};
   late DateTime _currentCardStartedAt;
   Timer? _debounceTimer;
+  Timer? _countdownTimer;
   bool _isSyncing = false;
   bool _hasUnsyncedChanges = false;
 
@@ -17,6 +19,7 @@ class FlashcardStudyBloc extends Bloc<FlashcardStudyEvent, FlashcardStudyState> 
     : _studyRepository = studyRepository,
       super(const FlashcardStudyState(status: StudyStatus.initial)) {
     on<InitStudyEvent>(_onInitStudy);
+    on<StudyTimerTickedEvent>(_onTimerTicked);
     on<SwipeCardEvent>(_onSwipeCard);
     on<UndoSwipeEvent>(_onUndoSwipe);
     on<ToggleShuffleEvent>(_onToggleShuffle);
@@ -31,7 +34,7 @@ class FlashcardStudyBloc extends Bloc<FlashcardStudyEvent, FlashcardStudyState> 
     final cards = event.cards;
     final reviewLogs = event.reviewLogs;
 
-    if (sessionId.isEmpty || cards.isEmpty) {
+    if ((sessionId.isEmpty && !event.readOnly) || cards.isEmpty) {
       emit(
         state.copyWith(
           status: StudyStatus.error,
@@ -91,18 +94,75 @@ class FlashcardStudyBloc extends Bloc<FlashcardStudyEvent, FlashcardStudyState> 
       currentRoundCards = List.from(cards);
     }
 
+    final timeLimitSeconds = event.timeLimitSeconds;
+    final initialRemaining = timeLimitSeconds > 0
+        ? (timeLimitSeconds - event.elapsedSeconds).clamp(0, timeLimitSeconds)
+        : 0;
+
+    _startCountdownTimer(initialRemaining);
+
     emit(
       state.copyWith(
         status: StudyStatus.inProgress,
         sessionId: sessionId,
+        isReadOnly: event.readOnly,
         cards: cards,
         currentRoundCards: currentRoundCards,
         failedCards: failedCards,
         cardStatus: restoredCardStatus,
         swipeHistory: [],
         currentIndex: 0,
+        timeLimitSeconds: timeLimitSeconds,
+        remainingSeconds: initialRemaining,
+        showBackFirst: event.showBackFirst,
+        isTimedOut: false,
       ),
     );
+  }
+
+  void _startCountdownTimer(int initialSeconds) {
+    _countdownTimer?.cancel();
+    if (initialSeconds <= 0) return;
+
+    int remaining = initialSeconds;
+    _countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      remaining--;
+      add(StudyTimerTickedEvent(remaining));
+      if (remaining <= 0) {
+        timer.cancel();
+      }
+    });
+  }
+
+  void _onTimerTicked(StudyTimerTickedEvent event, Emitter<FlashcardStudyState> emit) {
+    if (state.status != StudyStatus.inProgress) return;
+
+    emit(state.copyWith(remainingSeconds: event.remainingSeconds));
+
+    if (event.remainingSeconds <= 0) {
+      _handleTimeOut(emit);
+    }
+  }
+
+  void _handleTimeOut(Emitter<FlashcardStudyState> emit) {
+    _countdownTimer?.cancel();
+    _debounceTimer?.cancel();
+    final now = DateTime.now();
+
+    // Với tất cả các thẻ chưa từng được swipe/đánh giá nhớ -> Tự động tính Chưa nhớ (isRemembered: false)
+    for (final card in state.cards) {
+      if (!_aggregatedAnswers.containsKey(card.id)) {
+        _aggregatedAnswers[card.id] = {
+          'cardId': card.id,
+          'isRemembered': false,
+          'durationMs': 0,
+          'reviewTimestamp': now.toIso8601String(),
+        };
+      }
+    }
+
+    emit(state.copyWith(isTimedOut: true));
+    add(ForceSubmitEvent());
   }
 
   void _onSwipeCard(SwipeCardEvent event, Emitter<FlashcardStudyState> emit) {
@@ -125,24 +185,30 @@ class FlashcardStudyBloc extends Bloc<FlashcardStudyEvent, FlashcardStudyState> 
       'durationMs': newDuration,
       'reviewTimestamp': now.toIso8601String(),
     };
-    _hasUnsyncedChanges = true;
+    // Học thử: không lưu Hive (nếu không, syncPendingSessions sẽ gửi deckId như sessionId)
+    // và không đồng bộ lên BE.
+    if (!state.isReadOnly) {
+      _hasUnsyncedChanges = true;
 
-    // 1. Lưu tức thì vào Hive Local Storage (Local-First)
-    final sessionKey = state.sessionId.isNotEmpty ? state.sessionId : (state.cards.firstOrNull?.deckId ?? '');
-    if (sessionKey.isNotEmpty) {
-      _studyRepository.localDataSource.saveSession(sessionKey, {
-        'sessionId': state.sessionId,
-        'deckId': state.cards.firstOrNull?.deckId ?? '',
-        'reviewLogs': _aggregatedAnswers,
-        'updatedAt': now.toIso8601String(),
+      // 1. Lưu tức thì vào Hive Local Storage (Local-First)
+      final sessionKey = state.sessionId.isNotEmpty
+          ? state.sessionId
+          : (state.cards.firstOrNull?.deckId ?? '');
+      if (sessionKey.isNotEmpty) {
+        _studyRepository.localDataSource.saveSession(sessionKey, {
+          'sessionId': state.sessionId,
+          'deckId': state.cards.firstOrNull?.deckId ?? '',
+          'reviewLogs': _aggregatedAnswers,
+          'updatedAt': now.toIso8601String(),
+        });
+      }
+
+      // 2. Quản lý Debounce Timer 5 giây để đồng bộ lên Backend
+      _debounceTimer?.cancel();
+      _debounceTimer = Timer(const Duration(seconds: 5), () {
+        add(SyncProgressEvent());
       });
     }
-
-    // 2. Quản lý Debounce Timer 5 giây để đồng bộ lên Backend
-    _debounceTimer?.cancel();
-    _debounceTimer = Timer(const Duration(seconds: 5), () {
-      add(SyncProgressEvent());
-    });
 
     final updatedCardStatus = Map<String, bool>.from(state.cardStatus)..[card.id] = isCorrect;
     final updatedHistory = List<int>.from(state.swipeHistory)..add(event.direction);
@@ -243,8 +309,10 @@ class FlashcardStudyBloc extends Bloc<FlashcardStudyEvent, FlashcardStudyState> 
     final resetCards = List<FlashcardModel>.from(state.cards)
       ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
 
-    final sessionKey = state.sessionId.isNotEmpty ? state.sessionId : (state.cards.firstOrNull?.deckId ?? '');
-    if (sessionKey.isNotEmpty) {
+    final sessionKey = state.sessionId.isNotEmpty
+        ? state.sessionId
+        : (state.cards.firstOrNull?.deckId ?? '');
+    if (!state.isReadOnly && sessionKey.isNotEmpty) {
       _studyRepository.localDataSource.deleteSession(sessionKey);
     }
 
@@ -262,7 +330,7 @@ class FlashcardStudyBloc extends Bloc<FlashcardStudyEvent, FlashcardStudyState> 
   }
 
   Future<void> _onSyncProgress(SyncProgressEvent event, Emitter<FlashcardStudyState> emit) async {
-    if (_isSyncing || !_hasUnsyncedChanges) return;
+    if (state.isReadOnly || _isSyncing || !_hasUnsyncedChanges) return;
     _debounceTimer?.cancel();
 
     final sessionId = state.sessionId;
@@ -277,6 +345,10 @@ class FlashcardStudyBloc extends Bloc<FlashcardStudyEvent, FlashcardStudyState> 
       if (response.success) {
         _hasUnsyncedChanges = false;
       }
+    } on Failure catch (f) {
+      // Lỗi tạm thời: bản nháp vẫn nằm trong Hive, lần sau đồng bộ lại.
+      // Mất quyền (bị đuổi / rời lớp / phiên bị xóa): không thử nữa; lỗi sẽ hiện khi nộp.
+      if (studyPermanentErrorCodes.contains(f.errorCode)) _hasUnsyncedChanges = false;
     } finally {
       _isSyncing = false;
     }
@@ -284,28 +356,62 @@ class FlashcardStudyBloc extends Bloc<FlashcardStudyEvent, FlashcardStudyState> 
 
   Future<void> _onSubmitStudy(ForceSubmitEvent event, Emitter<FlashcardStudyState> emit) async {
     _debounceTimer?.cancel();
+    if (state.isReadOnly) {
+      // Học thử: không có phiên để hoàn tất, không ghi FSRS.
+      _countdownTimer?.cancel();
+      emit(state.copyWith(status: StudyStatus.completed));
+      return;
+    }
     emit(state.copyWith(status: StudyStatus.submitting));
 
     final sessionId = state.sessionId;
     final reviewLogs = _aggregatedAnswers.values.toList();
 
-    final response = await _studyRepository.completeSession(sessionId, reviewLogs);
-
-    if (response.success) {
-      emit(state.copyWith(status: StudyStatus.completed));
-    } else {
-      emit(
-        state.copyWith(
-          status: StudyStatus.error,
-          errorMessage: response.message ?? 'Lỗi khi nộp bài học tập.',
-        ),
-      );
+    try {
+      final response = await _studyRepository.completeSession(sessionId, reviewLogs);
+      if (response.success) {
+        emit(state.copyWith(status: StudyStatus.completed));
+      } else {
+        emit(
+          state.copyWith(
+            status: StudyStatus.error,
+            errorMessage: response.message ?? 'Lỗi khi nộp bài học tập.',
+          ),
+        );
+      }
+    } on Failure catch (f) {
+      if (studyPermanentErrorCodes.contains(f.errorCode)) {
+        // Phiên không còn hợp lệ: bỏ bản lưu tạm để không đồng bộ lại mãi.
+        final deckId = state.cards.firstOrNull?.deckId;
+        if (deckId != null && deckId.isNotEmpty) {
+          await _studyRepository.localDataSource.deleteSession(deckId);
+        }
+        if (sessionId.isNotEmpty) {
+          await _studyRepository.localDataSource.deleteSession(sessionId);
+        }
+      }
+      emit(state.copyWith(status: StudyStatus.error, errorMessage: _completeErrorMessage(f)));
     }
+  }
+
+  String _completeErrorMessage(Failure f) {
+    switch (f.errorCode) {
+      case 'DECK_NOT_FOUND':
+        return 'Bạn không còn quyền học bộ thẻ này (có thể đã rời lớp), kết quả không được lưu.';
+      case 'STUDY_NO_ACTIVE_SESSION':
+        return 'Phiên học này không còn nữa, kết quả không được lưu.';
+      case 'STUDY_NO_CARDS_FOUND':
+        return 'Không còn thẻ nào bạn có thể ghi kết quả.';
+    }
+    return f.message.isNotEmpty
+        ? f.message
+        : 'Chưa lưu được kết quả. Tiến trình vẫn được giữ trên máy, hãy thử lại sau.';
   }
 
   @override
   Future<void> close() {
     _debounceTimer?.cancel();
+    _countdownTimer?.cancel();
     return super.close();
   }
 }

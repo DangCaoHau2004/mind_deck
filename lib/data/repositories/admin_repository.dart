@@ -5,10 +5,7 @@ import 'package:mind_deck/data/models/user_model.dart';
 import 'package:mind_deck/core/api_handler.dart';
 
 abstract class AdminRepository {
-  Future<ApiResponse<void>> deleteFolder(
-    String folderId, {
-    required bool deleteContents,
-  });
+  Future<ApiResponse<void>> deleteFolder(String folderId, {required bool deleteContents});
   Future<ApiResponse<void>> deleteDeck(String deckId);
   Future<ApiListResponse<ReportModel>> getReports({
     int page = 1,
@@ -21,10 +18,7 @@ abstract class AdminRepository {
     String? resolutionNote,
   });
   Future<ApiListResponse<UserModel>> getUsers({String? search});
-  Future<ApiResponse<void>> lockUser(
-    String userId, {
-    required int durationDays,
-  });
+  Future<ApiResponse<void>> lockUser(String userId, {required int durationDays});
   Future<ApiResponse<void>> unlockUser(String userId);
   Future<ApiResponse<void>> sendManualNotification(Map<String, dynamic> body);
 }
@@ -35,19 +29,13 @@ class AdminRepositoryImpl with ApiHandler implements AdminRepository {
   AdminRepositoryImpl({required this.remoteDataSource});
 
   @override
-  Future<ApiResponse<void>> deleteFolder(
-    String folderId, {
-    required bool deleteContents,
-  }) async {
+  Future<ApiResponse<void>> deleteFolder(String folderId, {required bool deleteContents}) async {
     return executeApi(() async {
       final response = await remoteDataSource.deleteFolder(
         folderId,
         deleteContents: deleteContents,
       );
-      return ApiResponse<void>.fromJson(
-        response.data as Map<String, dynamic>,
-        (_) => {},
-      );
+      return ApiResponse<void>.fromJson(response.data as Map<String, dynamic>, (_) => {});
     });
   }
 
@@ -55,10 +43,7 @@ class AdminRepositoryImpl with ApiHandler implements AdminRepository {
   Future<ApiResponse<void>> deleteDeck(String deckId) async {
     return executeApi(() async {
       final response = await remoteDataSource.deleteDeck(deckId);
-      return ApiResponse<void>.fromJson(
-        response.data as Map<String, dynamic>,
-        (_) => {},
-      );
+      return ApiResponse<void>.fromJson(response.data as Map<String, dynamic>, (_) => {});
     });
   }
 
@@ -93,10 +78,7 @@ class AdminRepositoryImpl with ApiHandler implements AdminRepository {
         status: status.toJson(),
         resolutionNote: resolutionNote,
       );
-      return ApiResponse<void>.fromJson(
-        response.data as Map<String, dynamic>,
-        (_) => {},
-      );
+      return ApiResponse<void>.fromJson(response.data as Map<String, dynamic>, (_) => {});
     });
   }
 
@@ -112,19 +94,10 @@ class AdminRepositoryImpl with ApiHandler implements AdminRepository {
   }
 
   @override
-  Future<ApiResponse<void>> lockUser(
-    String userId, {
-    required int durationDays,
-  }) async {
+  Future<ApiResponse<void>> lockUser(String userId, {required int durationDays}) async {
     return executeApi(() async {
-      final response = await remoteDataSource.lockUser(
-        userId,
-        durationDays: durationDays,
-      );
-      return ApiResponse<void>.fromJson(
-        response.data as Map<String, dynamic>,
-        (_) => {},
-      );
+      final response = await remoteDataSource.lockUser(userId, durationDays: durationDays);
+      return ApiResponse<void>.fromJson(response.data as Map<String, dynamic>, (_) => {});
     });
   }
 
@@ -132,23 +105,15 @@ class AdminRepositoryImpl with ApiHandler implements AdminRepository {
   Future<ApiResponse<void>> unlockUser(String userId) async {
     return executeApi(() async {
       final response = await remoteDataSource.unlockUser(userId);
-      return ApiResponse<void>.fromJson(
-        response.data as Map<String, dynamic>,
-        (_) => {},
-      );
+      return ApiResponse<void>.fromJson(response.data as Map<String, dynamic>, (_) => {});
     });
   }
 
   @override
-  Future<ApiResponse<void>> sendManualNotification(
-    Map<String, dynamic> body,
-  ) async {
+  Future<ApiResponse<void>> sendManualNotification(Map<String, dynamic> body) async {
     return executeApi(() async {
       final response = await remoteDataSource.sendManualNotification(body);
-      return ApiResponse<void>.fromJson(
-        response.data as Map<String, dynamic>,
-        (_) => {},
-      );
+      return ApiResponse<void>.fromJson(response.data as Map<String, dynamic>, (_) => {});
     });
   }
 }

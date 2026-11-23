@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:mind_deck/constants/custom_colors.dart';
 
@@ -84,30 +86,52 @@ class CustomToast extends StatelessWidget {
     onClose: onClose,
   );
 
-  static void show(BuildContext context, CustomToast customToast) {
-    final scaffoldMessenger = ScaffoldMessenger.of(context);
-    scaffoldMessenger.clearSnackBars();
-    scaffoldMessenger.showSnackBar(
-      SnackBar(
-        behavior: SnackBarBehavior.floating,
-        margin: const EdgeInsets.only(bottom: 24, left: 8, right: 8),
-        content: CustomToast(
+  static const Duration defaultDuration = Duration(seconds: 4);
+  static OverlayEntry? _currentEntry;
+  static Timer? _hideTimer;
+
+  /// Hiện toast ở đáy màn hình (trên lớp overlay gốc), toast mới thay toast đang hiện.
+  /// [duration] là thời gian toast tồn tại trước khi tự tắt (mặc định [defaultDuration]).
+  static void show(
+    BuildContext context,
+    CustomToast customToast, {
+    Duration duration = defaultDuration,
+  }) {
+    showOnOverlay(Overlay.maybeOf(context, rootOverlay: true), customToast, duration: duration);
+  }
+
+  /// Hiện toast trực tiếp trên [overlay], dùng cho sự kiện cấp app khi không có `context` trong cây
+  /// màn hình (ví dụ overlay của `rootNavigatorKey`). Không làm gì nếu [overlay] là null.
+  static void showOnOverlay(
+    OverlayState? overlay,
+    CustomToast customToast, {
+    Duration duration = defaultDuration,
+  }) {
+    if (overlay == null) return;
+
+    dismiss();
+    final entry = OverlayEntry(
+      builder: (_) => _ToastPositioner(
+        child: CustomToast(
           type: customToast.type,
           message: customToast.message,
           actionLabel: customToast.actionLabel,
           onAction: customToast.onAction,
-          onClose:
-              customToast.onClose ??
-              () {
-                scaffoldMessenger.hideCurrentSnackBar();
-              },
+          onClose: customToast.onClose ?? dismiss,
         ),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        padding: EdgeInsets.zero,
-        duration: const Duration(seconds: 4),
       ),
     );
+    _currentEntry = entry;
+    overlay.insert(entry);
+    _hideTimer = Timer(duration, dismiss);
+  }
+
+  /// Ẩn toast đang hiện (nếu có).
+  static void dismiss() {
+    _hideTimer?.cancel();
+    _hideTimer = null;
+    _currentEntry?.remove();
+    _currentEntry = null;
   }
 
   @override
@@ -139,15 +163,15 @@ class CustomToast extends StatelessWidget {
     }
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 2),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
       decoration: BoxDecoration(
         color: backgroundColor,
-        borderRadius: BorderRadius.circular(4),
+        borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.12),
-            blurRadius: 8,
-            offset: const Offset(0, 3),
+            color: Colors.black.withValues(alpha: 0.18),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
@@ -161,8 +185,8 @@ class CustomToast extends StatelessWidget {
               style: const TextStyle(
                 color: Colors.white,
                 fontSize: 16,
-                fontWeight: FontWeight.w400,
-                letterSpacing: 0.2, // Added for premium feel
+                fontWeight: FontWeight.w600,
+                letterSpacing: 0.2,
               ),
             ),
           ),
@@ -194,6 +218,37 @@ class CustomToast extends StatelessWidget {
             ),
           ],
         ],
+      ),
+    );
+  }
+}
+
+/// Đặt toast cố định ở đáy màn hình (nằm trên bàn phím khi mở), trượt lên và hiện dần.
+class _ToastPositioner extends StatelessWidget {
+  final Widget child;
+
+  const _ToastPositioner({required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned(
+      bottom: MediaQuery.viewInsetsOf(context).bottom,
+      left: 0,
+      right: 0,
+      child: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+          child: TweenAnimationBuilder<double>(
+            tween: Tween(begin: 0, end: 1),
+            duration: const Duration(milliseconds: 220),
+            curve: Curves.easeOut,
+            builder: (context, value, child) => Opacity(
+              opacity: value,
+              child: Transform.translate(offset: Offset(0, 16 * (1 - value)), child: child),
+            ),
+            child: Material(type: MaterialType.transparency, child: child),
+          ),
+        ),
       ),
     );
   }

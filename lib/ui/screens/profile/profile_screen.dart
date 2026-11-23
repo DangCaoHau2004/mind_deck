@@ -6,6 +6,10 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:mind_deck/ui/screens/auth/bloc/auth_bloc.dart';
 import 'package:mind_deck/ui/screens/auth/bloc/auth_event.dart';
 import 'package:mind_deck/ui/screens/auth/bloc/auth_state.dart';
+import 'package:mind_deck/configs/di.dart';
+import 'package:mind_deck/core/extensions/string_extension.dart';
+import 'package:mind_deck/data/repositories/coin_repository.dart';
+import 'package:mind_deck/ui/screens/profile/delete_account/delete_account_flow.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
@@ -64,7 +68,7 @@ class ProfileScreen extends StatelessWidget {
                 children: [
                   _buildModernProfileHeader(context),
                   const SizedBox(height: 32),
-                  // _buildPremiumBanner(context),
+                  _buildPremiumBanner(context),
                   const SizedBox(height: 32),
                   Align(
                     alignment: Alignment.centerLeft,
@@ -81,6 +85,8 @@ class ProfileScreen extends StatelessWidget {
                   _buildSupportSection(context),
                   const SizedBox(height: 32),
                   _buildLogoutButton(context),
+                  const SizedBox(height: 16),
+                  _buildDeleteAccountButton(context),
                 ],
               ),
             ),
@@ -114,7 +120,7 @@ class ProfileScreen extends StatelessWidget {
                     // Thêm bóng nhẹ cho avatar
                     boxShadow: [
                       BoxShadow(
-                        color: colorScheme.primary.withOpacity(0.1),
+                        color: colorScheme.primary.withValues(alpha: 0.1),
                         blurRadius: 12,
                         offset: const Offset(0, 4),
                       ),
@@ -172,7 +178,7 @@ class ProfileScreen extends StatelessWidget {
           // Nâng cấp bóng cho banner để có cảm giác nổi bật 3D
           boxShadow: [
             BoxShadow(
-              color: colorScheme.primary.withOpacity(0.35),
+              color: colorScheme.primary.withValues(alpha: 0.35),
               blurRadius: 16,
               offset: const Offset(0, 8),
             ),
@@ -183,7 +189,7 @@ class ProfileScreen extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.2),
+                color: Colors.white.withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(16),
               ),
               child: const Icon(Icons.workspace_premium_rounded, color: Colors.white, size: 32),
@@ -200,7 +206,9 @@ class ProfileScreen extends StatelessWidget {
                   const SizedBox(height: 4),
                   Text(
                     'Mở khóa toàn bộ tính năng',
-                    style: textTheme.bodySmall?.copyWith(color: Colors.white.withOpacity(0.9)),
+                    style: textTheme.bodySmall?.copyWith(
+                      color: Colors.white.withValues(alpha: 0.9),
+                    ),
                   ),
                 ],
               ),
@@ -217,6 +225,8 @@ class ProfileScreen extends StatelessWidget {
 
     return Column(
       children: [
+        const _CoinCard(),
+        const SizedBox(height: 16),
         _buildVerticalDashboardCard(
           context,
           icon: Icons.bar_chart_rounded,
@@ -252,6 +262,19 @@ class ProfileScreen extends StatelessWidget {
             context.pushNamed(AppRoute.classrooms.name);
           },
         ),
+        const SizedBox(height: 16),
+        _buildVerticalDashboardCard(
+          context,
+          icon: Icons.auto_awesome_rounded,
+          title: 'Tạo thẻ từ tài liệu (Thử nghiệm)',
+          subtitle:
+              'AI tạo flashcard từ txt, docx, pdf; csv/xlsx nhập thẳng. Có giới hạn lượt mỗi ngày',
+          iconBgColor: colorScheme.primaryContainer,
+          iconColor: colorScheme.primary,
+          onTap: () {
+            context.pushNamed(AppRoute.documentImport.name);
+          },
+        ),
       ],
     );
   }
@@ -274,6 +297,18 @@ class ProfileScreen extends StatelessWidget {
     );
   }
 
+  Widget _buildDeleteAccountButton(BuildContext context) {
+    return _buildVerticalDashboardCard(
+      context,
+      icon: Icons.delete_forever_rounded,
+      title: 'account_delete_card_title'.tr,
+      subtitle: 'account_delete_card_subtitle'.tr,
+      iconBgColor: Colors.red.withValues(alpha: 0.1),
+      iconColor: Colors.red,
+      onTap: () => startDeleteAccount(context),
+    );
+  }
+
   Widget _buildLogoutButton(BuildContext context) {
     return _buildVerticalDashboardCard(
       context,
@@ -287,7 +322,52 @@ class ProfileScreen extends StatelessWidget {
   }
 
   void _logout(BuildContext context) {
-    context.read<AuthBloc>().add(LoggedOut());
+    context.read<AuthBloc>().add(const LoggedOut());
+  }
+}
+
+/// Thẻ số dư xu, bấm vào mở lịch sử và nút kiếm xu. Tải lại số dư mỗi khi quay về màn này.
+class _CoinCard extends StatefulWidget {
+  const _CoinCard();
+
+  @override
+  State<_CoinCard> createState() => _CoinCardState();
+}
+
+class _CoinCardState extends State<_CoinCard> {
+  int? _balance;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final info = await DI().sl<CoinRepository>().getCoins();
+      if (mounted) setState(() => _balance = info.balance);
+    } catch (_) {
+      // Không có số dư thì thẻ chỉ hiện chữ mô tả.
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return _buildVerticalDashboardCard(
+      context,
+      icon: Icons.monetization_on_rounded,
+      title: 'coin_title'.tr,
+      subtitle: _balance == null
+          ? 'coin_card_subtitle'.tr
+          : 'coin_card_balance'.tr.replaceAll('{n}', '$_balance'),
+      iconBgColor: Colors.amber.withValues(alpha: 0.2),
+      iconColor: Colors.amber.shade800,
+      onTap: () async {
+        await context.pushNamed(AppRoute.coins.name);
+        if (mounted) _load();
+      },
+    );
   }
 }
 
@@ -312,10 +392,10 @@ Widget _buildVerticalDashboardCard(
         color: colorScheme.surface, // Giữ màu trắng
         borderRadius: BorderRadius.circular(20),
         // Bổ sung viền mỏng và bóng đổ rõ nét hơn
-        border: Border.all(color: colorScheme.outline.withOpacity(0.1), width: 1.5),
+        border: Border.all(color: colorScheme.outline.withValues(alpha: 0.1), width: 1.5),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
@@ -342,7 +422,7 @@ Widget _buildVerticalDashboardCard(
           Icon(
             Icons.arrow_forward_ios_rounded,
             size: 18,
-            color: colorScheme.outline.withOpacity(0.5),
+            color: colorScheme.outline.withValues(alpha: 0.5),
           ),
         ],
       ),

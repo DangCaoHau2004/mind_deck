@@ -12,6 +12,7 @@ mixin ApiHandler {
       final statusCode = e.response?.statusCode;
       String errorMessage = 'error_server'.tr;
       String errorCode = AppErrorCodes.unknownError;
+      Map<String, dynamic>? params;
 
       if (e.response != null && e.response!.data != null) {
         final data = e.response!.data;
@@ -21,6 +22,8 @@ mixin ApiHandler {
               data['errorCode']?.toString() ??
               data['code']?.toString() ??
               AppErrorCodes.unknownError;
+          final rawParams = data['params'];
+          if (rawParams is Map<String, dynamic>) params = rawParams;
         }
       }
 
@@ -34,8 +37,7 @@ mixin ApiHandler {
         );
       }
 
-      if (e.type == DioExceptionType.connectionError ||
-          e.type == DioExceptionType.unknown) {
+      if (e.type == DioExceptionType.connectionError || e.type == DioExceptionType.unknown) {
         throw NetworkFailure(
           message: e.message,
           errorCode: AppErrorCodes.networkError,
@@ -47,15 +49,13 @@ mixin ApiHandler {
         message: errorMessage,
         errorCode: errorCode,
         statusCode: statusCode,
+        params: params,
       );
     } catch (e) {
       if (e is Failure) {
         rethrow;
       }
-      throw UnknownFailure(
-        message: e.toString(),
-        errorCode: AppErrorCodes.unknownError,
-      );
+      throw UnknownFailure(message: e.toString(), errorCode: AppErrorCodes.unknownError);
     }
   }
 }

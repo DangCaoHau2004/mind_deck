@@ -2,17 +2,10 @@ import 'package:dio/dio.dart';
 import 'package:mind_deck/constants/api_endpoints.dart';
 
 abstract class AdminRemoteDataSource {
-  Future<Response> deleteFolder(
-    String folderId, {
-    required bool deleteContents,
-  });
+  Future<Response> deleteFolder(String folderId, {required bool deleteContents});
   Future<Response> deleteDeck(String deckId);
   Future<Response> getReports({int page = 1, int limit = 10, String? status});
-  Future<Response> resolveReport(
-    String reportId, {
-    required String status,
-    String? resolutionNote,
-  });
+  Future<Response> resolveReport(String reportId, {required String status, String? resolutionNote});
   Future<Response> getUsers({String? search});
   Future<Response> lockUser(String userId, {required int durationDays});
   Future<Response> unlockUser(String userId);
@@ -25,10 +18,7 @@ class AdminRemoteDataSourceImpl implements AdminRemoteDataSource {
   AdminRemoteDataSourceImpl({required this.dio});
 
   @override
-  Future<Response> deleteFolder(
-    String folderId, {
-    required bool deleteContents,
-  }) {
+  Future<Response> deleteFolder(String folderId, {required bool deleteContents}) {
     return dio.delete(
       '${ApiEndpoints.adminFolders}$folderId',
       data: {'delete_contents': deleteContents},
@@ -44,11 +34,7 @@ class AdminRemoteDataSourceImpl implements AdminRemoteDataSource {
   Future<Response> getReports({int page = 1, int limit = 10, String? status}) {
     return dio.get(
       ApiEndpoints.adminReports,
-      queryParameters: {
-        'page': page,
-        'limit': limit,
-        'status': ?status,
-      },
+      queryParameters: {'page': page, 'limit': limit, 'status': ?status},
     );
   }
 
@@ -60,19 +46,13 @@ class AdminRemoteDataSourceImpl implements AdminRemoteDataSource {
   }) {
     return dio.put(
       '${ApiEndpoints.adminResolveReport}$reportId/resolve',
-      data: {
-        'status': status,
-        'resolutionNote': ?resolutionNote,
-      },
+      data: {'status': status, 'resolutionNote': ?resolutionNote},
     );
   }
 
   @override
   Future<Response> getUsers({String? search}) {
-    return dio.get(
-      ApiEndpoints.adminUsers,
-      queryParameters: {'search': ?search},
-    );
+    return dio.get(ApiEndpoints.adminUsers, queryParameters: {'search': ?search});
   }
 
   @override

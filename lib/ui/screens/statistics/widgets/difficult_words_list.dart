@@ -20,10 +20,7 @@ class DifficultWordsList extends StatelessWidget {
       decoration: BoxDecoration(
         color: colorScheme.surface,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: colorScheme.outline.withValues(alpha: 0.2),
-          width: 1,
-        ),
+        border: Border.all(color: colorScheme.outline.withValues(alpha: 0.2), width: 1),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.04),
@@ -55,24 +52,17 @@ class DifficultWordsList extends StatelessWidget {
                 title: Text(card['front'], style: textTheme.titleMedium),
                 subtitle: Text(
                   card['back'],
-                  style: textTheme.bodySmall?.copyWith(
-                    color: colorScheme.outline,
-                  ),
+                  style: textTheme.bodySmall?.copyWith(color: colorScheme.outline),
                 ),
                 trailing: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 4,
-                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
                     color: colorScheme.errorContainer.withValues(alpha: 0.5),
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Text(
                     'D: ${card['D']}',
-                    style: textTheme.labelSmall?.copyWith(
-                      color: colorScheme.error,
-                    ),
+                    style: textTheme.labelSmall?.copyWith(color: colorScheme.error),
                   ),
                 ),
               );

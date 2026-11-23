@@ -7,7 +7,7 @@ plugins {
 }
 
 android {
-    namespace = "com.caohau.mind_deck"
+    namespace = "com.caohau.minddeck"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -22,13 +22,30 @@ android {
 
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.caohau.mind_deck"
+        applicationId = "com.caohau.minddeck"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+    }
+
+    // Ba môi trường cài cạnh nhau được nhờ hậu tố id. Phần khác nhau nằm ở android/app/src/<flavor>/:
+    // google-services.json (Firebase) và res/values/strings.xml (tên app, App ID AdMob).
+    flavorDimensions += "env"
+    productFlavors {
+        create("dev") {
+            dimension = "env"
+            applicationIdSuffix = ".dev"
+        }
+        create("staging") {
+            dimension = "env"
+            applicationIdSuffix = ".staging"
+        }
+        create("prod") {
+            dimension = "env"
+        }
     }
 
     buildTypes {

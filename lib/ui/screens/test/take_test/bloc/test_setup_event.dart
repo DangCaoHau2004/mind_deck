@@ -25,11 +25,7 @@ class TestSetupSourcesChanged extends TestSetupEvent {
   final List<FolderModel> folders;
   final List<TagModel> tags;
 
-  const TestSetupSourcesChanged({
-    required this.decks,
-    required this.folders,
-    required this.tags,
-  });
+  const TestSetupSourcesChanged({required this.decks, required this.folders, required this.tags});
 
   @override
   List<Object?> get props => [decks, folders, tags];
@@ -58,6 +54,15 @@ class TestSetupAllCardsToggled extends TestSetupEvent {
   final bool value;
 
   const TestSetupAllCardsToggled(this.value);
+
+  @override
+  List<Object?> get props => [value];
+}
+
+class TestSetupOnlyDueCardsToggled extends TestSetupEvent {
+  final bool value;
+
+  const TestSetupOnlyDueCardsToggled(this.value);
 
   @override
   List<Object?> get props => [value];
@@ -135,4 +140,25 @@ class TestSetupCompletedExternally extends TestSetupEvent {
 
 class TestSetupReset extends TestSetupEvent {
   const TestSetupReset();
+}
+
+/// Làm đề mới từ một đề cá nhân đã có (`GET /tests/:id/start?restart=true`).
+class TestSetupRestartRequested extends TestSetupEvent {
+  final String testId;
+
+  const TestSetupRestartRequested({required this.testId});
+
+  @override
+  List<Object?> get props => [testId];
+}
+
+/// Mở lại phiên đề cá nhân đang dở (`GET /tests/sessions/:id/resume`).
+class TestSetupResumeRequested extends TestSetupEvent {
+  final String sessionId;
+  final String testId;
+
+  const TestSetupResumeRequested({required this.sessionId, required this.testId});
+
+  @override
+  List<Object?> get props => [sessionId, testId];
 }

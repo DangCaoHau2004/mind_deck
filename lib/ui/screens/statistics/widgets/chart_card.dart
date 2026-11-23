@@ -5,12 +5,7 @@ class ChartCard extends StatelessWidget {
   final String subtitle;
   final Widget child;
 
-  const ChartCard({
-    super.key,
-    required this.title,
-    required this.subtitle,
-    required this.child,
-  });
+  const ChartCard({super.key, required this.title, required this.subtitle, required this.child});
 
   @override
   Widget build(BuildContext context) {
@@ -22,10 +17,7 @@ class ChartCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: colorScheme.surface,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: colorScheme.outline.withValues(alpha: 0.2),
-          width: 1,
-        ),
+        border: Border.all(color: colorScheme.outline.withValues(alpha: 0.2), width: 1),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.04),
@@ -39,10 +31,7 @@ class ChartCard extends StatelessWidget {
         children: [
           Text(title, style: textTheme.titleLarge),
           const SizedBox(height: 4),
-          Text(
-            subtitle,
-            style: textTheme.bodyMedium?.copyWith(color: colorScheme.outline),
-          ),
+          Text(subtitle, style: textTheme.bodyMedium?.copyWith(color: colorScheme.outline)),
           const SizedBox(height: 24),
           SizedBox(height: 220, child: child),
         ],

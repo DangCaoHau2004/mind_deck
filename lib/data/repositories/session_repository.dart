@@ -25,8 +25,6 @@ class SessionRepositoryImpl with ApiHandler implements SessionRepository {
 
   @override
   Future<void> deleteSession({required String sessionId}) async {
-    await executeApi(
-      () => remoteDataSource.deleteSession(sessionId: sessionId),
-    );
+    await executeApi(() => remoteDataSource.deleteSession(sessionId: sessionId));
   }
 }

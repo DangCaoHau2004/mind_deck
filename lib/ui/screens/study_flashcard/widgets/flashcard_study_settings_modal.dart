@@ -105,10 +105,7 @@ class FlashcardStudySettingsModal extends StatelessWidget {
     final cardDecoration = BoxDecoration(
       color: Colors.white,
       borderRadius: BorderRadius.circular(16),
-      border: Border.all(
-        color: Colors.black.withValues(alpha: 0.1),
-        width: 1.0,
-      ),
+      border: Border.all(color: Colors.black.withValues(alpha: 0.1), width: 1.0),
       boxShadow: [
         BoxShadow(
           color: Colors.black.withValues(alpha: 0.2),
@@ -125,12 +122,7 @@ class FlashcardStudySettingsModal extends StatelessWidget {
       ),
       child: SafeArea(
         child: ListView(
-          padding: const EdgeInsets.only(
-            left: 16.0,
-            right: 16.0,
-            bottom: 24.0,
-            top: 12.0,
-          ),
+          padding: const EdgeInsets.only(left: 16.0, right: 16.0, bottom: 24.0, top: 12.0),
           children: [
             Center(
               child: Container(
@@ -146,11 +138,7 @@ class FlashcardStudySettingsModal extends StatelessWidget {
             const Center(
               child: Text(
                 'Tùy chọn',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black,
-                ),
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.black),
               ),
             ),
             const SizedBox(height: 24),
@@ -237,12 +225,8 @@ class FlashcardStudySettingsModal extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(vertical: 18),
                 decoration: cardDecoration,
                 child: const Text(
-                  'Đặt lại Thẻ ghi nhớ',
-                  style: TextStyle(
-                    color: Colors.red,
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  'Học lại từ đầu',
+                  style: TextStyle(color: Colors.red, fontSize: 16, fontWeight: FontWeight.bold),
                 ),
               ),
             ),

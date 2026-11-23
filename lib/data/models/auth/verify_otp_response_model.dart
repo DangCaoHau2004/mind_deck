@@ -2,10 +2,7 @@ class VerifyOtpResponseModel {
   final String email;
   final String resetToken;
 
-  VerifyOtpResponseModel({
-    required this.email,
-    required this.resetToken,
-  });
+  VerifyOtpResponseModel({required this.email, required this.resetToken});
 
   factory VerifyOtpResponseModel.fromJson(Map<String, dynamic> json) {
     return VerifyOtpResponseModel(
@@ -15,9 +12,6 @@ class VerifyOtpResponseModel {
   }
 
   Map<String, dynamic> toJson() {
-    return {
-      'email': email,
-      'resetToken': resetToken,
-    };
+    return {'email': email, 'resetToken': resetToken};
   }
 }

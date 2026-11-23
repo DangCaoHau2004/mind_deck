@@ -15,28 +15,47 @@ class NotificationListLoading extends NotificationListState {}
 class NotificationListSuccess extends NotificationListState {
   final List<NotificationModel> notifications;
   final bool hasReachedMax;
-  final int currentPage;
+
+  /// Tổng số thông báo trên server (`meta.total`).
+  final int total;
+
+  /// Số chưa đọc trên server (`meta.unreadCount`).
+  final int unreadCount;
+
+  /// Thông báo một lần dùng (toast); phân biệt các lần bằng `noticeId`.
+  final String? notice;
+  final int noticeId;
 
   const NotificationListSuccess({
     required this.notifications,
     required this.hasReachedMax,
-    required this.currentPage,
+    this.total = 0,
+    this.unreadCount = 0,
+    this.notice,
+    this.noticeId = 0,
   });
 
   NotificationListSuccess copyWith({
     List<NotificationModel>? notifications,
     bool? hasReachedMax,
-    int? currentPage,
+    int? total,
+    int? unreadCount,
+    String? notice,
+    int? noticeId,
+    bool clearNotice = false,
   }) {
     return NotificationListSuccess(
       notifications: notifications ?? this.notifications,
       hasReachedMax: hasReachedMax ?? this.hasReachedMax,
-      currentPage: currentPage ?? this.currentPage,
+      total: total ?? this.total,
+      unreadCount: unreadCount ?? this.unreadCount,
+      notice: clearNotice ? null : (notice ?? this.notice),
+      noticeId: noticeId ?? this.noticeId,
     );
   }
 
   @override
-  List<Object?> get props => [notifications, hasReachedMax, currentPage];
+  List<Object?> get props => [notifications, hasReachedMax, total, unreadCount, notice, noticeId];
 }
 
 class NotificationListFailure extends NotificationListState {

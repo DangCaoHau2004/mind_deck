@@ -1,4 +1,6 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:mind_deck/data/models/deck_model.dart';
+import 'package:mind_deck/core/extensions/failure_extension.dart';
 import 'package:mind_deck/data/repositories/deck_repository.dart';
 import 'package:mind_deck/core/failures.dart';
 import 'package:mind_deck/data/repositories/shared_repository.dart';
@@ -23,7 +25,13 @@ class DeckDetailBloc extends Bloc<DeckDetailEvent, DeckDetailState> {
     emit(state.copyWith(status: DeckDetailStatus.loading));
     try {
       final result = await deckRepository.getDeckById(event.id, token: event.token);
-      emit(state.copyWith(status: DeckDetailStatus.success, deck: result.data));
+      emit(
+        state.copyWith(
+          status: DeckDetailStatus.success,
+          deck: _keepPendingStar(result.data),
+          clearStarOverride: true,
+        ),
+      );
     } catch (e) {
       emit(
         state.copyWith(
@@ -40,7 +48,12 @@ class DeckDetailBloc extends Bloc<DeckDetailEvent, DeckDetailState> {
     try {
       final result = await deckRepository.getDeckById(event.id, token: event.token);
       emit(
-        state.copyWith(status: DeckDetailStatus.success, isRefreshing: false, deck: result.data),
+        state.copyWith(
+          status: DeckDetailStatus.success,
+          isRefreshing: false,
+          deck: _keepPendingStar(result.data),
+          clearStarOverride: true,
+        ),
       );
     } catch (e) {
       emit(
@@ -70,28 +83,33 @@ class DeckDetailBloc extends Bloc<DeckDetailEvent, DeckDetailState> {
   }
 
   Future<void> _onStarToggled(DeckDetailStarToggled event, Emitter<DeckDetailState> emit) async {
-    final currentDeck = state.deck;
-    if (currentDeck == null) return;
-
-    final previousStarred = currentDeck.isStarred;
-    final newStarred = !previousStarred;
-
-    // 1. Cập nhật giao diện tức thì (Optimistic Update) & giữ nguyên 100% dữ liệu cũ
-    emit(state.copyWith(deck: currentDeck.copyWith(isStarred: newStarred)));
-
+    // Đổi ngôi sao ngay trên giao diện, không chờ API; API chạy ngầm, lỗi mới khôi phục và báo.
+    _setStar(emit, !event.isStarred);
     try {
-      // 2. Gọi API ngầm (Chạy âm thầm không bật Toast thành công)
       await deckRepository.starDeck(event.id);
     } catch (e) {
-      // 3. Nếu lỗi -> Tự động khôi phục (revert) lại trạng thái ban đầu & thông báo lỗi
-      emit(
-        state.copyWith(
-          deck: currentDeck.copyWith(isStarred: previousStarred),
-          errorMessage: e is Failure ? e.message : e.toString(),
-          toastTriggerTime: DateTime.now(),
-        ),
-      );
+      _setStar(emit, event.isStarred, error: e is Failure ? e.displayMessage : e.toString());
     }
+  }
+
+  /// Đặt trạng thái sao: có dữ liệu đầy đủ thì đổi trên `deck`, chưa có thì lưu tạm để hiển thị.
+  void _setStar(Emitter<DeckDetailState> emit, bool value, {String? error}) {
+    final deck = state.deck;
+    emit(
+      state.copyWith(
+        deck: deck?.copyWith(isStarred: value),
+        starOverride: deck == null ? value : null,
+        clearStarOverride: deck != null,
+        errorMessage: error,
+        toastTriggerTime: error != null ? DateTime.now() : null,
+      ),
+    );
+  }
+
+  /// Dữ liệu đầy đủ vừa về: nếu người dùng đã bấm sao trong lúc chờ thì giữ lựa chọn đó.
+  DeckModel? _keepPendingStar(DeckModel? deck) {
+    final pending = state.starOverride;
+    return deck != null && pending != null ? deck.copyWith(isStarred: pending) : deck;
   }
 
   Future<void> _onShareUpdated(DeckShareUpdated event, Emitter<DeckDetailState> emit) async {

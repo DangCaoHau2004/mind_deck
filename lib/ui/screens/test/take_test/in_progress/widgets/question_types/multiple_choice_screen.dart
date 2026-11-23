@@ -38,7 +38,7 @@ class MultipleChoiceBody extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 16),
-        buildPromptContainer(context, prompt, imageUrl),
+        buildPromptContainer(context, prompt, imageUrl, question.promptImageCredit),
         const SizedBox(height: 32),
         ...List.generate(options.length, (index) {
           final option = options[index];
@@ -76,24 +76,17 @@ class MultipleChoiceBody extends StatelessWidget {
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
                 width: double.infinity,
-                padding: const EdgeInsets.symmetric(
-                  vertical: 20,
-                  horizontal: 24,
-                ),
+                padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 24),
                 decoration: BoxDecoration(
                   color: bgColor,
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(
                     color: borderColor,
-                    width: isSelected || (isChecked && isCorrectOption)
-                        ? 2.5
-                        : 1.5,
+                    width: isSelected || (isChecked && isCorrectOption) ? 2.5 : 1.5,
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withValues(
-                        alpha: isSelected ? 0.06 : 0.02,
-                      ),
+                      color: Colors.black.withValues(alpha: isSelected ? 0.06 : 0.02),
                       blurRadius: isSelected ? 12 : 8,
                       offset: const Offset(0, 4),
                     ),

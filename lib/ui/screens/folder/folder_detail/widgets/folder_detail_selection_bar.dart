@@ -38,9 +38,7 @@ class FolderDetailSelectionBar extends StatelessWidget {
           children: [
             IconButton(
               onPressed: () {
-                context.read<FolderDetailBloc>().add(
-                  const FolderDetailSelectionCleared(),
-                );
+                context.read<FolderDetailBloc>().add(const FolderDetailSelectionCleared());
               },
               icon: const Icon(Icons.close_rounded, color: Colors.white),
               padding: EdgeInsets.zero,
@@ -66,14 +64,9 @@ class FolderDetailSelectionBar extends StatelessWidget {
                 );
                 if (confirmed == true && context.mounted) {
                   context.read<FolderDetailBloc>().add(
-                    FolderRemoveDecks(
-                      folderId: folderId,
-                      deckIds: selectedDeckIds,
-                    ),
+                    FolderRemoveDecks(folderId: folderId, deckIds: selectedDeckIds),
                   );
-                  context.read<FolderDetailBloc>().add(
-                    const FolderDetailSelectionCleared(),
-                  );
+                  context.read<FolderDetailBloc>().add(const FolderDetailSelectionCleared());
                 }
               },
               icon: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent),

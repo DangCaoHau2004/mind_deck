@@ -3,14 +3,11 @@ import 'package:mind_deck/data/models/api_response_model.dart';
 import 'package:mind_deck/data/models/sync_models.dart';
 import 'package:mind_deck/data/models/review_log_model.dart';
 import 'package:mind_deck/core/api_handler.dart';
+import 'package:mind_deck/utils/timezone_utils.dart';
 
 abstract class SyncRepository {
-  Future<ApiResponse<SyncDownResponseModel>> syncDown({
-    String? lastSyncTimestamp,
-  });
-  Future<ApiResponse<SyncUpResponseModel>> syncUp({
-    required List<ReviewLogModel> reviewLogs,
-  });
+  Future<ApiResponse<SyncDownResponseModel>> syncDown({String? lastSyncTimestamp});
+  Future<ApiResponse<SyncUpResponseModel>> syncUp({required List<ReviewLogModel> reviewLogs});
 }
 
 class SyncRepositoryImpl with ApiHandler implements SyncRepository {
@@ -19,13 +16,9 @@ class SyncRepositoryImpl with ApiHandler implements SyncRepository {
   SyncRepositoryImpl({required this.remoteDataSource});
 
   @override
-  Future<ApiResponse<SyncDownResponseModel>> syncDown({
-    String? lastSyncTimestamp,
-  }) async {
+  Future<ApiResponse<SyncDownResponseModel>> syncDown({String? lastSyncTimestamp}) async {
     return executeApi(() async {
-      final response = await remoteDataSource.syncDown(
-        lastSyncTimestamp: lastSyncTimestamp,
-      );
+      final response = await remoteDataSource.syncDown(lastSyncTimestamp: lastSyncTimestamp);
       return ApiResponse<SyncDownResponseModel>.fromJson(
         response.data as Map<String, dynamic>,
         (json) => SyncDownResponseModel.fromJson(json),
@@ -51,6 +44,7 @@ class SyncRepositoryImpl with ApiHandler implements SyncRepository {
 
       final response = await remoteDataSource.syncUp(
         reviewLogs: reviewLogsPayload,
+        timezone: await localTimezone(),
       );
       return ApiResponse<SyncUpResponseModel>.fromJson(
         response.data as Map<String, dynamic>,

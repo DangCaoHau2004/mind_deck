@@ -1,5 +1,6 @@
 import '../user_model.dart';
 import 'class_member_model.dart';
+import 'class_settings_model.dart';
 import '../deck_model.dart';
 
 class ClassModel {
@@ -7,7 +8,9 @@ class ClassModel {
   final String name;
   final String? description;
   final String ownerId;
-  final String joinCode;
+
+  /// Chỉ giảng viên mới có; học viên (và người ngoài lớp) nhận `null`.
+  final String? joinCode;
   final int memberCount;
   final bool requireApproval;
   final bool isPublic;
@@ -15,10 +18,18 @@ class ClassModel {
   final DateTime updatedAt;
 
   // UI optimized fields
+  /// owner | admin | tutor | student | none
   final String? myRole;
+
+  /// approved | pending | invited | not_joined (null khi lấy từ danh sách lớp của tôi).
   final String? myStatus;
   final bool isOwner;
   final String? ownerName;
+
+  /// Chỉ có ở `GET /classes/:id` khi mình là thành viên (vắng ở dạng xem trước).
+  final ClassSettings? settings;
+  final MyNotifySettings? myNotifySettings;
+  final ClassPermissions? permissions;
 
   // UI optimized fields
   final UserModel? owner;
@@ -30,7 +41,7 @@ class ClassModel {
     required this.name,
     this.description,
     required this.ownerId,
-    required this.joinCode,
+    this.joinCode,
     this.memberCount = 0,
     this.requireApproval = false,
     this.isPublic = false,
@@ -40,18 +51,39 @@ class ClassModel {
     this.myStatus,
     this.isOwner = false,
     this.ownerName,
+    this.settings,
+    this.myNotifySettings,
+    this.permissions,
     this.owner,
     this.members,
     this.decks,
   });
 
+  /// Giảng viên = owner | admin | tutor.
+  bool get isTeacher => isOwner || myRole == 'owner' || myRole == 'admin' || myRole == 'tutor';
+
+  bool get isAdminOrOwner => isOwner || myRole == 'owner' || myRole == 'admin';
+
+  /// Thành viên đã duyệt (danh sách lớp của tôi không có `myStatus` nên coi là đã duyệt).
+  bool get isMember => myStatus == null || myStatus == 'approved';
+
+  /// Dạng xem trước của người chưa là thành viên đã duyệt (not_joined | pending | invited).
+  bool get isPreview => !isMember;
+
+  bool get canViewLeaderboard => isTeacher || (permissions?.canViewLeaderboard ?? true);
+  bool get canInviteMembers => isTeacher || (permissions?.canInviteMembers ?? false);
+  bool get canCloneMaterials => isTeacher || (permissions?.canCloneMaterials ?? true);
+
   factory ClassModel.fromJson(Map<String, dynamic> json) {
+    final rawSettings = json['settings'];
+    final rawNotify = json['myNotifySettings'];
+    final rawPermissions = json['permissions'];
     return ClassModel(
       id: json['id'] as String? ?? json['classId'] as String? ?? json['class_id'] as String? ?? '',
       name: json['name'] as String? ?? '',
       description: json['description'] as String?,
       ownerId: json['ownerId'] as String? ?? json['owner_id'] as String? ?? '',
-      joinCode: json['joinCode'] as String? ?? json['join_code'] as String? ?? '',
+      joinCode: json['joinCode'] as String? ?? json['join_code'] as String?,
       memberCount: json['memberCount'] as int? ?? json['member_count'] as int? ?? 0,
       requireApproval:
           json['requireApproval'] as bool? ?? json['require_approval'] as bool? ?? false,
@@ -60,6 +92,13 @@ class ClassModel {
       myStatus: json['myStatus'] as String? ?? json['my_status'] as String?,
       isOwner: json['isOwner'] as bool? ?? json['is_owner'] as bool? ?? false,
       ownerName: json['ownerName'] as String? ?? json['owner_name'] as String?,
+      settings: rawSettings is Map<String, dynamic> ? ClassSettings.fromJson(rawSettings) : null,
+      myNotifySettings: rawNotify is Map<String, dynamic>
+          ? MyNotifySettings.fromJson(rawNotify)
+          : null,
+      permissions: rawPermissions is Map<String, dynamic>
+          ? ClassPermissions.fromJson(rawPermissions)
+          : null,
       createdAt:
           DateTime.tryParse(
             json['createdAt']?.toString() ?? json['created_at']?.toString() ?? '',
@@ -90,7 +129,7 @@ class ClassModel {
       'name': name,
       if (description != null) 'description': description,
       'ownerId': ownerId,
-      'joinCode': joinCode,
+      if (joinCode != null) 'joinCode': joinCode,
       'memberCount': memberCount,
       'requireApproval': requireApproval,
       'isPublic': isPublic,
@@ -98,6 +137,7 @@ class ClassModel {
       if (myStatus != null) 'myStatus': myStatus,
       'isOwner': isOwner,
       if (ownerName != null) 'ownerName': ownerName,
+      if (settings != null) 'settings': settings!.toJson(),
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt.toIso8601String(),
       if (owner != null) 'owner': owner!.toJson(),
@@ -119,6 +159,9 @@ class ClassModel {
     String? myStatus,
     bool? isOwner,
     String? ownerName,
+    ClassSettings? settings,
+    MyNotifySettings? myNotifySettings,
+    ClassPermissions? permissions,
     DateTime? createdAt,
     DateTime? updatedAt,
     UserModel? owner,
@@ -138,6 +181,9 @@ class ClassModel {
       myStatus: myStatus ?? this.myStatus,
       isOwner: isOwner ?? this.isOwner,
       ownerName: ownerName ?? this.ownerName,
+      settings: settings ?? this.settings,
+      myNotifySettings: myNotifySettings ?? this.myNotifySettings,
+      permissions: permissions ?? this.permissions,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       owner: owner ?? this.owner,

@@ -1,8 +1,11 @@
+import 'package:mind_deck/configs/app_config.dart';
+
 class ApiEndpoints {
   ApiEndpoints._();
 
-  static const String baseUrl = 'http://10.0.2.2:3000/api/v1';
-  static const String url = 'http://10.0.2.2:3000';
+  // Địa chỉ theo flavor, xem AppConfig.
+  static String get baseUrl => AppConfig.current.baseUrl;
+  static String get url => AppConfig.current.url;
 
   // Auth
   static const String register = '/auth/register';
@@ -50,6 +53,12 @@ class ApiEndpoints {
   // Images
   static const String uploadImage = '/images/upload';
   static const String getImageUrl = '/images'; // Append /*path
+  static const String imageSearch = '/images/search';
+  static const String imageSearchSelect = '/images/search/select';
+
+  // Coins
+  static const String coins = '/coins';
+  static const String coinsHistory = '/coins/history';
 
   // Sync
   static const String syncDown = '/sync/down';
@@ -57,9 +66,10 @@ class ApiEndpoints {
 
   // Study
   static const String study = '/study';
+  static const String studyActive = '/study/active';
 
-  // Dashboard
-  static const String dashboard = '/home/';
+  // Home
+  static const String home = '/home';
 
   // Review
   static const String review = '/review/';
@@ -67,9 +77,15 @@ class ApiEndpoints {
   // Custom Tests
   static const String tests = '/tests';
   static const String testsGenerate = '/tests/generate';
+  static const String testsPreview = '/tests/preview';
+  static const String testById = '/tests/'; // Append {testId}  (GET/PUT chi tiết, /start, /submit)
   static const String testsSubmit = '/tests/'; // Append {testId}/submit
+  static const String testsSessions = '/tests/sessions/'; // Append {sessionId}/resume | /progress
+  static const String testsSessionsList = '/tests/sessions'; // Danh sách phiên làm bài dang dở
   static const String historyTests = '/history/tests';
   static const String testsResolveSources = '/tests/resolve-sources';
+  static const String testsPersonalSources = '/tests/sources/personal';
+  static const String testsClassSources = '/tests/sources/classes';
   static const String testsAvailableSources = '/tests/available-sources';
   static const String testsAvailableDecks = '/tests/available-sources/decks';
 
@@ -77,12 +93,20 @@ class ApiEndpoints {
   static const String reports = '/reports';
   static const String reportById = '/reports/'; // Append {id}
 
+  // Document import (tạo thẻ từ tài liệu)
+  static const String documentImports = '/document-imports';
+  static const String documentImportQuota = '/document-imports/quota';
+  static String documentImportById(String id) => '/document-imports/$id';
+  static String documentImportStream(String id) => '/document-imports/$id/stream';
+  static String documentImportCommit(String id) => '/document-imports/$id/commit';
+
   // Discovery
   static const String discovery = '/discovery';
   static const String discoveryPopular = '/discovery/popular';
 
   // Search
   static const String search = '/search';
+  static const String searchSuggest = '/search/suggest';
 
   // Classes
   static const String classes = '/classes';
@@ -101,6 +125,16 @@ class ApiEndpoints {
       '/classes/'; // Append {id}/assignments/{assignmentId}/submissions
   static const String classMySubmissions = '/classes/'; // Append {id}/my-submissions
   static const String classLeaderboard = '/classes/'; // Append {id}/leaderboard
+  static const String classInvitations = '/classes/invitations'; // Lời mời của tôi
+  static const String classSettings = '/classes/'; // Append {id}/settings
+  static const String classMyNotifications = '/classes/'; // Append {id}/members/me/notifications
+  static const String classLeave = '/classes/'; // Append {id}/leave
+  static const String classInvites =
+      '/classes/'; // Append {id}/invitations[/lookup|/accept|/decline|/{userId}]
+  static const String classMaterialsCheck = '/classes/'; // Append {id}/materials/check
+  static const String classMaterialFolderDecks =
+      '/classes/'; // Append {id}/materials/folders/{folderId}/decks
+  static const String classAssignmentsOverdue = '/classes/'; // Append {id}/assignments/overdue
 
   // Analytics
   static const String analyticsReviewWorkload =
@@ -111,6 +145,14 @@ class ApiEndpoints {
       '/analytics/classes/'; // Append {id}/assignments/{assignmentId}/progress
   static const String analyticsAssignmentDrillDown =
       '/analytics/classes/'; // Append {id}/assignments/{assignmentId}/drill-down
+  static const String analyticsScoreDistribution =
+      '/analytics/classes/'; // Append {id}/assignments/{assignmentId}/score-distribution
+  static const String analyticsStudentAttempts =
+      '/analytics/classes/'; // Append {id}/assignments/{assignmentId}/students/{userId}/attempts
+  static const String analyticsAttemptDetail =
+      '/analytics/classes/'; // Append {id}/attempts/{attemptId}
+  static const String analyticsStudentAssignments =
+      '/analytics/classes/'; // Append {id}/students/{userId}/assignments
 
   // Notifications
   static const String notificationDevices = '/notifications/devices';

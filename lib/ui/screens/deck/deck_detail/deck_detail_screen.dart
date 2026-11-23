@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
-import 'package:mind_deck/constants/app_icons.dart';
+import 'package:mind_deck/core/extensions/string_extension.dart';
+import 'package:mind_deck/data/models/enums.dart';
 import 'package:mind_deck/data/models/deck_model.dart';
 import 'package:mind_deck/navigation/app_routes.dart';
 import 'package:mind_deck/ui/commons/common_refresh.dart';
 import 'package:mind_deck/ui/commons/custom_toast.dart';
+import 'package:mind_deck/ui/commons/skeleton_back_button.dart';
+import 'package:skeletonizer/skeletonizer.dart';
+import 'package:mind_deck/data/models/flashcard_model.dart';
 import 'package:mind_deck/ui/screens/auth/bloc/auth_bloc.dart';
 import 'package:mind_deck/ui/screens/auth/bloc/auth_state.dart';
 import 'package:mind_deck/ui/screens/deck/deck_detail/bloc/deck_detail_bloc.dart';
@@ -13,11 +17,13 @@ import 'package:mind_deck/ui/screens/deck/deck_detail/bloc/deck_detail_event.dar
 import 'package:mind_deck/ui/screens/deck/deck_detail/bloc/deck_detail_state.dart';
 import 'package:mind_deck/utils/color_utils.dart';
 import 'widgets/deck_detail_action_buttons.dart';
-import 'widgets/deck_detail_expandable_tags.dart';
+import 'widgets/deck_detail_card_filter.dart';
 import 'widgets/deck_detail_flashcard_item.dart';
+import 'widgets/deck_detail_header.dart';
 import 'widgets/deck_detail_fsrs_summary.dart';
-import 'widgets/deck_detail_meta_header.dart';
 import 'widgets/deck_detail_overlay_app_bar.dart';
+import 'package:mind_deck/constants/ad_units.dart';
+import 'package:mind_deck/ui/commons/ads/native_ad_slot.dart';
 
 class DeckDetailScreen extends StatefulWidget {
   final String deckId;
@@ -26,6 +32,10 @@ class DeckDetailScreen extends StatefulWidget {
   final String? classId;
   final String? assignmentId;
 
+  /// Bản sao lớp: chỉ giảng viên được sửa; clone theo quyền của lớp (không dùng `deck.canClone`).
+  final bool canEditClassCopy;
+  final bool canCloneClassCopy;
+
   const DeckDetailScreen({
     super.key,
     required this.deckId,
@@ -33,6 +43,8 @@ class DeckDetailScreen extends StatefulWidget {
     this.token,
     this.classId,
     this.assignmentId,
+    this.canEditClassCopy = false,
+    this.canCloneClassCopy = false,
   });
 
   @override
@@ -41,6 +53,12 @@ class DeckDetailScreen extends StatefulWidget {
 
 class _DeckDetailScreenState extends State<DeckDetailScreen> {
   late DeckModel? currentDeck;
+  final ScrollController _scrollController = ScrollController();
+
+  // Tìm và lọc thẻ chạy trên máy (BE trả đủ mọi thẻ)
+  final TextEditingController _cardSearchController = TextEditingController();
+  String _cardQuery = '';
+  CardState? _cardStateFilter;
 
   @override
   void initState() {
@@ -54,6 +72,13 @@ class _DeckDetailScreenState extends State<DeckDetailScreen> {
         bloc.add(DeckDetailRefreshed(widget.deckId, token: widget.token));
       }
     });
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    _cardSearchController.dispose();
+    super.dispose();
   }
 
   void _handleDeleteDeck(DeckModel deck) async {
@@ -126,6 +151,67 @@ class _DeckDetailScreenState extends State<DeckDetailScreen> {
     }
   }
 
+  /// Skeleton [count] thẻ flashcard.
+  Widget _cardSkeletons(int count) {
+    return Skeletonizer(
+      child: Column(
+        children: [
+          for (var i = 0; i < count; i++)
+            DeckDetailFlashcardItem(cardData: FlashcardModel.placeholder()),
+        ],
+      ),
+    );
+  }
+
+  /// Skeleton cả trang khi chưa có chút dữ liệu nào về bộ thẻ (mở từ chip hoặc link chia sẻ).
+  Widget _buildPageSkeleton(ColorScheme colorScheme) {
+    final placeholder = DeckModel.placeholder();
+    return Scaffold(
+      backgroundColor: colorScheme.surfaceContainer,
+      body: Stack(
+        children: [
+          SingleChildScrollView(
+            physics: const NeverScrollableScrollPhysics(),
+            child: Skeletonizer(
+              child: Column(
+                children: [
+                  DeckDetailHeader(
+                    deck: placeholder,
+                    themeColor: Colors.blueGrey.shade200,
+                    isOwner: false,
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(24, 20, 24, 16),
+                    child: Column(
+                      children: [
+                        DeckDetailFsrsSummary(deck: placeholder),
+                        const SizedBox(height: 16),
+                        Skeleton.leaf(
+                          child: Container(
+                            height: 60,
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(24, 0, 24, 0),
+                    child: _cardSkeletons(4),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SkeletonBackButton(),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -144,7 +230,7 @@ class _DeckDetailScreenState extends State<DeckDetailScreen> {
                   message: state.successMessage!,
                   actionLabel: 'XEM',
                   onAction: () {
-                    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                    CustomToast.dismiss();
                     context.pushNamed(
                       AppRoute.deckDetail.name,
                       pathParameters: {'id': state.clonedDeckId!},
@@ -166,149 +252,167 @@ class _DeckDetailScreenState extends State<DeckDetailScreen> {
           previous.status != current.status,
       builder: (context, state) {
         final realDeck = state.deck ?? currentDeck;
-        if (realDeck == null) {
-          return Scaffold(
-            backgroundColor: colorScheme.surfaceContainer,
-            body: const Center(child: CircularProgressIndicator()),
-          );
-        }
-        DeckModel deck = realDeck;
+        if (realDeck == null) return _buildPageSkeleton(colorScheme);
+        // Dữ liệu đầy đủ chưa về mà người dùng đã bấm sao thì hiển thị theo lựa chọn đó
+        final DeckModel deck = state.deck == null && state.starOverride != null
+            ? realDeck.copyWith(isStarred: state.starOverride)
+            : realDeck;
 
         final authState = context.read<AuthBloc>().state;
         final currentUserId = authState is AuthAuthenticated ? authState.user.id : null;
         final isDeckOwner = deck.isOwner || (currentUserId != null && deck.userId == currentUserId);
 
         final themeColor = ColorUtils.parseHex(deck.color);
-        final bool isLight = ColorUtils.isLightColor(themeColor);
-        final Color contentColor = ColorUtils.getContrastColor(themeColor);
-        final IconData deckIcon = AppIcons.getIconFromKey(deck.icon);
 
-        return Scaffold(
-          backgroundColor: colorScheme.surfaceContainer,
-          body: Stack(
-            children: [
-              CommonRefresh(
-                onRefresh: () async {
-                  final bloc = context.read<DeckDetailBloc>();
-                  bloc.add(DeckDetailRefreshed(widget.deckId, token: widget.token));
-                  await bloc.stream.firstWhere((DeckDetailState s) => !s.isRefreshing);
-                },
-                slivers: [
-                  // HEADER CONTAINER (Trôi hoàn toàn lên trên khi cuộn, không bị ghim vệt màu tím ở đỉnh)
-                  SliverToBoxAdapter(
-                    child: Container(
-                      height: 240.0,
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: [themeColor.withValues(alpha: 0.8), themeColor],
+        // Tìm theo mặt trước/mặt sau (không phân biệt hoa thường và dấu) rồi lọc theo trạng thái học
+        final allCards = deck.flashcards ?? const [];
+        final query = _cardQuery.trim().withoutDiacritics;
+        final cards = allCards.where((c) {
+          final state = c.progress?.state ?? CardState.newCard;
+          if (_cardStateFilter != null && state != _cardStateFilter) return false;
+          if (query.isEmpty) return true;
+          return c.frontText.withoutDiacritics.contains(query) ||
+              c.backText.withoutDiacritics.contains(query);
+        }).toList();
+        final stateCounts = <CardState, int>{};
+        for (final c in allCards) {
+          final state = c.progress?.state ?? CardState.newCard;
+          stateCounts[state] = (stateCounts[state] ?? 0) + 1;
+        }
+
+        // Chưa có phản hồi API (đang dùng dữ liệu của màn danh sách, chưa có các thẻ): phần số liệu và danh
+        // sách thẻ hiện skeleton. Số skeleton bằng số thẻ đã biết, tối đa 8.
+        final bool cardsLoading = state.deck == null;
+        final int cardSkeletonCount = (deck.cardCount ?? 4).clamp(0, 8);
+
+        // Back bình thường: nếu đã đổi sao so với lúc mở từ danh sách thì trả bộ thẻ mới nhất về để danh sách
+        // cập nhật tại chỗ; không đổi gì thì trả null như trước.
+        final initialStarred = widget.initialDeck?.isStarred;
+        return PopScope<Object?>(
+          canPop: false,
+          onPopInvokedWithResult: (didPop, _) {
+            if (didPop) return;
+            context.pop(initialStarred != null && deck.isStarred != initialStarred ? deck : null);
+          },
+          child: Scaffold(
+            backgroundColor: colorScheme.surfaceContainer,
+            body: Stack(
+              children: [
+                // 1. LAYER 1: DANH SÁCH CUỘN VÀ NỘI DUNG (Hero Banner + Metadata + Flashcards)
+                CommonRefresh(
+                  controller: _scrollController,
+                  onRefresh: () async {
+                    final bloc = context.read<DeckDetailBloc>();
+                    bloc.add(DeckDetailRefreshed(widget.deckId, token: widget.token));
+                    await bloc.stream.firstWhere((DeckDetailState s) => !s.isRefreshing);
+                  },
+                  slivers: [
+                    // PHẦN ĐẦU: hình, tên, thông tin, tag, thư mục chứa bộ thẻ, tác giả
+                    SliverToBoxAdapter(
+                      child: DeckDetailHeader(
+                        deck: deck,
+                        themeColor: themeColor,
+                        isOwner: isDeckOwner,
+                      ),
+                    ),
+
+                    // Trạng thái ghi nhớ (FSRS) và nút Kiểm tra / Flashcard
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
+                        child: Column(
+                          children: [
+                            Skeletonizer(
+                              enabled: cardsLoading,
+                              child: DeckDetailFsrsSummary(deck: deck),
+                            ),
+                            const SizedBox(height: 16),
+                            DeckDetailActionButtons(
+                              deck: deck,
+                              classId: widget.classId,
+                              assignmentId: widget.assignmentId,
+                              isOwner: isDeckOwner,
+                            ),
+                          ],
                         ),
                       ),
-                      child: Stack(
-                        children: [
-                          Positioned(
-                            right: -50,
-                            top: -50,
-                            child: Transform.rotate(
-                              angle: 0.2,
-                              child: Icon(
-                                deckIcon,
-                                size: 250,
-                                color: Colors.white.withValues(alpha: isLight ? 0.08 : 0.15),
+                    ),
+
+                    // Quảng cáo: một ô giữa phần thông tin/nút hành động và danh sách thẻ, không chen vào danh sách
+                    SliverList(
+                      delegate: SliverChildListDelegate([
+                        const NativeAdSlot(
+                          unit: AdUnit.nativeDeckDetail,
+                          margin: EdgeInsets.fromLTRB(24, 8, 24, 8),
+                        ),
+                      ]),
+                    ),
+
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'deck_cards_title'.tr.replaceAll(
+                                '{count}',
+                                '${deck.cardCount ?? allCards.length}',
+                              ),
+                              style: theme.textTheme.titleLarge?.copyWith(
+                                fontWeight: FontWeight.bold,
                               ),
                             ),
-                          ),
-                          // Tiêu đề lớn (fontSize: 30), trôi theo màn hình khi cuộn
-                          Positioned(
-                            left: 24,
-                            right: 24,
-                            bottom: 24,
-                            child: Text(
-                              deck.name,
-                              style: theme.textTheme.headlineLarge?.copyWith(
-                                color: contentColor,
-                                fontSize: 30,
-                                fontWeight: FontWeight.w900,
-                                letterSpacing: -0.5,
-                                height: 1.2,
+                            const SizedBox(height: 12),
+                            Skeletonizer(
+                              enabled: cardsLoading,
+                              child: DeckDetailCardFilter(
+                                controller: _cardSearchController,
+                                onQueryChanged: (v) => setState(() => _cardQuery = v),
+                                counts: stateCounts,
+                                total: allCards.length,
+                                selected: _cardStateFilter,
+                                onSelected: (v) => setState(() => _cardStateFilter = v),
                               ),
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
-                  ),
 
-                  // BODY CONTENT
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.all(24.0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // METADATA ROW & GOAL & AUTHOR
-                          DeckDetailMetaHeader(deck: deck, mainThemeColor: themeColor),
-                          const SizedBox(height: 16),
-
-                          // EXPANDABLE TAGS
-                          DeckDetailExpandableTags(tags: deck.tags ?? [], maxVisible: 3),
-                          const SizedBox(height: 24),
-
-                          // FSRS PROGRESS SUMMARY
-                          DeckDetailFsrsSummary(deck: deck),
-                          const SizedBox(height: 24),
-
-                          // ACTION BUTTONS (KIỂM TRA & FLASHCARD)
-                          DeckDetailActionButtons(
-                            deck: deck,
-                            mainThemeColor: themeColor,
-                            classId: widget.classId,
-                            assignmentId: widget.assignmentId,
+                    // DANH SÁCH FLASHCARD
+                    if (cardsLoading)
+                      SliverPadding(
+                        padding: const EdgeInsets.fromLTRB(24, 16, 24, 40),
+                        sliver: SliverToBoxAdapter(child: _cardSkeletons(cardSkeletonCount)),
+                      )
+                    else
+                      SliverPadding(
+                        padding: const EdgeInsets.fromLTRB(24, 16, 24, 40),
+                        sliver: SliverList(
+                          delegate: SliverChildBuilderDelegate(
+                            (context, index) => DeckDetailFlashcardItem(cardData: cards[index]),
+                            childCount: cards.length,
                           ),
-                          const SizedBox(height: 32),
-
-                          // LIST CARD HEADER
-                          Text(
-                            'Danh sách Flashcard',
-                            style: theme.textTheme.titleLarge?.copyWith(
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ],
+                        ),
                       ),
-                    ),
-                  ),
+                  ],
+                ),
 
-                  // FLASHCARD SLIVER LIST
-                  SliverPadding(
-                    padding: const EdgeInsets.symmetric(horizontal: 24.0).copyWith(bottom: 40),
-                    sliver: SliverList(
-                      delegate: SliverChildBuilderDelegate(
-                        (context, index) =>
-                            DeckDetailFlashcardItem(cardData: deck.flashcards![index]),
-                        childCount: deck.flashcards?.length ?? 0,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-
-              // FIXED OVERLAY APP BAR BUTTONS
-              DeckDetailOverlayAppBar(
-                deck: deck,
-                realDeck: realDeck,
-                isLight: isLight,
-                contentColor: contentColor,
-                isDeckOwner: isDeckOwner,
-                deckId: widget.deckId,
-                token: widget.token,
-                onDeleteDeck: () => _handleDeleteDeck(deck),
-                onCloneDeck: () => _handleCloneDeck(deck),
-              ),
-            ],
+                // CỤM NÚT ĐIỀU HƯỚNG CỐ ĐỊNH Ở ĐỈNH
+                DeckDetailOverlayAppBar(
+                  deck: deck,
+                  realDeck: realDeck,
+                  isDeckOwner: isDeckOwner,
+                  canEditClassCopy: widget.canEditClassCopy,
+                  canCloneClassCopy: widget.canCloneClassCopy,
+                  deckId: widget.deckId,
+                  token: widget.token,
+                  onDeleteDeck: () => _handleDeleteDeck(deck),
+                  onCloneDeck: () => _handleCloneDeck(deck),
+                ),
+              ],
+            ),
           ),
         );
       },

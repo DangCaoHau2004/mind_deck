@@ -22,9 +22,7 @@ Widget buildCardContainer(BuildContext context, String title, Widget child) {
       children: [
         Text(
           title,
-          style: Theme.of(
-            context,
-          ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+          style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 16),
         child,
@@ -95,9 +93,9 @@ class StreakSection extends StatelessWidget {
               Flexible(
                 child: Text(
                   title,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: colorScheme.onSurfaceVariant,
-                  ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodyMedium?.copyWith(color: colorScheme.onSurfaceVariant),
                 ),
               ),
             ],
@@ -105,9 +103,7 @@ class StreakSection extends StatelessWidget {
           const SizedBox(height: 12),
           Text(
             value,
-            style: Theme.of(
-              context,
-            ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
+            style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
           ),
         ],
       ),
@@ -162,12 +158,7 @@ class HeatmapSection extends StatelessWidget {
             children: [
               for (final day in ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'])
                 Expanded(
-                  child: Center(
-                    child: Text(
-                      day,
-                      style: Theme.of(context).textTheme.labelSmall,
-                    ),
-                  ),
+                  child: Center(child: Text(day, style: Theme.of(context).textTheme.labelSmall)),
                 ),
             ],
           ),
@@ -225,9 +216,9 @@ class HeatmapSection extends StatelessWidget {
             children: [
               Text(
                 'Ít',
-                style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: colorScheme.onSurfaceVariant,
-                ),
+                style: Theme.of(
+                  context,
+                ).textTheme.labelSmall?.copyWith(color: colorScheme.onSurfaceVariant),
               ),
               const SizedBox(width: 4),
               Container(
@@ -236,9 +227,7 @@ class HeatmapSection extends StatelessWidget {
                 margin: const EdgeInsets.symmetric(horizontal: 2),
                 decoration: BoxDecoration(
                   color: colorScheme.surfaceContainerHigh,
-                  borderRadius: BorderRadius.circular(
-                    2,
-                  ), // Bo góc nhẹ cho đồng bộ
+                  borderRadius: BorderRadius.circular(2), // Bo góc nhẹ cho đồng bộ
                   border: Border.all(
                     color: colorScheme.onSurface.withValues(alpha: 0.4),
                     width: 0.5,
@@ -300,9 +289,9 @@ class HeatmapSection extends StatelessWidget {
               const SizedBox(width: 4),
               Text(
                 'Nhiều',
-                style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: colorScheme.onSurfaceVariant,
-                ),
+                style: Theme.of(
+                  context,
+                ).textTheme.labelSmall?.copyWith(color: colorScheme.onSurfaceVariant),
               ),
             ],
           ),
@@ -346,15 +335,13 @@ class AccuracySection extends StatelessWidget {
             // 1. THÊM ĐOẠN NÀY: Tùy chỉnh Tooltip khi click vào điểm
             lineTouchData: LineTouchData(
               touchTooltipData: LineTouchTooltipData(
-                getTooltipColor: (touchedSpot) =>
-                    Colors.black87, // Màu nền của tooltip (đen mờ)
+                getTooltipColor: (touchedSpot) => Colors.black87, // Màu nền của tooltip (đen mờ)
                 getTooltipItems: (List<LineBarSpot> touchedSpots) {
                   return touchedSpots.map((spot) {
                     return LineTooltipItem(
                       '${spot.y}%', // Hiển thị số %
                       const TextStyle(
-                        color: Colors
-                            .white, // Sửa chữ thành màu trắng để dễ đọc trên nền đen
+                        color: Colors.white, // Sửa chữ thành màu trắng để dễ đọc trên nền đen
                         fontWeight: FontWeight.bold,
                       ),
                     );
@@ -368,27 +355,20 @@ class AccuracySection extends StatelessWidget {
               show: true,
               drawVerticalLine: false,
               horizontalInterval: 20,
-              getDrawingHorizontalLine: (value) => FlLine(
-                color: colorScheme.surfaceContainerHigh,
-                strokeWidth: 1,
-              ),
+              getDrawingHorizontalLine: (value) =>
+                  FlLine(color: colorScheme.surfaceContainerHigh, strokeWidth: 1),
             ),
             titlesData: FlTitlesData(
               show: true,
-              rightTitles: const AxisTitles(
-                sideTitles: SideTitles(showTitles: false),
-              ),
-              topTitles: const AxisTitles(
-                sideTitles: SideTitles(showTitles: false),
-              ),
+              rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+              topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
               bottomTitles: AxisTitles(
                 sideTitles: SideTitles(
                   showTitles: true,
                   reservedSize: 22,
                   interval: 1,
                   getTitlesWidget: (value, meta) {
-                    if (value.toInt() >= data.length)
-                      return const SizedBox.shrink();
+                    if (value.toInt() >= data.length) return const SizedBox.shrink();
                     final item = data[value.toInt()];
                     final date = DateTime.tryParse(item.date)?.toLocal();
                     if (date == null) return const SizedBox.shrink();
@@ -463,6 +443,9 @@ class FutureReviewsSection extends StatelessWidget {
   Widget build(BuildContext context) {
     final today = DateTime.now();
     final Map<String, int> dateDueMap = {};
+    // BE trả `futureReviews` 7 ngày GỒM HÔM NAY (hôm nay + 6 ngày tới, theo giờ máy);
+    // ngày không có thẻ đến hạn không có trong mảng nên tự điền 0. Thẻ quá hạn từ trước hôm nay
+    // không nằm trong lịch này (xem `dueNow.overdue`).
     for (final item in data) {
       final date = DateTime.tryParse(item.date)?.toLocal();
       if (date != null) {
@@ -474,23 +457,17 @@ class FutureReviewsSection extends StatelessWidget {
 
     final List<FutureReviewStats> denseData = [];
     for (int i = 0; i < 7; i++) {
-      final date = today.add(Duration(days: i));
+      // Dựng bằng DateTime(y, m, d + i) để không lệch khi có đổi giờ mùa hè.
+      final date = DateTime(today.year, today.month, today.day + i);
       final dateStr =
           "${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}";
       denseData.add(
-        FutureReviewStats(
-          date: date.toIso8601String(),
-          dueCount: dateDueMap[dateStr] ?? 0,
-        ),
+        FutureReviewStats(date: date.toIso8601String(), dueCount: dateDueMap[dateStr] ?? 0),
       );
     }
 
     double maxDue =
-        denseData
-            .map((e) => e.dueCount)
-            .reduce((a, b) => a > b ? a : b)
-            .toDouble() *
-        1.2;
+        denseData.map((e) => e.dueCount).reduce((a, b) => a > b ? a : b).toDouble() * 1.2;
     if (maxDue == 0) maxDue = 5;
 
     final colorScheme = Theme.of(context).colorScheme;
@@ -520,21 +497,20 @@ class FutureReviewsSection extends StatelessWidget {
                 sideTitles: SideTitles(
                   showTitles: true,
                   getTitlesWidget: (value, meta) {
-                    if (value.toInt() >= denseData.length)
+                    if (value.toInt() >= denseData.length) {
                       return const SizedBox.shrink();
+                    }
                     final item = denseData[value.toInt()];
                     final date = DateTime.tryParse(item.date)?.toLocal();
                     if (date == null) return const SizedBox.shrink();
 
                     final weekdays = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
-                    final weekdayStr = weekdays[date.weekday - 1];
+                    // Cột đầu là HÔM NAY (lịch 7 ngày gồm hôm nay): ghi rõ để phân biệt.
+                    final weekdayStr = value.toInt() == 0 ? 'H.nay' : weekdays[date.weekday - 1];
 
                     return Padding(
                       padding: const EdgeInsets.only(top: 8.0),
-                      child: Text(
-                        weekdayStr,
-                        style: Theme.of(context).textTheme.labelSmall,
-                      ),
+                      child: Text(weekdayStr, style: Theme.of(context).textTheme.labelSmall),
                     );
                   },
                 ),
@@ -557,20 +533,14 @@ class FutureReviewsSection extends StatelessWidget {
                   },
                 ),
               ),
-              topTitles: const AxisTitles(
-                sideTitles: SideTitles(showTitles: false),
-              ),
-              rightTitles: const AxisTitles(
-                sideTitles: SideTitles(showTitles: false),
-              ),
+              topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+              rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
             ),
             gridData: FlGridData(
               show: true,
               drawVerticalLine: false,
-              getDrawingHorizontalLine: (value) => FlLine(
-                color: colorScheme.surfaceContainerHigh,
-                strokeWidth: 1,
-              ),
+              getDrawingHorizontalLine: (value) =>
+                  FlLine(color: colorScheme.surfaceContainerHigh, strokeWidth: 1),
             ),
             borderData: FlBorderData(show: false),
             barGroups: denseData.asMap().entries.map((entry) {
@@ -608,10 +578,7 @@ class DifficultCardsSection extends StatelessWidget {
         Center(
           child: Padding(
             padding: const EdgeInsets.all(16),
-            child: Text(
-              'Bạn chưa có thẻ khó nào!',
-              style: Theme.of(context).textTheme.bodyMedium,
-            ),
+            child: Text('Bạn chưa có thẻ khó nào!', style: Theme.of(context).textTheme.bodyMedium),
           ),
         ),
       );
@@ -626,43 +593,45 @@ class DifficultCardsSection extends StatelessWidget {
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
         itemCount: data.length,
-        separatorBuilder: (context, index) =>
-            Divider(color: colorScheme.surfaceContainerHigh),
+        separatorBuilder: (context, index) => Divider(color: colorScheme.surfaceContainerHigh),
         itemBuilder: (context, index) {
           final item = data[index];
           final bool isVeryHard = item.difficulty > 8;
+          final source = item.classId != null
+              ? (item.className?.isNotEmpty == true ? item.className! : 'Lớp học')
+              : 'Cá nhân';
+          final deck = item.deckName.isNotEmpty ? item.deckName : null;
 
           return ListTile(
             contentPadding: EdgeInsets.zero,
+            subtitle: Text(
+              deck == null ? source : '$deck · $source',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: colorScheme.onSurfaceVariant),
+            ),
             leading: CircleAvatar(
               backgroundColor: colorScheme.surfaceContainerHighest,
-              child: Text(
-                '${index + 1}',
-                style: TextStyle(color: colorScheme.onSurface),
-              ),
+              child: Text('${index + 1}', style: TextStyle(color: colorScheme.onSurface)),
             ),
             title: Text(
               item.frontText,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
-              style: Theme.of(
-                context,
-              ).textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w500),
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w500),
             ),
             trailing: Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
-                color: isVeryHard
-                    ? colorScheme.error
-                    : colorScheme.tertiaryContainer,
+                color: isVeryHard ? colorScheme.error : colorScheme.tertiaryContainer,
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Text(
                 item.difficulty.toStringAsFixed(1),
                 style: TextStyle(
-                  color: isVeryHard
-                      ? colorScheme.onError
-                      : colorScheme.onTertiaryContainer,
+                  color: isVeryHard ? colorScheme.onError : colorScheme.onTertiaryContainer,
                   fontWeight: FontWeight.bold,
                   fontSize: 12,
                 ),

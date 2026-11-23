@@ -36,12 +36,8 @@ class _MatchingBodyState extends State<MatchingBody> {
   void _onLeftSelected(String id) {
     if (widget.isChecked) return;
 
-    final updatedMatches = Map<String, String>.from(
-      widget.currentMatches ?? {},
-    );
-    if (updatedMatches.containsKey(id) &&
-        _selectedLeftId == null &&
-        _selectedRightId == null) {
+    final updatedMatches = Map<String, String>.from(widget.currentMatches ?? {});
+    if (updatedMatches.containsKey(id) && _selectedLeftId == null && _selectedRightId == null) {
       updatedMatches.remove(id);
       widget.onMatchesChanged(updatedMatches);
       setState(() {
@@ -59,12 +55,8 @@ class _MatchingBodyState extends State<MatchingBody> {
   void _onRightSelected(String id) {
     if (widget.isChecked) return;
 
-    final updatedMatches = Map<String, String>.from(
-      widget.currentMatches ?? {},
-    );
-    if (updatedMatches.containsValue(id) &&
-        _selectedLeftId == null &&
-        _selectedRightId == null) {
+    final updatedMatches = Map<String, String>.from(widget.currentMatches ?? {});
+    if (updatedMatches.containsValue(id) && _selectedLeftId == null && _selectedRightId == null) {
       updatedMatches.removeWhere((k, v) => v == id);
       widget.onMatchesChanged(updatedMatches);
       setState(() {
@@ -81,14 +73,10 @@ class _MatchingBodyState extends State<MatchingBody> {
 
   void _checkMatch() {
     if (_selectedLeftId != null && _selectedRightId != null) {
-      final updatedMatches = Map<String, String>.from(
-        widget.currentMatches ?? {},
-      );
+      final updatedMatches = Map<String, String>.from(widget.currentMatches ?? {});
 
       // Remove any existing matches for these ids to prevent duplicate links
-      updatedMatches.removeWhere(
-        (key, val) => key == _selectedLeftId || val == _selectedRightId,
-      );
+      updatedMatches.removeWhere((key, val) => key == _selectedLeftId || val == _selectedRightId);
 
       updatedMatches[_selectedLeftId!] = _selectedRightId!;
       widget.onMatchesChanged(updatedMatches);
@@ -146,8 +134,7 @@ class _MatchingBodyState extends State<MatchingBody> {
                   if (isMatched && !widget.isChecked) {
                     int matchIndex = matchesList.indexOf(id);
                     if (matchIndex != -1) {
-                      pairColor =
-                          _matchColors[matchIndex % _matchColors.length];
+                      pairColor = _matchColors[matchIndex % _matchColors.length];
                     }
                   }
 
@@ -159,21 +146,15 @@ class _MatchingBodyState extends State<MatchingBody> {
                   if (widget.isChecked) {
                     final matchedRightId = matches[id] ?? '';
                     final isCorrect = id == matchedRightId;
-                    borderColor = isCorrect
-                        ? Colors.green.shade600
-                        : colorScheme.error;
+                    borderColor = isCorrect ? Colors.green.shade600 : colorScheme.error;
                     bgColor = isCorrect
                         ? Colors.green.shade50
                         : colorScheme.errorContainer.withValues(alpha: 0.2);
-                    textColor = isCorrect
-                        ? Colors.green.shade900
-                        : colorScheme.error;
+                    textColor = isCorrect ? Colors.green.shade900 : colorScheme.error;
                     borderWidth = 2.0;
                   } else if (isSelected) {
                     borderColor = colorScheme.primary;
-                    bgColor = colorScheme.primaryContainer.withValues(
-                      alpha: 0.15,
-                    );
+                    bgColor = colorScheme.primaryContainer.withValues(alpha: 0.15);
                     textColor = colorScheme.primary;
                     borderWidth = 2.0;
                   } else if (isMatched && pairColor != null) {
@@ -192,25 +173,18 @@ class _MatchingBodyState extends State<MatchingBody> {
                         width: double.infinity,
                         constraints: const BoxConstraints(minHeight: 72),
                         alignment: Alignment.center,
-                        padding: const EdgeInsets.symmetric(
-                          vertical: 16,
-                          horizontal: 16,
-                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
                         decoration: BoxDecoration(
                           color: bgColor,
                           borderRadius: BorderRadius.circular(16),
-                          border: Border.all(
-                            color: borderColor,
-                            width: borderWidth,
-                          ),
+                          border: Border.all(color: borderColor, width: borderWidth),
                         ),
                         child: Text(
                           text,
                           textAlign: TextAlign.center,
                           style: theme.textTheme.bodyMedium?.copyWith(
                             color: textColor,
-                            fontWeight:
-                                isSelected || isMatched || widget.isChecked
+                            fontWeight: isSelected || isMatched || widget.isChecked
                                 ? FontWeight.bold
                                 : FontWeight.w500,
                           ),
@@ -236,14 +210,11 @@ class _MatchingBodyState extends State<MatchingBody> {
                   Color? pairColor;
 
                   if (isMatched) {
-                    matchedLeftId = matches.entries
-                        .firstWhere((e) => e.value == id)
-                        .key;
+                    matchedLeftId = matches.entries.firstWhere((e) => e.value == id).key;
                     if (!widget.isChecked) {
                       int matchIndex = matchesList.indexOf(matchedLeftId);
                       if (matchIndex != -1) {
-                        pairColor =
-                            _matchColors[matchIndex % _matchColors.length];
+                        pairColor = _matchColors[matchIndex % _matchColors.length];
                       }
                     }
                   }
@@ -256,21 +227,15 @@ class _MatchingBodyState extends State<MatchingBody> {
                   if (widget.isChecked) {
                     final matchedRightId = matches[id] ?? '';
                     final isCorrect = id == matchedRightId;
-                    borderColor = isCorrect
-                        ? Colors.green.shade600
-                        : colorScheme.error;
+                    borderColor = isCorrect ? Colors.green.shade600 : colorScheme.error;
                     bgColor = isCorrect
                         ? Colors.green.shade50
                         : colorScheme.errorContainer.withValues(alpha: 0.2);
-                    textColor = isCorrect
-                        ? Colors.green.shade900
-                        : colorScheme.error;
+                    textColor = isCorrect ? Colors.green.shade900 : colorScheme.error;
                     borderWidth = 2.0;
                   } else if (isSelected) {
                     borderColor = colorScheme.primary;
-                    bgColor = colorScheme.primaryContainer.withValues(
-                      alpha: 0.15,
-                    );
+                    bgColor = colorScheme.primaryContainer.withValues(alpha: 0.15);
                     textColor = colorScheme.primary;
                     borderWidth = 2.0;
                   } else if (isMatched && pairColor != null) {
@@ -289,25 +254,18 @@ class _MatchingBodyState extends State<MatchingBody> {
                         width: double.infinity,
                         constraints: const BoxConstraints(minHeight: 72),
                         alignment: Alignment.center,
-                        padding: const EdgeInsets.symmetric(
-                          vertical: 16,
-                          horizontal: 16,
-                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
                         decoration: BoxDecoration(
                           color: bgColor,
                           borderRadius: BorderRadius.circular(16),
-                          border: Border.all(
-                            color: borderColor,
-                            width: borderWidth,
-                          ),
+                          border: Border.all(color: borderColor, width: borderWidth),
                         ),
                         child: Text(
                           text,
                           textAlign: TextAlign.center,
                           style: theme.textTheme.bodyMedium?.copyWith(
                             color: textColor,
-                            fontWeight:
-                                isSelected || isMatched || widget.isChecked
+                            fontWeight: isSelected || isMatched || widget.isChecked
                                 ? FontWeight.bold
                                 : FontWeight.w500,
                           ),

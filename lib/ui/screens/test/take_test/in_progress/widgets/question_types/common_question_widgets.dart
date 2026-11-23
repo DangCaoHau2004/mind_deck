@@ -1,20 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:mind_deck/constants/api_endpoints.dart';
-
-String getImageUrl(String? path) {
-  if (path == null || path.isEmpty) return '';
-  if (path.startsWith('http')) return path;
-  final baseUrl = ApiEndpoints.url;
-  final cleanPath = path.startsWith('/') ? path : '/$path';
-  return '$baseUrl$cleanPath';
-}
+import 'package:mind_deck/utils/image_url_utils.dart';
+import 'package:mind_deck/data/models/image_search_model.dart';
+import 'package:mind_deck/ui/commons/image_screens/image_credit_line.dart';
 
 Widget buildPromptContainer(
   BuildContext context,
   String prompt,
-  String? imageUrl,
-) {
+  String? imageUrl, [
+  ImageCredit? imageCredit,
+]) {
   final theme = Theme.of(context);
   final colorScheme = theme.colorScheme;
 
@@ -48,14 +43,13 @@ Widget buildPromptContainer(
               errorWidget: (context, url, error) => Container(
                 height: 140,
                 color: colorScheme.surfaceContainer,
-                child: Icon(
-                  Icons.image_not_supported_rounded,
-                  color: colorScheme.outline,
-                ),
+                child: Icon(Icons.image_not_supported_rounded, color: colorScheme.outline),
               ),
             ),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 4),
+          ImageCreditLine(credit: imageCredit, textAlign: TextAlign.center),
+          const SizedBox(height: 16),
         ],
         Text(
           prompt,

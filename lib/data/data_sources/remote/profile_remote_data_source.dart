@@ -6,6 +6,7 @@ abstract class ProfileRemoteDataSource {
   Future<Response> updateProfile({required Map<String, dynamic> data});
   Future<Response> linkGoogle({required String token});
   Future<Response> unlinkGoogle();
+  Future<Response> deleteAccount({String? password});
 }
 
 class ProfileRemoteDataSourceImpl implements ProfileRemoteDataSource {
@@ -31,5 +32,10 @@ class ProfileRemoteDataSourceImpl implements ProfileRemoteDataSource {
   @override
   Future<Response> unlinkGoogle() {
     return dio.delete(ApiEndpoints.unlinkGoogle);
+  }
+
+  @override
+  Future<Response> deleteAccount({String? password}) {
+    return dio.delete(ApiEndpoints.profile, data: password == null ? null : {'password': password});
   }
 }

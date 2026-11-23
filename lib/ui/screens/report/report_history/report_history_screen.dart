@@ -38,12 +38,19 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
     }
   }
 
+  /// Báo cáo từ admin luôn đã giải quyết nên hiện nhãn nguồn thay cho trạng thái.
+  Color _statusColorOf(ReportModel report) =>
+      report.isFromAdmin ? Colors.deepOrange.shade600 : _getStatusColor(report.status);
+
+  String _statusTextOf(ReportModel report) =>
+      report.isFromAdmin ? 'Từ quản trị viên' : _getStatusText(report.status);
+
   String _getStatusText(ReportStatus status) {
     switch (status) {
       case ReportStatus.pending:
         return 'Chờ xử lý';
       case ReportStatus.processing:
-        return 'Đang xử lý';
+        return 'Đang xem xét';
       case ReportStatus.resolved:
         return 'Đã giải quyết';
       case ReportStatus.dismissed:
@@ -64,6 +71,29 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
       case ReportType.other:
         return 'Khác';
     }
+  }
+
+  String _targetTypeText(ReportTargetType type) {
+    switch (type) {
+      case ReportTargetType.deck:
+        return 'Bộ thẻ';
+      case ReportTargetType.folder:
+        return 'Thư mục';
+      case ReportTargetType.user:
+        return 'Người dùng';
+      case ReportTargetType.classroom:
+        return 'Lớp học';
+      case ReportTargetType.system:
+        return 'Hệ thống';
+    }
+  }
+
+  /// "Bộ thẻ · Tên"; null với báo cáo hệ thống.
+  String? _targetLabel(ReportModel report) {
+    if (report.targetType == ReportTargetType.system) return null;
+    final name = report.targetName;
+    final type = _targetTypeText(report.targetType);
+    return name == null || name.isEmpty ? type : '$type · $name';
   }
 
   // Thêm hàm UI hỗ trợ lấy Icon cho từng loại Report để giao diện trực quan hơn
@@ -101,7 +131,7 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
               SliverAppBar(
                 pinned: true,
                 floating: true,
-                backgroundColor: colorScheme.surface.withOpacity(0.9), // Kính mờ nhẹ
+                backgroundColor: colorScheme.surface.withValues(alpha: 0.9), // Kính mờ nhẹ
                 scrolledUnderElevation: 0,
                 systemOverlayStyle: SystemUiOverlayStyle.dark,
                 leading: IconButton(
@@ -131,7 +161,7 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
                       child: Container(
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
-                          color: colorScheme.primary.withOpacity(0.1),
+                          color: colorScheme.primary.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Icon(Icons.add_rounded, color: colorScheme.primary, size: 22),
@@ -153,7 +183,7 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
                         Container(
                           padding: const EdgeInsets.all(20),
                           decoration: BoxDecoration(
-                            color: colorScheme.error.withOpacity(0.1),
+                            color: colorScheme.error.withValues(alpha: 0.1),
                             shape: BoxShape.circle,
                           ),
                           child: Icon(
@@ -189,7 +219,7 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
                         Container(
                           padding: const EdgeInsets.all(24),
                           decoration: BoxDecoration(
-                            color: colorScheme.surfaceVariant.withOpacity(0.5),
+                            color: colorScheme.surfaceVariant.withValues(alpha: 0.5),
                             shape: BoxShape.circle,
                           ),
                           child: Icon(Icons.inbox_rounded, size: 64, color: colorScheme.outline),
@@ -219,7 +249,7 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
                     separatorBuilder: (context, index) => const SizedBox(height: 16),
                     itemBuilder: (context, index) {
                       final report = state.reports[index];
-                      final statusColor = _getStatusColor(report.status);
+                      final statusColor = _statusColorOf(report);
                       final typeIcon = _getTypeIcon(report.type);
 
                       return Material(
@@ -238,12 +268,12 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
                             decoration: BoxDecoration(
                               borderRadius: BorderRadius.circular(24),
                               border: Border.all(
-                                color: colorScheme.outlineVariant.withOpacity(0.5),
+                                color: colorScheme.outlineVariant.withValues(alpha: 0.5),
                                 width: 1.2,
                               ),
                               boxShadow: [
                                 BoxShadow(
-                                  color: colorScheme.shadow.withOpacity(0.02),
+                                  color: colorScheme.shadow.withValues(alpha: 0.02),
                                   blurRadius: 12,
                                   offset: const Offset(0, 4),
                                 ),
@@ -262,12 +292,14 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
                                         vertical: 6,
                                       ),
                                       decoration: BoxDecoration(
-                                        color: statusColor.withOpacity(0.12),
+                                        color: statusColor.withValues(alpha: 0.12),
                                         borderRadius: BorderRadius.circular(10),
-                                        border: Border.all(color: statusColor.withOpacity(0.2)),
+                                        border: Border.all(
+                                          color: statusColor.withValues(alpha: 0.2),
+                                        ),
                                       ),
                                       child: Text(
-                                        _getStatusText(report.status),
+                                        _statusTextOf(report),
                                         style: theme.textTheme.labelSmall?.copyWith(
                                           color: statusColor,
                                           fontWeight: FontWeight.w900,
@@ -305,7 +337,9 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
                                     Container(
                                       padding: const EdgeInsets.all(12),
                                       decoration: BoxDecoration(
-                                        color: colorScheme.secondaryContainer.withOpacity(0.5),
+                                        color: colorScheme.secondaryContainer.withValues(
+                                          alpha: 0.5,
+                                        ),
                                         borderRadius: BorderRadius.circular(14),
                                       ),
                                       child: Icon(
@@ -328,8 +362,20 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
                                             ),
                                           ),
                                           const SizedBox(height: 6),
+                                          if (_targetLabel(report) != null) ...[
+                                            Text(
+                                              _targetLabel(report)!,
+                                              style: theme.textTheme.labelMedium?.copyWith(
+                                                color: colorScheme.primary,
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                            const SizedBox(height: 4),
+                                          ],
                                           Text(
-                                            report.description,
+                                            report.displayDescription,
                                             style: theme.textTheme.bodyMedium?.copyWith(
                                               color: colorScheme.onSurfaceVariant,
                                               height: 1.4,
@@ -337,6 +383,26 @@ class _ReportHistoryScreenState extends State<ReportHistoryScreen> {
                                             maxLines: 2,
                                             overflow: TextOverflow.ellipsis,
                                           ),
+                                          if (report.hasResponse && !report.isFromAdmin) ...[
+                                            const SizedBox(height: 6),
+                                            Row(
+                                              children: [
+                                                Icon(
+                                                  Icons.mark_chat_read_rounded,
+                                                  size: 14,
+                                                  color: colorScheme.primary,
+                                                ),
+                                                const SizedBox(width: 4),
+                                                Text(
+                                                  'Đã có phản hồi',
+                                                  style: theme.textTheme.labelMedium?.copyWith(
+                                                    color: colorScheme.primary,
+                                                    fontWeight: FontWeight.w600,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ],
                                         ],
                                       ),
                                     ),

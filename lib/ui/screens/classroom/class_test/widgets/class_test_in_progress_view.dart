@@ -22,6 +22,9 @@ class ClassTestInProgressView extends StatefulWidget {
 class _ClassTestInProgressViewState extends State<ClassTestInProgressView> {
   dynamic _localAnswer;
 
+  /// Đã bấm "Kiểm tra" (chỉ khi đề bật `showAnswerImmediately`): hiện đúng/sai ngay từng câu.
+  bool _checked = false;
+
   @override
   void initState() {
     super.initState();
@@ -40,6 +43,7 @@ class _ClassTestInProgressViewState extends State<ClassTestInProgressView> {
     final state = widget.state;
     final idx = state.currentQuestionIndex;
     _localAnswer = state.answersMap[idx];
+    _checked = false;
   }
 
   void _onAnswerSelected(dynamic value) {
@@ -81,6 +85,17 @@ class _ClassTestInProgressViewState extends State<ClassTestInProgressView> {
               'Bạn đã hoàn thành tất cả câu hỏi!',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
+            if (state.errorMessage != null) ...[
+              const SizedBox(height: 12),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 32),
+                child: Text(
+                  state.errorMessage!,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: Colors.red),
+                ),
+              ),
+            ],
             const SizedBox(height: 24),
             ElevatedButton(
               onPressed: () {
@@ -98,7 +113,8 @@ class _ClassTestInProgressViewState extends State<ClassTestInProgressView> {
     }
 
     final question = questions[index];
-    final isAnswerChecked = state.answersMap.containsKey(index);
+    final isAnswerChecked = _checked;
+    final showInstantly = state.testModel.showAnswerImmediately;
 
     Widget child;
     switch (question.questionType) {
@@ -143,9 +159,7 @@ class _ClassTestInProgressViewState extends State<ClassTestInProgressView> {
         );
         break;
       default:
-        child = Center(
-          child: Text('Loại câu hỏi chưa hỗ trợ: ${question.questionType.title}'),
-        );
+        child = Center(child: Text('Loại câu hỏi chưa hỗ trợ: ${question.questionType.title}'));
     }
 
     return Column(
@@ -169,9 +183,7 @@ class _ClassTestInProgressViewState extends State<ClassTestInProgressView> {
           decoration: BoxDecoration(
             color: Theme.of(context).colorScheme.surface,
             border: Border(
-              top: BorderSide(
-                color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.08),
-              ),
+              top: BorderSide(color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.08)),
             ),
           ),
           child: ElevatedButton(
@@ -188,6 +200,11 @@ class _ClassTestInProgressViewState extends State<ClassTestInProgressView> {
             ),
             onPressed: _isAnswerInputValid()
                 ? () {
+                    // Đề bật hiện đúng/sai tức thì: bấm lần 1 để kiểm tra, lần 2 mới sang câu sau.
+                    if (showInstantly && !_checked) {
+                      setState(() => _checked = true);
+                      return;
+                    }
                     final durationMs = DateTime.now()
                         .difference(state.currentQuestionStartedAt)
                         .inMilliseconds;
@@ -202,12 +219,12 @@ class _ClassTestInProgressViewState extends State<ClassTestInProgressView> {
                   }
                 : null,
             child: Text(
-              index == questions.length - 1 ? 'NỘP BÀI' : 'TIẾP TỤC',
+              showInstantly && !_checked
+                  ? 'KIỂM TRA'
+                  : (index == questions.length - 1 ? 'NỘP BÀI' : 'TIẾP TỤC'),
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
                 fontWeight: FontWeight.w800,
-                color: _isAnswerInputValid()
-                    ? Colors.white
-                    : Theme.of(context).colorScheme.outline,
+                color: _isAnswerInputValid() ? Colors.white : Theme.of(context).colorScheme.outline,
               ),
             ),
           ),

@@ -1,4 +1,5 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:mind_deck/core/failures.dart';
 import 'package:mind_deck/data/repositories/stats_repository.dart';
 import 'stats_overview_event.dart';
 import 'stats_overview_state.dart';
@@ -6,8 +7,7 @@ import 'stats_overview_state.dart';
 class StatsOverviewBloc extends Bloc<StatsOverviewEvent, StatsOverviewState> {
   final StatsRepository repository;
 
-  StatsOverviewBloc({required this.repository})
-    : super(StatsOverviewInitial()) {
+  StatsOverviewBloc({required this.repository}) : super(StatsOverviewInitial()) {
     on<StatsOverviewLoadStarted>(_onLoadStarted);
     add(const StatsOverviewLoadStarted());
   }
@@ -28,12 +28,12 @@ class StatsOverviewBloc extends Bloc<StatsOverviewEvent, StatsOverviewState> {
       if (response.success && response.data != null) {
         emit(StatsOverviewSuccess(response.data!));
       } else {
-        emit(
-          StatsOverviewFailure(response.message ?? 'Lỗi tải dữ liệu thống kê'),
-        );
+        emit(StatsOverviewFailure(response.message ?? 'Lỗi tải dữ liệu thống kê'));
       }
-    } catch (e) {
-      emit(StatsOverviewFailure(e.toString()));
+    } on Failure catch (f) {
+      emit(StatsOverviewFailure(f.message.isNotEmpty ? f.message : 'Lỗi tải dữ liệu thống kê'));
+    } catch (_) {
+      emit(const StatsOverviewFailure('Lỗi tải dữ liệu thống kê'));
     }
   }
 }

@@ -31,10 +31,7 @@ class StudyHeatmap extends StatelessWidget {
         }
 
         return Container(
-          decoration: BoxDecoration(
-            color: boxColor,
-            borderRadius: BorderRadius.circular(4),
-          ),
+          decoration: BoxDecoration(color: boxColor, borderRadius: BorderRadius.circular(4)),
         );
       },
     );

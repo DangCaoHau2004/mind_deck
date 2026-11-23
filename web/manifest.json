@@ -1,6 +1,6 @@
 {
-    "name": "mind_deck",
-    "short_name": "mind_deck",
+    "name": "minddeck",
+    "short_name": "minddeck",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

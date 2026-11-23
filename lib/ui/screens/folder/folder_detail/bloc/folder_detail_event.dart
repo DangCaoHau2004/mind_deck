@@ -24,10 +24,24 @@ class FolderDetailRefreshed extends FolderDetailEvent {
 
 class FolderDeleted extends FolderDetailEvent {
   final String id;
-  final bool keepDecks;
-  const FolderDeleted({required this.id, required this.keepDecks});
+  const FolderDeleted({required this.id});
   @override
-  List<Object?> get props => [id, keepDecks];
+  List<Object?> get props => [id];
+}
+
+/// Cuộn gần cuối danh sách bộ thẻ: tải trang tiếp.
+class FolderDetailDecksLoadMore extends FolderDetailEvent {
+  const FolderDetailDecksLoadMore();
+}
+
+/// Đổi từ khóa tìm hoặc sắp xếp bộ thẻ trong thư mục: tải lại từ trang 1.
+class FolderDetailDecksFilterChanged extends FolderDetailEvent {
+  final String? search;
+  final String? sort;
+  final String? order;
+  const FolderDetailDecksFilterChanged({this.search, this.sort, this.order});
+  @override
+  List<Object?> get props => [search, sort, order];
 }
 
 class FolderShareUpdated extends FolderDetailEvent {
@@ -35,11 +49,7 @@ class FolderShareUpdated extends FolderDetailEvent {
   final String accessLevel;
   final bool isSilent;
 
-  const FolderShareUpdated({
-    required this.id,
-    required this.accessLevel,
-    this.isSilent = false,
-  });
+  const FolderShareUpdated({required this.id, required this.accessLevel, this.isSilent = false});
 
   @override
   List<Object?> get props => [id, accessLevel, isSilent];

@@ -15,20 +15,13 @@ class FutureReviewsBarChart extends StatelessWidget {
         barTouchData: BarTouchData(
           touchTooltipData: BarTouchTooltipData(
             getTooltipColor: (BarChartGroupData group) => colorScheme.onSurface,
-            getTooltipItem: (
-              BarChartGroupData group,
-              int groupIndex,
-              BarChartRodData rod,
-              int rodIndex,
-            ) {
-              return BarTooltipItem(
-                '${rod.toY.round()} thẻ\n~ ${(rod.toY * 0.1).round()} phút',
-                const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                ),
-              );
-            },
+            getTooltipItem:
+                (BarChartGroupData group, int groupIndex, BarChartRodData rod, int rodIndex) {
+                  return BarTooltipItem(
+                    '${rod.toY.round()} thẻ\n~ ${(rod.toY * 0.1).round()} phút',
+                    const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                  );
+                },
           ),
         ),
         titlesData: FlTitlesData(
@@ -49,24 +42,16 @@ class FutureReviewsBarChart extends StatelessWidget {
               },
             ),
           ),
-          leftTitles: const AxisTitles(
-            sideTitles: SideTitles(showTitles: false),
-          ),
-          topTitles: const AxisTitles(
-            sideTitles: SideTitles(showTitles: false),
-          ),
-          rightTitles: const AxisTitles(
-            sideTitles: SideTitles(showTitles: false),
-          ),
+          leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
         ),
         gridData: FlGridData(
           show: true,
           drawVerticalLine: false,
           horizontalInterval: 25,
-          getDrawingHorizontalLine: (value) => FlLine(
-            color: colorScheme.outline.withValues(alpha: 0.1),
-            strokeWidth: 1,
-          ),
+          getDrawingHorizontalLine: (value) =>
+              FlLine(color: colorScheme.outline.withValues(alpha: 0.1), strokeWidth: 1),
         ),
         borderData: FlBorderData(show: false),
         barGroups: [

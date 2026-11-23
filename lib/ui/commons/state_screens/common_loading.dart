@@ -36,9 +36,7 @@ class CommonLoading extends StatelessWidget {
               Text(
                 title!,
                 textAlign: TextAlign.center,
-                style: theme.textTheme.bodyLarge?.copyWith(
-                  color: colorScheme.onSurfaceVariant,
-                ),
+                style: theme.textTheme.bodyLarge?.copyWith(color: colorScheme.onSurfaceVariant),
               ),
             ],
           ],
@@ -93,10 +91,8 @@ class _DotsLoadingIndicatorState extends State<_DotsLoadingIndicator>
   void initState() {
     super.initState();
     // Tốc độ lặp mượt mà
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1500),
-    )..repeat();
+    _controller = AnimationController(vsync: this, duration: const Duration(milliseconds: 1500))
+      ..repeat();
   }
 
   @override
@@ -137,11 +133,7 @@ class _DotInfo extends StatelessWidget {
   final double delay;
   final AnimationController controller;
 
-  const _DotInfo({
-    required this.color,
-    required this.delay,
-    required this.controller,
-  });
+  const _DotInfo({required this.color, required this.delay, required this.controller});
 
   @override
   Widget build(BuildContext context) {

@@ -47,12 +47,10 @@ class UserModel {
       id: json['id'] as String? ?? '',
       email: json['email'] as String? ?? '',
       password: json['password'] as String?,
-      fullName:
-          json['fullName'] as String? ?? json['full_name'] as String? ?? '',
+      fullName: json['fullName'] as String? ?? json['full_name'] as String? ?? '',
       role: UserRole.fromString(json['role'] as String?),
       plan: UserPlan.fromString(json['plan'] as String?),
-      isLocked:
-          json['isLocked'] as bool? ?? json['is_locked'] as bool? ?? false,
+      isLocked: json['isLocked'] as bool? ?? json['is_locked'] as bool? ?? false,
       lockedUntil: json['lockedUntil'] != null
           ? DateTime.tryParse(json['lockedUntil'].toString())
           : (json['locked_until'] != null
@@ -65,25 +63,18 @@ class UserModel {
                 : (json['lastStudyDate'] != null
                       ? DateTime.tryParse(json['lastStudyDate'].toString())
                       : (json['last_study_date'] != null
-                            ? DateTime.tryParse(
-                                json['last_study_date'].toString(),
-                              )
+                            ? DateTime.tryParse(json['last_study_date'].toString())
                             : null))),
-      currentStreak:
-          json['currentStreak'] as int? ?? json['current_streak'] as int? ?? 0,
+      currentStreak: json['currentStreak'] as int? ?? json['current_streak'] as int? ?? 0,
       maxStreak: json['maxStreak'] as int? ?? json['max_streak'] as int? ?? 0,
       createdAt:
           DateTime.tryParse(
-            json['createdAt']?.toString() ??
-                json['created_at']?.toString() ??
-                '',
+            json['createdAt']?.toString() ?? json['created_at']?.toString() ?? '',
           ) ??
           DateTime.now(),
       updatedAt:
           DateTime.tryParse(
-            json['updatedAt']?.toString() ??
-                json['updated_at']?.toString() ??
-                '',
+            json['updatedAt']?.toString() ?? json['updated_at']?.toString() ?? '',
           ) ??
           DateTime.now(),
 
@@ -99,14 +90,10 @@ class UserModel {
                 : null),
       socialAccounts:
           (json['socialAccounts'] as List<dynamic>?)
-              ?.map(
-                (e) => SocialAccountModel.fromJson(e as Map<String, dynamic>),
-              )
+              ?.map((e) => SocialAccountModel.fromJson(e as Map<String, dynamic>))
               .toList() ??
           (json['social_accounts'] as List<dynamic>?)
-              ?.map(
-                (e) => SocialAccountModel.fromJson(e as Map<String, dynamic>),
-              )
+              ?.map((e) => SocialAccountModel.fromJson(e as Map<String, dynamic>))
               .toList(),
       devices: (json['devices'] as List<dynamic>?)
           ?.map((e) => UserDeviceModel.fromJson(e as Map<String, dynamic>))
@@ -129,10 +116,8 @@ class UserModel {
       'maxStreak': maxStreak,
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt.toIso8601String(),
-      if (notificationSettings != null)
-        'notificationSettings': notificationSettings!.toJson(),
-      if (socialAccounts != null)
-        'socialAccounts': socialAccounts!.map((e) => e.toJson()).toList(),
+      if (notificationSettings != null) 'notificationSettings': notificationSettings!.toJson(),
+      if (socialAccounts != null) 'socialAccounts': socialAccounts!.map((e) => e.toJson()).toList(),
       if (devices != null) 'devices': devices!.map((e) => e.toJson()).toList(),
     };
   }

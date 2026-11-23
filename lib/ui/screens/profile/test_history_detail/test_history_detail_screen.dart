@@ -14,17 +14,14 @@ class TestHistoryDetailScreen extends StatefulWidget {
   const TestHistoryDetailScreen({super.key, required this.attemptId});
 
   @override
-  State<TestHistoryDetailScreen> createState() =>
-      _TestHistoryDetailScreenState();
+  State<TestHistoryDetailScreen> createState() => _TestHistoryDetailScreenState();
 }
 
 class _TestHistoryDetailScreenState extends State<TestHistoryDetailScreen> {
   @override
   void initState() {
     super.initState();
-    context.read<TestHistoryDetailBloc>().add(
-      TestHistoryDetailFetched(widget.attemptId),
-    );
+    context.read<TestHistoryDetailBloc>().add(TestHistoryDetailFetched(widget.attemptId));
   }
 
   // Helper tính màu điểm số đồng bộ với màn hình trước
@@ -69,9 +66,7 @@ class _TestHistoryDetailScreenState extends State<TestHistoryDetailScreen> {
               slivers: [
                 SliverFillRemaining(
                   child: Center(
-                    child: CommonFailure(
-                      errorMessage: state.errorMessage ?? 'Có lỗi xảy ra',
-                    ),
+                    child: CommonFailure(errorMessage: state.errorMessage ?? 'Có lỗi xảy ra'),
                   ),
                 ),
               ],
@@ -85,9 +80,7 @@ class _TestHistoryDetailScreenState extends State<TestHistoryDetailScreen> {
 
           return CommonRefresh(
             onRefresh: () async {
-              context.read<TestHistoryDetailBloc>().add(
-                TestHistoryDetailFetched(widget.attemptId),
-              );
+              context.read<TestHistoryDetailBloc>().add(TestHistoryDetailFetched(widget.attemptId));
             },
             slivers: [
               SliverToBoxAdapter(
@@ -98,10 +91,7 @@ class _TestHistoryDetailScreenState extends State<TestHistoryDetailScreen> {
               ),
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16.0,
-                    vertical: 8.0,
-                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
                   child: Row(
                     children: [
                       Container(
@@ -125,10 +115,7 @@ class _TestHistoryDetailScreenState extends State<TestHistoryDetailScreen> {
                 ),
               ),
               SliverPadding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 12,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 sliver: SliverList.builder(
                   itemCount: detail.answers.length,
                   itemBuilder: (context, index) {
@@ -147,12 +134,12 @@ class _TestHistoryDetailScreenState extends State<TestHistoryDetailScreen> {
   // =========================================
   // 1. GIAO DIỆN TỔNG QUAN (DASHBOARD STYLE)
   // =========================================
-  Widget _buildOverviewCard(
-    BuildContext context,
-    TestAttemptDetailModel detail,
-  ) {
+  Widget _buildOverviewCard(BuildContext context, TestAttemptDetailModel detail) {
     final theme = Theme.of(context);
-    final scoreColor = _getScoreColor(detail.scorePercentage.toDouble());
+    // Đề tắt xem điểm (`visibility.showScore = false`): không hiện điểm / số câu đúng.
+    final scoreColor = detail.showScore
+        ? _getScoreColor(detail.scorePercentage.toDouble())
+        : Colors.blueGrey.shade400;
 
     return Container(
       decoration: BoxDecoration(
@@ -196,7 +183,7 @@ class _TestHistoryDetailScreenState extends State<TestHistoryDetailScreen> {
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 Text(
-                  detail.scorePercentage.toStringAsFixed(0),
+                  detail.showScore ? detail.scorePercentage.toStringAsFixed(0) : '--',
                   style: TextStyle(
                     fontSize: 64,
                     fontWeight: FontWeight.w900,
@@ -224,7 +211,9 @@ class _TestHistoryDetailScreenState extends State<TestHistoryDetailScreen> {
                     _buildMiniBadge(
                       context,
                       Icons.check_circle_rounded,
-                      'Đúng: ${detail.correctAnswers}/${detail.totalQuestions}',
+                      detail.showScore
+                          ? 'Đúng: ${detail.correctAnswers}/${detail.totalQuestions}'
+                          : 'Điểm do giảng viên công bố',
                       Colors.green.shade600,
                     ),
                     const SizedBox(height: 8),
@@ -232,9 +221,7 @@ class _TestHistoryDetailScreenState extends State<TestHistoryDetailScreen> {
                       _buildMiniBadge(
                         context,
                         Icons.calendar_month_rounded,
-                        DateFormat(
-                          'HH:mm - dd/MM/yy',
-                        ).format(detail.completedAt!.toLocal()),
+                        DateFormat('HH:mm - dd/MM/yy').format(detail.completedAt!.toLocal()),
                         theme.colorScheme.primary,
                       ),
                   ],
@@ -247,12 +234,7 @@ class _TestHistoryDetailScreenState extends State<TestHistoryDetailScreen> {
     );
   }
 
-  Widget _buildMiniBadge(
-    BuildContext context,
-    IconData icon,
-    String text,
-    Color color,
-  ) {
+  Widget _buildMiniBadge(BuildContext context, IconData icon, String text, Color color) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
@@ -266,11 +248,7 @@ class _TestHistoryDetailScreenState extends State<TestHistoryDetailScreen> {
           const SizedBox(width: 6),
           Text(
             text,
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w700,
-              color: color,
-            ),
+            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: color),
           ),
         ],
       ),
@@ -280,26 +258,24 @@ class _TestHistoryDetailScreenState extends State<TestHistoryDetailScreen> {
   // =========================================
   // 2. GIAO DIỆN CÂU HỎI (VIỀN FULL + WATERMARK)
   // =========================================
-  Widget _buildAnswerCard(
-    BuildContext context,
-    TestAttemptAnswerModel answer,
-    int index,
-  ) {
+  Widget _buildAnswerCard(BuildContext context, TestAttemptAnswerModel answer, int index) {
     final theme = Theme.of(context);
     final bool isCorrect = answer.isCorrect;
-    final Color statusColor = isCorrect
-        ? Colors.green.shade600
-        : Colors.red.shade600;
+    // Đề tắt xem đáp án: BE ẩn đúng/sai (isCorrect = null) -> KHÔNG coi câu là sai.
+    final bool known = answer.isCorrectKnown;
+    final Color statusColor = !known
+        ? Colors.blueGrey.shade500
+        : (isCorrect ? Colors.green.shade600 : Colors.red.shade600);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       clipBehavior: Clip.hardEdge,
       decoration: BoxDecoration(
-        color: isCorrect
-            ? Colors.green.shade50.withValues(alpha: 0.3)
-            : Colors.red.shade50.withValues(
-                alpha: 0.3,
-              ), // Nền ám nhẹ màu trạng thái
+        color: !known
+            ? Colors.blueGrey.shade50.withValues(alpha: 0.3)
+            : (isCorrect
+                  ? Colors.green.shade50.withValues(alpha: 0.3)
+                  : Colors.red.shade50.withValues(alpha: 0.3)), // Nền ám nhẹ màu trạng thái
         borderRadius: BorderRadius.circular(20),
         // SỬ DỤNG VIỀN BAO QUANH TOÀN BỘ THẺ THEO YÊU CẦU
         border: Border.all(
@@ -343,17 +319,12 @@ class _TestHistoryDetailScreenState extends State<TestHistoryDetailScreen> {
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 6,
-                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                       decoration: BoxDecoration(
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(20),
                         border: Border.all(
-                          color: theme.colorScheme.outlineVariant.withValues(
-                            alpha: 0.3,
-                          ),
+                          color: theme.colorScheme.outlineVariant.withValues(alpha: 0.3),
                         ),
                       ),
                       child: Text(
@@ -366,10 +337,7 @@ class _TestHistoryDetailScreenState extends State<TestHistoryDetailScreen> {
                     ),
                     const Spacer(),
                     Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 4,
-                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
                         color: statusColor.withValues(alpha: 0.15),
                         borderRadius: BorderRadius.circular(12),
@@ -377,15 +345,15 @@ class _TestHistoryDetailScreenState extends State<TestHistoryDetailScreen> {
                       child: Row(
                         children: [
                           Icon(
-                            isCorrect
-                                ? Icons.check_circle_rounded
-                                : Icons.cancel_rounded,
+                            !known
+                                ? Icons.task_alt_rounded
+                                : (isCorrect ? Icons.check_circle_rounded : Icons.cancel_rounded),
                             color: statusColor,
                             size: 16,
                           ),
                           const SizedBox(width: 4),
                           Text(
-                            isCorrect ? 'ĐÚNG' : 'SAI',
+                            !known ? 'ĐÃ NỘP' : (isCorrect ? 'ĐÚNG' : 'SAI'),
                             style: TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.w800,
@@ -419,21 +387,21 @@ class _TestHistoryDetailScreenState extends State<TestHistoryDetailScreen> {
                 // Câu trả lời của user
                 if (answer.userAnswerDetails.isNotEmpty) ...[
                   const SizedBox(height: 20),
-                  Divider(
-                    color: theme.colorScheme.outlineVariant.withValues(
-                      alpha: 0.3,
-                    ),
-                  ),
+                  Divider(color: theme.colorScheme.outlineVariant.withValues(alpha: 0.3)),
                   const SizedBox(height: 16),
                   _buildContentBlock(
                     context: context,
                     label: 'Câu trả lời của bạn',
                     content: _formatUserAnswer(answer),
                     contentColor: statusColor,
-                    bgColor: isCorrect
-                        ? Colors.green.withValues(alpha: 0.1)
-                        : Colors.red.withValues(alpha: 0.1),
-                    icon: isCorrect ? Icons.check_rounded : Icons.close_rounded,
+                    bgColor: !known
+                        ? Colors.blueGrey.withValues(alpha: 0.1)
+                        : (isCorrect
+                              ? Colors.green.withValues(alpha: 0.1)
+                              : Colors.red.withValues(alpha: 0.1)),
+                    icon: !known
+                        ? Icons.remove_rounded
+                        : (isCorrect ? Icons.check_rounded : Icons.close_rounded),
                   ),
                 ],
               ],
@@ -472,9 +440,7 @@ class _TestHistoryDetailScreenState extends State<TestHistoryDetailScreen> {
           decoration: BoxDecoration(
             color: bgColor ?? Colors.white,
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: theme.colorScheme.outlineVariant.withValues(alpha: 0.2),
-            ),
+            border: Border.all(color: theme.colorScheme.outlineVariant.withValues(alpha: 0.2)),
           ),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,

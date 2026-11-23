@@ -19,22 +19,16 @@ class UserDeviceModel {
     return UserDeviceModel(
       id: json['id'] as String? ?? '',
       userId: json['userId'] as String? ?? json['user_id'] as String? ?? '',
-      fcmToken:
-          json['fcmToken'] as String? ?? json['fcm_token'] as String? ?? '',
-      deviceName:
-          json['deviceName'] as String? ?? json['device_name'] as String?,
+      fcmToken: json['fcmToken'] as String? ?? json['fcm_token'] as String? ?? '',
+      deviceName: json['deviceName'] as String? ?? json['device_name'] as String?,
       createdAt:
           DateTime.tryParse(
-            json['createdAt']?.toString() ??
-                json['created_at']?.toString() ??
-                '',
+            json['createdAt']?.toString() ?? json['created_at']?.toString() ?? '',
           ) ??
           DateTime.now(),
       lastActive:
           DateTime.tryParse(
-            json['lastActive']?.toString() ??
-                json['last_active']?.toString() ??
-                '',
+            json['lastActive']?.toString() ?? json['last_active']?.toString() ?? '',
           ) ??
           DateTime.now(),
     );

@@ -13,22 +13,14 @@ class DailyAccuracyChart extends StatelessWidget {
         gridData: FlGridData(
           show: true,
           drawVerticalLine: true,
-          getDrawingHorizontalLine: (value) => FlLine(
-            color: colorScheme.outline.withValues(alpha: 0.1),
-            strokeWidth: 1,
-          ),
-          getDrawingVerticalLine: (value) => FlLine(
-            color: colorScheme.outline.withValues(alpha: 0.1),
-            strokeWidth: 1,
-          ),
+          getDrawingHorizontalLine: (value) =>
+              FlLine(color: colorScheme.outline.withValues(alpha: 0.1), strokeWidth: 1),
+          getDrawingVerticalLine: (value) =>
+              FlLine(color: colorScheme.outline.withValues(alpha: 0.1), strokeWidth: 1),
         ),
         titlesData: FlTitlesData(
-          rightTitles: const AxisTitles(
-            sideTitles: SideTitles(showTitles: false),
-          ),
-          topTitles: const AxisTitles(
-            sideTitles: SideTitles(showTitles: false),
-          ),
+          rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
           bottomTitles: AxisTitles(
             sideTitles: SideTitles(
               showTitles: true,

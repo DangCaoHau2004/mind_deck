@@ -6,7 +6,7 @@ class TagModel {
   final bool isSystem;
   final int searchVolume;
 
-  TagModel({
+  const TagModel({
     required this.id,
     required this.name,
     this.color,
@@ -21,10 +21,8 @@ class TagModel {
       name: json['name'] as String? ?? '',
       color: json['color'] as String?,
       userId: json['userId'] as String? ?? json['user_id'] as String?,
-      isSystem:
-          json['isSystem'] as bool? ?? json['is_system'] as bool? ?? false,
-      searchVolume:
-          json['searchVolume'] as int? ?? json['search_volume'] as int? ?? 0,
+      isSystem: json['isSystem'] as bool? ?? json['is_system'] as bool? ?? false,
+      searchVolume: json['searchVolume'] as int? ?? json['search_volume'] as int? ?? 0,
     );
   }
 

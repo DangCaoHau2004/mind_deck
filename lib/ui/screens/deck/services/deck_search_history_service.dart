@@ -1,0 +1,155 @@
+import 'dart:convert';
+import 'package:get_it/get_it.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+class DeckSearchHistoryItem {
+  final String query;
+  final Map<String, String> tagColors; // e.g. {"tieng-anh": "#02569B"}
+  final DateTime? timestamp;
+
+  const DeckSearchHistoryItem({required this.query, this.tagColors = const {}, this.timestamp});
+
+  factory DeckSearchHistoryItem.fromJson(Map<String, dynamic> json) {
+    return DeckSearchHistoryItem(
+      query: json['query'] as String? ?? '',
+      tagColors:
+          (json['tagColors'] as Map<String, dynamic>?)?.map(
+            (k, v) => MapEntry(k.toLowerCase(), v.toString()),
+          ) ??
+          const {},
+      timestamp: json['timestamp'] != null ? DateTime.tryParse(json['timestamp'] as String) : null,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'query': query,
+      'tagColors': tagColors,
+      'timestamp': (timestamp ?? DateTime.now()).toIso8601String(),
+    };
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is DeckSearchHistoryItem &&
+          runtimeType == other.runtimeType &&
+          query.toLowerCase() == other.query.toLowerCase();
+
+  @override
+  int get hashCode => query.toLowerCase().hashCode;
+}
+
+class DeckSearchHistoryService {
+  static const String _historyKey = 'deck_search_history_v2';
+  static const String _legacyHistoryKey = 'deck_search_history';
+  static const int maxHistory = 10;
+
+  final SharedPreferences? _prefsInstance;
+
+  DeckSearchHistoryService({SharedPreferences? prefs}) : _prefsInstance = prefs;
+
+  SharedPreferences get _prefs => _prefsInstance ?? GetIt.instance<SharedPreferences>();
+
+  Future<List<DeckSearchHistoryItem>> getHistory() async {
+    try {
+      final rawList = _prefs.getStringList(_historyKey);
+      if (rawList != null && rawList.isNotEmpty) {
+        return rawList.map((str) {
+          try {
+            final decoded = jsonDecode(str);
+            if (decoded is Map<String, dynamic>) {
+              return DeckSearchHistoryItem.fromJson(decoded);
+            }
+            return DeckSearchHistoryItem(query: str);
+          } catch (_) {
+            return DeckSearchHistoryItem(query: str);
+          }
+        }).toList();
+      }
+
+      final legacyList = _prefs.getStringList(_legacyHistoryKey);
+      if (legacyList != null && legacyList.isNotEmpty) {
+        return legacyList.map((q) => DeckSearchHistoryItem(query: q)).toList();
+      }
+
+      return [];
+    } catch (_) {
+      return [];
+    }
+  }
+
+  Future<List<DeckSearchHistoryItem>> addSearch(
+    String query, {
+    Map<String, String>? tagColors,
+  }) async {
+    final clean = query.trim();
+    if (clean.isEmpty || clean.length < 2) {
+      return getHistory();
+    }
+
+    try {
+      final currentList = await getHistory();
+      final updatedList = List<DeckSearchHistoryItem>.from(currentList);
+
+      Map<String, String> finalTagColors = Map<String, String>.from(tagColors ?? {});
+
+      final existingIndex = updatedList.indexWhere(
+        (item) => item.query.toLowerCase() == clean.toLowerCase(),
+      );
+
+      if (existingIndex != -1) {
+        final existingItem = updatedList[existingIndex];
+        for (final entry in existingItem.tagColors.entries) {
+          if (!finalTagColors.containsKey(entry.key)) {
+            finalTagColors[entry.key] = entry.value;
+          }
+        }
+        updatedList.removeAt(existingIndex);
+      }
+
+      final newItem = DeckSearchHistoryItem(
+        query: clean,
+        tagColors: finalTagColors,
+        timestamp: DateTime.now(),
+      );
+      updatedList.insert(0, newItem);
+
+      final finalResult = updatedList.length > maxHistory
+          ? updatedList.sublist(0, maxHistory)
+          : updatedList;
+
+      final stringList = finalResult.map((item) => jsonEncode(item.toJson())).toList();
+      await _prefs.setStringList(_historyKey, stringList);
+
+      return finalResult;
+    } catch (_) {
+      return getHistory();
+    }
+  }
+
+  Future<List<DeckSearchHistoryItem>> removeSearch(String query) async {
+    try {
+      final currentList = await getHistory();
+      final updatedList = List<DeckSearchHistoryItem>.from(currentList);
+      final clean = query.trim().toLowerCase();
+      updatedList.removeWhere((item) => item.query.trim().toLowerCase() == clean);
+
+      final stringList = updatedList.map((item) => jsonEncode(item.toJson())).toList();
+      await _prefs.setStringList(_historyKey, stringList);
+
+      return updatedList;
+    } catch (_) {
+      return getHistory();
+    }
+  }
+
+  Future<void> clearAll() async {
+    try {
+      await _prefs.remove(_historyKey);
+      await _prefs.remove(_legacyHistoryKey);
+    } catch (_) {
+      // Ignore
+    }
+  }
+}

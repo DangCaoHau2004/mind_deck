@@ -42,11 +42,7 @@ class FlashcardStudyCompletedView extends StatelessWidget {
                   color: colorScheme.primaryContainer,
                   shape: BoxShape.circle,
                 ),
-                child: Icon(
-                  Icons.celebration_rounded,
-                  size: 80,
-                  color: colorScheme.primary,
-                ),
+                child: Icon(Icons.celebration_rounded, size: 80, color: colorScheme.primary),
               ),
               const SizedBox(height: 32),
 
@@ -62,19 +58,14 @@ class FlashcardStudyCompletedView extends StatelessWidget {
               const SizedBox(height: 8),
               Text(
                 'Bạn đã hoàn thành việc ôn tập tất cả các thẻ trong bộ thẻ này.',
-                style: theme.textTheme.bodyLarge?.copyWith(
-                  color: colorScheme.onSurfaceVariant,
-                ),
+                style: theme.textTheme.bodyLarge?.copyWith(color: colorScheme.onSurfaceVariant),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 32),
 
               // Thống kê nhanh
               Container(
-                padding: const EdgeInsets.symmetric(
-                  vertical: 20,
-                  horizontal: 32,
-                ),
+                padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 32),
                 decoration: BoxDecoration(
                   color: colorScheme.surfaceContainerHighest,
                   borderRadius: BorderRadius.circular(20),
@@ -89,11 +80,7 @@ class FlashcardStudyCompletedView extends StatelessWidget {
                       value: '$total',
                       color: colorScheme.primary,
                     ),
-                    Container(
-                      width: 1,
-                      height: 40,
-                      color: colorScheme.outlineVariant,
-                    ),
+                    Container(width: 1, height: 40, color: colorScheme.outlineVariant),
                     _buildStatItem(
                       context,
                       label: 'Đã thuộc 100%',
@@ -118,9 +105,7 @@ class FlashcardStudyCompletedView extends StatelessWidget {
                   ),
                   style: FilledButton.styleFrom(
                     backgroundColor: colorScheme.primary,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                   ),
                 ),
               ),
@@ -131,9 +116,7 @@ class FlashcardStudyCompletedView extends StatelessWidget {
                 child: OutlinedButton(
                   onPressed: onBack,
                   style: OutlinedButton.styleFrom(
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                     side: BorderSide(color: colorScheme.outlineVariant),
                   ),
                   child: Text(
@@ -164,10 +147,7 @@ class FlashcardStudyCompletedView extends StatelessWidget {
       children: [
         Text(
           value,
-          style: theme.textTheme.headlineSmall?.copyWith(
-            fontWeight: FontWeight.w900,
-            color: color,
-          ),
+          style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900, color: color),
         ),
         const SizedBox(height: 4),
         Text(

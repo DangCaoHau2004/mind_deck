@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mind_deck/constants/app_assets.dart';
+import 'package:mind_deck/core/extensions/failure_extension.dart';
 import 'package:mind_deck/core/extensions/string_extension.dart';
 import 'package:mind_deck/navigation/app_routes.dart';
 import 'package:mind_deck/ui/commons/input_screens/custom_text_field.dart';
@@ -15,15 +16,10 @@ class CreateNewPasswordScreen extends StatefulWidget {
   final String email;
   final String resetToken;
 
-  const CreateNewPasswordScreen({
-    super.key,
-    required this.email,
-    required this.resetToken,
-  });
+  const CreateNewPasswordScreen({super.key, required this.email, required this.resetToken});
 
   @override
-  State<CreateNewPasswordScreen> createState() =>
-      _CreateNewPasswordScreenState();
+  State<CreateNewPasswordScreen> createState() => _CreateNewPasswordScreenState();
 }
 
 class _CreateNewPasswordScreenState extends State<CreateNewPasswordScreen> {
@@ -51,13 +47,10 @@ class _CreateNewPasswordScreenState extends State<CreateNewPasswordScreen> {
       child: BlocConsumer<ForgotPasswordBloc, ForgotPasswordState>(
         listener: (context, state) {
           if (state is ForgotPasswordResetSuccess) {
-            CustomToast.show(
-              context,
-              CustomToast.success(message: 'new_password_success'.tr),
-            );
+            CustomToast.show(context, CustomToast.success(message: 'new_password_success'.tr));
             context.goNamed(AppRoute.login.name);
           } else if (state is ForgotPasswordFailure) {
-            CustomToast.show(context, CustomToast.danger(message: state.error));
+            CustomToast.show(context, CustomToast.danger(message: state.failure.displayMessage));
           }
         },
         builder: (context, state) {
@@ -76,121 +69,101 @@ class _CreateNewPasswordScreenState extends State<CreateNewPasswordScreen> {
                   onPressed: () => context.goNamed(AppRoute.login.name),
                 ),
               ),
-            body: SafeArea(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 24.0,
-                  vertical: 8.0,
-                ),
-                child: Column(
-                  children: [
-                    Hero(
-                      tag: 'app_logo',
-                      child: Transform.scale(
-                        scale: 1.3,
-                        child: Image.asset(
-                          AppAssets.iconTransparent,
-                          width: 200,
-                          height: 200,
+              body: SafeArea(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 8.0),
+                  child: Column(
+                    children: [
+                      Hero(
+                        tag: 'app_logo',
+                        child: Transform.scale(
+                          scale: 1.3,
+                          child: Image.asset(AppAssets.iconTransparent, width: 200, height: 200),
                         ),
                       ),
-                    ),
-                    Text(
-                      'new_password_title'.tr,
-                      style: textTheme.headlineMedium?.copyWith(
-                        fontWeight: FontWeight.w900,
+                      Text(
+                        'new_password_title'.tr,
+                        style: textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w900),
                       ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'new_password_subtitle'.tr,
-                      textAlign: TextAlign.center,
-                      style: textTheme.bodyLarge?.copyWith(
-                        color: colorScheme.onSurfaceVariant,
+                      const SizedBox(height: 8),
+                      Text(
+                        'new_password_subtitle'.tr,
+                        textAlign: TextAlign.center,
+                        style: textTheme.bodyLarge?.copyWith(color: colorScheme.onSurfaceVariant),
                       ),
-                    ),
-                    const SizedBox(height: 40),
+                      const SizedBox(height: 40),
 
-                    CustomTextField(
-                      controller: _passwordController,
-                      hintText: 'new_password_hint'.tr,
-                      obscureText: _obscurePassword,
-                      prefixIcon: const Icon(Icons.lock_outline),
-                      suffixIcon: IconButton(
-                        icon: Icon(
-                          _obscurePassword
-                              ? Icons.visibility_outlined
-                              : Icons.visibility_off_outlined,
-                        ),
-                        onPressed: () => setState(
-                          () => _obscurePassword = !_obscurePassword,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    CustomTextField(
-                      controller: _confirmPasswordController,
-                      hintText: 'new_password_confirm_hint'.tr,
-                      obscureText: _obscureConfirmPassword,
-                      prefixIcon: const Icon(Icons.lock_outline),
-                      suffixIcon: IconButton(
-                        icon: Icon(
-                          _obscureConfirmPassword
-                              ? Icons.visibility_outlined
-                              : Icons.visibility_off_outlined,
-                        ),
-                        onPressed: () => setState(
-                          () => _obscureConfirmPassword =
-                              !_obscureConfirmPassword,
-                        ),
-                      ),
-                    ),
-
-                    const SizedBox(height: 32),
-                    SizedBox(
-                      width: double.infinity,
-                      height: 56,
-                      child: ElevatedButton(
-                        onPressed: state is ForgotPasswordLoading
-                            ? null
-                            : () {
-                                final password = _passwordController.text;
-                                final confirmPassword =
-                                    _confirmPasswordController.text;
-                                context.read<ForgotPasswordBloc>().add(
-                                  ForgotPasswordResetSubmitted(
-                                    email: widget.email,
-                                    resetToken: widget.resetToken,
-                                    newPassword: password,
-                                    confirmPassword: confirmPassword,
-                                  ),
-                                );
-                              },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: colorScheme.primary,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
+                      CustomTextField(
+                        controller: _passwordController,
+                        hintText: 'new_password_hint'.tr,
+                        obscureText: _obscurePassword,
+                        prefixIcon: const Icon(Icons.lock_outline),
+                        suffixIcon: IconButton(
+                          icon: Icon(
+                            _obscurePassword
+                                ? Icons.visibility_outlined
+                                : Icons.visibility_off_outlined,
                           ),
+                          onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
                         ),
-                        child: state is ForgotPasswordLoading
-                            ? const CircularProgressIndicator(
-                                color: Colors.white,
-                              )
-                            : Text(
-                                'new_password_button'.tr,
-                                style: textTheme.titleMedium?.copyWith(
-                                  color: colorScheme.onPrimary,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 16),
+                      CustomTextField(
+                        controller: _confirmPasswordController,
+                        hintText: 'new_password_confirm_hint'.tr,
+                        obscureText: _obscureConfirmPassword,
+                        prefixIcon: const Icon(Icons.lock_outline),
+                        suffixIcon: IconButton(
+                          icon: Icon(
+                            _obscureConfirmPassword
+                                ? Icons.visibility_outlined
+                                : Icons.visibility_off_outlined,
+                          ),
+                          onPressed: () =>
+                              setState(() => _obscureConfirmPassword = !_obscureConfirmPassword),
+                        ),
+                      ),
+
+                      const SizedBox(height: 32),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 56,
+                        child: ElevatedButton(
+                          onPressed: state is ForgotPasswordLoading
+                              ? null
+                              : () {
+                                  final password = _passwordController.text;
+                                  final confirmPassword = _confirmPasswordController.text;
+                                  context.read<ForgotPasswordBloc>().add(
+                                    ForgotPasswordResetSubmitted(
+                                      email: widget.email,
+                                      resetToken: widget.resetToken,
+                                      newPassword: password,
+                                      confirmPassword: confirmPassword,
+                                    ),
+                                  );
+                                },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: colorScheme.primary,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                          ),
+                          child: state is ForgotPasswordLoading
+                              ? const CircularProgressIndicator(color: Colors.white)
+                              : Text(
+                                  'new_password_button'.tr,
+                                  style: textTheme.titleMedium?.copyWith(
+                                    color: colorScheme.onPrimary,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
-          ),
-        );
+          );
         },
       ),
     );

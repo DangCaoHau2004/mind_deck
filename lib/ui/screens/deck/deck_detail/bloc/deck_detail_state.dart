@@ -12,6 +12,9 @@ class DeckDetailState extends Equatable {
   final DateTime? toastTriggerTime;
   final String? clonedDeckId;
 
+  /// Trạng thái sao do người dùng vừa bấm khi dữ liệu đầy đủ (`deck`) chưa về; dùng để hiển thị ngay.
+  final bool? starOverride;
+
   const DeckDetailState({
     this.status = DeckDetailStatus.initial,
     this.isRefreshing = false,
@@ -20,6 +23,7 @@ class DeckDetailState extends Equatable {
     this.successMessage,
     this.toastTriggerTime,
     this.clonedDeckId,
+    this.starOverride,
   });
 
   DeckDetailState copyWith({
@@ -30,6 +34,8 @@ class DeckDetailState extends Equatable {
     String? successMessage,
     DateTime? toastTriggerTime,
     String? clonedDeckId,
+    bool? starOverride,
+    bool clearStarOverride = false,
   }) {
     return DeckDetailState(
       status: status ?? this.status,
@@ -39,6 +45,7 @@ class DeckDetailState extends Equatable {
       successMessage: successMessage,
       toastTriggerTime: toastTriggerTime,
       clonedDeckId: clonedDeckId,
+      starOverride: clearStarOverride ? null : (starOverride ?? this.starOverride),
     );
   }
 
@@ -51,5 +58,6 @@ class DeckDetailState extends Equatable {
     successMessage,
     toastTriggerTime,
     clonedDeckId,
+    starOverride,
   ];
 }

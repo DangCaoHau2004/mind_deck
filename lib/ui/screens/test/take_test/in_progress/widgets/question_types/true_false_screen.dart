@@ -38,7 +38,7 @@ class TrueFalseBody extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 16),
-        buildPromptContainer(context, prompt, imageUrl),
+        buildPromptContainer(context, prompt, imageUrl, question.promptImageCredit),
         if (statement.isNotEmpty) ...[
           const SizedBox(height: 24),
           Container(
@@ -47,9 +47,7 @@ class TrueFalseBody extends StatelessWidget {
             decoration: BoxDecoration(
               color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
               borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                color: colorScheme.outline.withValues(alpha: 0.2),
-              ),
+              border: Border.all(color: colorScheme.outline.withValues(alpha: 0.2)),
             ),
             child: Text(
               statement,

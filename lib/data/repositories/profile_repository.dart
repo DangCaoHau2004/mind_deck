@@ -8,6 +8,9 @@ abstract class ProfileRepository {
   Future<UserModel> updateProfile({required Map<String, dynamic> data});
   Future<void> linkGoogle({required String token});
   Future<void> unlinkGoogle();
+
+  /// Xóa tài khoản. Tài khoản có mật khẩu phải gửi [password]; chỉ dùng Google thì bỏ trống.
+  Future<void> deleteAccount({String? password});
 }
 
 class ProfileRepositoryImpl with ApiHandler implements ProfileRepository {
@@ -19,20 +22,15 @@ class ProfileRepositoryImpl with ApiHandler implements ProfileRepository {
   Future<ApiResponse<UserModel>> getProfile() async {
     return executeApi(() async {
       final response = await remoteDataSource.getProfile();
-      return ApiResponse<UserModel>.fromJson(
-        response.data as Map<String, dynamic>,
-        (json) {
-          return UserModel.fromJson(json);
-        },
-      );
+      return ApiResponse<UserModel>.fromJson(response.data as Map<String, dynamic>, (json) {
+        return UserModel.fromJson(json);
+      });
     });
   }
 
   @override
   Future<UserModel> updateProfile({required Map<String, dynamic> data}) async {
-    final response = await executeApi(
-      () => remoteDataSource.updateProfile(data: data),
-    );
+    final response = await executeApi(() => remoteDataSource.updateProfile(data: data));
     return UserModel.fromJson(response.data as Map<String, dynamic>);
   }
 
@@ -44,5 +42,10 @@ class ProfileRepositoryImpl with ApiHandler implements ProfileRepository {
   @override
   Future<void> unlinkGoogle() async {
     await executeApi(() => remoteDataSource.unlinkGoogle());
+  }
+
+  @override
+  Future<void> deleteAccount({String? password}) async {
+    await executeApi(() => remoteDataSource.deleteAccount(password: password));
   }
 }

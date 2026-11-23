@@ -21,13 +21,10 @@ class ReviewLogModel {
       userId: json['userId'] as String? ?? json['user_id'] as String? ?? '',
       cardId: json['cardId'] as String? ?? json['card_id'] as String? ?? '',
       grade: json['grade'] as int? ?? 1,
-      durationMs:
-          json['durationMs'] as int? ?? json['duration_ms'] as int? ?? 0,
+      durationMs: json['durationMs'] as int? ?? json['duration_ms'] as int? ?? 0,
       reviewTimestamp:
           DateTime.tryParse(
-            json['reviewTimestamp']?.toString() ??
-                json['review_timestamp']?.toString() ??
-                '',
+            json['reviewTimestamp']?.toString() ?? json['review_timestamp']?.toString() ?? '',
           ) ??
           DateTime.now(),
     );

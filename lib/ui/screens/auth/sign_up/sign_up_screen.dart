@@ -3,7 +3,9 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mind_deck/constants/app_assets.dart';
+import 'package:mind_deck/core/extensions/failure_extension.dart';
 import 'package:mind_deck/core/extensions/string_extension.dart';
+import 'package:mind_deck/navigation/app_routes.dart';
 import 'package:mind_deck/ui/commons/app_date_picker.dart';
 import 'package:mind_deck/ui/commons/input_screens/custom_text_field.dart';
 import 'package:mind_deck/ui/commons/custom_toast.dart';
@@ -53,8 +55,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
         listener: (context, state) {
           if (state is SignUpSuccess) {
             context.read<AuthBloc>().add(LoggedIn(user: state.authResponse.user));
+          } else if (state is SignUpRequireLogin) {
+            CustomToast.show(context, CustomToast.success(message: 'signup_require_login'.tr));
+            context.go(AppRoute.login.path);
           } else if (state is SignUpFailure) {
-            CustomToast.show(context, CustomToast.danger(message: state.error));
+            CustomToast.show(context, CustomToast.danger(message: state.failure.displayMessage));
           }
         },
         builder: (context, state) {

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:mind_deck/data/models/flashcard_model.dart';
@@ -9,12 +10,17 @@ import 'package:mind_deck/data/repositories/image_repository.dart';
 import 'package:mind_deck/constants/api_endpoints.dart';
 import 'package:mind_deck/ui/commons/image_screens/common_image_viewer.dart';
 import 'package:mind_deck/core/failures.dart';
+import 'package:mind_deck/utils/image_url_utils.dart';
+import 'package:mind_deck/data/models/image_search_model.dart';
+import 'package:mind_deck/ui/commons/image_screens/image_credit_line.dart';
+import 'package:mind_deck/core/extensions/string_extension.dart';
+import 'package:mind_deck/ui/screens/deck/deck_form/image_search/image_search_sheet.dart';
 
 class EditableCardWidget extends StatefulWidget {
   final int index;
   final FlashcardModel card;
   final VoidCallback onDelete;
-  final Function(String front, String back, String? imageUrl) onChanged;
+  final Function(String front, String back, String? imageUrl, ImageCredit? imageCredit) onChanged;
 
   const EditableCardWidget({
     super.key,
@@ -34,9 +40,15 @@ class _EditableCardWidgetState extends State<EditableCardWidget> {
   bool _isUploading = false;
   String? _localImagePath;
 
+  // Giữ ảnh ở đây vì màn cha không dựng lại khi thẻ đổi, `widget.card` có thể là bản cũ.
+  String? _imageUrl;
+  ImageCredit? _imageCredit;
+
   @override
   void initState() {
     super.initState();
+    _imageUrl = widget.card.frontImageUrl;
+    _imageCredit = widget.card.frontImageCredit;
     _frontController = TextEditingController(text: widget.card.frontText);
     _backController = TextEditingController(text: widget.card.backText);
 
@@ -51,6 +63,8 @@ class _EditableCardWidgetState extends State<EditableCardWidget> {
       _frontController.text = widget.card.frontText;
       _backController.text = widget.card.backText;
       _localImagePath = null;
+      _imageUrl = widget.card.frontImageUrl;
+      _imageCredit = widget.card.frontImageCredit;
     }
   }
 
@@ -64,7 +78,25 @@ class _EditableCardWidgetState extends State<EditableCardWidget> {
   }
 
   void _onFieldsChanged() {
-    widget.onChanged(_frontController.text, _backController.text, widget.card.frontImageUrl);
+    widget.onChanged(_frontController.text, _backController.text, _imageUrl, _imageCredit);
+  }
+
+  Future<void> _searchImage() async {
+    final image = await ImageSearchSheet.show(context);
+    if (image == null || !mounted) return;
+    // Lỗi báo đã chọn ảnh không được chặn người dùng.
+    unawaited(
+      DI()
+          .sl<ImageRepository>()
+          .selectImage(image.trackingUrl)
+          .catchError((Object e) => debugPrint('Báo chọn ảnh lỗi: $e')),
+    );
+    setState(() {
+      _localImagePath = null;
+      _imageUrl = image.url;
+      _imageCredit = image.credit;
+    });
+    _onFieldsChanged();
   }
 
   Future<void> _pickImage() async {
@@ -89,7 +121,9 @@ class _EditableCardWidgetState extends State<EditableCardWidget> {
             finalUrl = '${ApiEndpoints.url}$finalUrl';
           }
 
-          widget.onChanged(_frontController.text, _backController.text, finalUrl);
+          _imageUrl = finalUrl;
+          _imageCredit = null;
+          _onFieldsChanged();
         } else {
           if (mounted) {
             CustomToast.show(context, CustomToast.danger(message: 'Không thể upload hình ảnh'));
@@ -114,13 +148,15 @@ class _EditableCardWidgetState extends State<EditableCardWidget> {
   void _deleteImage() {
     setState(() {
       _localImagePath = null;
+      _imageUrl = null;
+      _imageCredit = null;
     });
-    widget.onChanged(_frontController.text, _backController.text, null);
+    _onFieldsChanged();
   }
 
   Widget _buildImagePreview(ColorScheme colorScheme) {
     final hasLocal = _localImagePath != null;
-    final hasRemote = widget.card.frontImageUrl != null && widget.card.frontImageUrl!.isNotEmpty;
+    final hasRemote = _imageUrl != null && _imageUrl!.isNotEmpty;
 
     if (!hasLocal && !hasRemote) {
       return InkWell(
@@ -158,7 +194,7 @@ class _EditableCardWidgetState extends State<EditableCardWidget> {
       imageWidget = Image.file(File(_localImagePath!), fit: BoxFit.cover, width: 80, height: 80);
     } else {
       imageWidget = Image.network(
-        widget.card.frontImageUrl!,
+        getImageUrl(_imageUrl),
         fit: BoxFit.cover,
         width: 80,
         height: 80,
@@ -171,9 +207,13 @@ class _EditableCardWidgetState extends State<EditableCardWidget> {
       children: [
         GestureDetector(
           onTap: () {
-            print("ấn");
-            final imgPath = hasLocal ? 'file://${_localImagePath!}' : widget.card.frontImageUrl!;
-            CommonImageViewer.show(context, images: [imgPath], initialIndex: 0);
+            final imgPath = hasLocal ? 'file://${_localImagePath!}' : _imageUrl!;
+            CommonImageViewer.show(
+              context,
+              images: [imgPath],
+              initialIndex: 0,
+              credit: hasLocal ? null : _imageCredit,
+            );
           },
           child: ClipRRect(borderRadius: BorderRadius.circular(12), child: imageWidget),
         ),
@@ -243,6 +283,7 @@ class _EditableCardWidgetState extends State<EditableCardWidget> {
                 child: Column(
                   children: [
                     CustomTextField(
+                      large: true,
                       controller: _frontController,
                       label: 'Mặt trước (Thuật ngữ)',
                       hintText: 'Nhập thuật ngữ hoặc câu hỏi...',
@@ -256,6 +297,7 @@ class _EditableCardWidgetState extends State<EditableCardWidget> {
                     ),
                     const SizedBox(height: 12),
                     CustomTextField(
+                      large: true,
                       controller: _backController,
                       label: 'Mặt sau (Định nghĩa)',
                       hintText: 'Nhập định nghĩa hoặc câu trả lời...',
@@ -294,6 +336,17 @@ class _EditableCardWidgetState extends State<EditableCardWidget> {
                     )
                   else
                     _buildImagePreview(colorScheme),
+                  if (!_isUploading) ...[
+                    SizedBox(width: 80, child: ImageCreditLine(credit: _imageCredit, maxLines: 2)),
+                    TextButton(
+                      onPressed: _searchImage,
+                      style: TextButton.styleFrom(
+                        minimumSize: const Size(80, 32),
+                        padding: EdgeInsets.zero,
+                      ),
+                      child: Text('image_search_action'.tr, style: const TextStyle(fontSize: 12)),
+                    ),
+                  ],
                 ],
               ),
             ],

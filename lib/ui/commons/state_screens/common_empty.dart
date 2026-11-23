@@ -62,11 +62,7 @@ class CommonEmpty extends StatelessWidget {
                 borderRadius: BorderRadius.circular(12),
               ),
               child: icon != null
-                  ? Icon(
-                      icon,
-                      color: iconColor ?? colorScheme.onPrimary,
-                      size: 64,
-                    )
+                  ? Icon(icon, color: iconColor ?? colorScheme.onPrimary, size: 64)
                   : Image.asset(
                       AppAssets.emptyBox,
                       width: 64,
@@ -90,7 +86,7 @@ class CommonEmpty extends StatelessWidget {
               subtitle ?? 'common_list_is_currently_empty'.tr,
               textAlign: TextAlign.center,
               style: theme.textTheme.bodyMedium?.copyWith(
-                color: colorScheme.onSurfaceVariant,
+                color: colorScheme.onSurface.withValues(alpha: 0.6),
                 height: 1.5,
               ),
             ),

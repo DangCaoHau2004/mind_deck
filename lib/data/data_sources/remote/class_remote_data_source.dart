@@ -18,15 +18,39 @@ abstract class ClassRemoteDataSource {
     bool requireApproval = false,
     bool isPublic = false,
   });
-  Future<Response> deleteClass(String classId);
-  Future<Response> joinClass({required String classId, required String joinCode});
+  Future<Response> deleteClass(String classId, {String? reason});
+
+  /// Gửi `joinCode` HOẶC `classId` (lớp công khai). Gửi cả hai thì BE dùng `joinCode`.
+  Future<Response> joinClass({String? joinCode, String? classId});
   Future<Response> previewClass(String code);
   Future<Response> approveMember(String classId, String userId);
+
+  /// Một endpoint cho 3 việc theo trạng thái của `userId`: từ chối (pending), thu hồi lời mời
+  /// (invited) hoặc đuổi (approved).
   Future<Response> kickMember(String classId, String userId);
   Future<Response> updateMemberRole(String classId, String userId, String role);
-  Future<Response> getPendingMembers(String classId);
+  Future<Response> getPendingMembers(String classId, {String status = 'pending'});
   Future<Response> getMembers(String classId);
+  Future<Response> leaveClass(String classId);
+  Future<Response> patchClassSettings(String classId, Map<String, dynamic> body);
+  Future<Response> patchMyNotifications(String classId, Map<String, dynamic> body);
+
+  // Invitations
+  Future<Response> getInvitations();
+  Future<Response> lookupInvites(String classId, List<String> emails);
+  Future<Response> sendInvites(String classId, List<String> emails);
+  Future<Response> revokeInvite(String classId, String userId);
+  Future<Response> acceptInvite(String classId);
+  Future<Response> declineInvite(String classId);
+
+  // Materials
   Future<Response> addMaterials(
+    String classId, {
+    required List<String> folderIds,
+    required List<String> deckIds,
+    String? duplicatePolicy,
+  });
+  Future<Response> checkMaterials(
     String classId, {
     required List<String> folderIds,
     required List<String> deckIds,
@@ -37,53 +61,70 @@ abstract class ClassRemoteDataSource {
     required List<String> deckIds,
   });
   Future<Response> getMaterials(String classId, {int page = 1, int limit = 20, String? search});
+  Future<Response> getFolderDecks(
+    String classId,
+    String folderId, {
+    int page = 1,
+    int limit = 20,
+    String? search,
+  });
   Future<Response> cloneClassMaterials(
     String classId, {
-    required String folderId,
-    required String deckId,
+    required String targetType,
+    required String targetId,
   });
 
   // Assignments
+  /// Thời gian được đổi sang UTC ISO-8601 trước khi gửi (BE yêu cầu có múi giờ).
   Future<Response> createAssignment(
     String classId, {
     required String title,
     String? description,
     required String type,
-    String? deckId,
+    DateTime? startAt,
+    required DateTime endAt,
+    String? mode,
+    String? scope,
+    int? targetCount,
+    List<Map<String, dynamic>>? sources,
     String? testId,
-    required String deadline,
   });
+
+  /// Nhận mọi trường của POST trừ `type`. Gửi cả form với giá trị y nguyên là an toàn.
   Future<Response> updateAssignment(
     String classId,
     String assignmentId, {
     required String title,
     String? description,
-    required String deadline,
+    DateTime? startAt,
+    required DateTime endAt,
+    String? mode,
+    String? scope,
+    int? targetCount,
+    List<Map<String, dynamic>>? sources,
+    String? testId,
   });
   Future<Response> deleteAssignment(String classId, String assignmentId);
   Future<Response> getAssignments(String classId, {String tab = 'active'});
-  Future<Response> submitAssignmentTest(
-    String classId,
-    String assignmentId, {
-    String? testId,
-    required int totalQuestions,
-    required int correctAnswers,
-    required int durationMs,
-    String? startedAt,
-    String? completedAt,
-    List<Map<String, dynamic>>? answers,
-  });
   Future<Response> getSubmissions(String classId, String assignmentId);
   Future<Response> getMySubmissions(String classId);
   Future<Response> getOverdueAssignments(String classId);
-  Future<Response> getLeaderboard(String classId);
+  Future<Response> getLeaderboard(String classId, {String? month, int limit = 10});
 
   // Analytics
   Future<Response> getReviewWorkload(String classId, {String? studentId, String? timezone});
   Future<Response> getHardestCards(String classId, {String? studentId});
   Future<Response> getDeckHealth(String classId, {String? deckId, String? studentId});
   Future<Response> getAssignmentProgress(String classId, String assignmentId);
-  Future<Response> getAssignmentDrillDown(String classId, String assignmentId, {String? status});
+  Future<Response> getAssignmentDrillDown(
+    String classId,
+    String assignmentId, {
+    required String status,
+  });
+  Future<Response> getScoreDistribution(String classId, String assignmentId);
+  Future<Response> getStudentAttempts(String classId, String assignmentId, String userId);
+  Future<Response> getAttemptDetail(String classId, String attemptId);
+  Future<Response> getStudentAssignments(String classId, String userId);
 }
 
 class ClassRemoteDataSourceImpl implements ClassRemoteDataSource {
@@ -140,13 +181,17 @@ class ClassRemoteDataSourceImpl implements ClassRemoteDataSource {
   }
 
   @override
-  Future<Response> deleteClass(String classId) {
-    return dio.delete('${ApiEndpoints.classes}/$classId');
+  Future<Response> deleteClass(String classId, {String? reason}) {
+    // DELETE mang body JSON (lý do tùy chọn).
+    return dio.delete(
+      '${ApiEndpoints.classes}/$classId',
+      data: {if (reason != null && reason.trim().isNotEmpty) 'reason': reason.trim()},
+    );
   }
 
   @override
-  Future<Response> joinClass({required String classId, required String joinCode}) {
-    return dio.post(ApiEndpoints.classesJoin, data: {'join_code': joinCode, 'class_id': classId});
+  Future<Response> joinClass({String? joinCode, String? classId}) {
+    return dio.post(ApiEndpoints.classesJoin, data: {'joinCode': ?joinCode, 'classId': ?classId});
   }
 
   @override
@@ -170,8 +215,11 @@ class ClassRemoteDataSourceImpl implements ClassRemoteDataSource {
   }
 
   @override
-  Future<Response> getPendingMembers(String classId) {
-    return dio.get('${ApiEndpoints.classMembersPending}$classId/members/pending');
+  Future<Response> getPendingMembers(String classId, {String status = 'pending'}) {
+    return dio.get(
+      '${ApiEndpoints.classMembersPending}$classId/members/pending',
+      queryParameters: {'status': status},
+    );
   }
 
   @override
@@ -180,14 +228,80 @@ class ClassRemoteDataSourceImpl implements ClassRemoteDataSource {
   }
 
   @override
+  Future<Response> leaveClass(String classId) {
+    return dio.post('${ApiEndpoints.classLeave}$classId/leave');
+  }
+
+  @override
+  Future<Response> patchClassSettings(String classId, Map<String, dynamic> body) {
+    return dio.patch('${ApiEndpoints.classSettings}$classId/settings', data: body);
+  }
+
+  @override
+  Future<Response> patchMyNotifications(String classId, Map<String, dynamic> body) {
+    return dio.patch(
+      '${ApiEndpoints.classMyNotifications}$classId/members/me/notifications',
+      data: body,
+    );
+  }
+
+  // Invitations
+  @override
+  Future<Response> getInvitations() {
+    return dio.get(ApiEndpoints.classInvitations);
+  }
+
+  @override
+  Future<Response> lookupInvites(String classId, List<String> emails) {
+    return dio.post(
+      '${ApiEndpoints.classInvites}$classId/invitations/lookup',
+      data: {'emails': emails},
+    );
+  }
+
+  @override
+  Future<Response> sendInvites(String classId, List<String> emails) {
+    return dio.post('${ApiEndpoints.classInvites}$classId/invitations', data: {'emails': emails});
+  }
+
+  @override
+  Future<Response> revokeInvite(String classId, String userId) {
+    return dio.delete('${ApiEndpoints.classInvites}$classId/invitations/$userId');
+  }
+
+  @override
+  Future<Response> acceptInvite(String classId) {
+    return dio.post('${ApiEndpoints.classInvites}$classId/invitations/accept');
+  }
+
+  @override
+  Future<Response> declineInvite(String classId) {
+    return dio.post('${ApiEndpoints.classInvites}$classId/invitations/decline');
+  }
+
+  // Materials
+  @override
   Future<Response> addMaterials(
+    String classId, {
+    required List<String> folderIds,
+    required List<String> deckIds,
+    String? duplicatePolicy,
+  }) {
+    return dio.post(
+      '${ApiEndpoints.classMaterials}$classId/materials',
+      data: {'deckIds': deckIds, 'folderIds': folderIds, 'duplicatePolicy': ?duplicatePolicy},
+    );
+  }
+
+  @override
+  Future<Response> checkMaterials(
     String classId, {
     required List<String> folderIds,
     required List<String> deckIds,
   }) {
     return dio.post(
-      '${ApiEndpoints.classMaterials}$classId/materials',
-      data: {'folder_ids': folderIds, 'deck_ids': deckIds},
+      '${ApiEndpoints.classMaterialsCheck}$classId/materials/check',
+      data: {'deckIds': deckIds, 'folderIds': folderIds},
     );
   }
 
@@ -197,9 +311,10 @@ class ClassRemoteDataSourceImpl implements ClassRemoteDataSource {
     required List<String> folderIds,
     required List<String> deckIds,
   }) {
+    // Id là id BẢN SAO trong lớp (lấy từ GET /materials). DELETE mang body JSON.
     return dio.delete(
       '${ApiEndpoints.classMaterials}$classId/materials',
-      data: {'folder_ids': folderIds, 'deck_ids': deckIds},
+      data: {'deckIds': deckIds, 'folderIds': folderIds},
     );
   }
 
@@ -216,37 +331,90 @@ class ClassRemoteDataSourceImpl implements ClassRemoteDataSource {
   }
 
   @override
+  Future<Response> getFolderDecks(
+    String classId,
+    String folderId, {
+    int page = 1,
+    int limit = 20,
+    String? search,
+  }) {
+    return dio.get(
+      '${ApiEndpoints.classMaterialFolderDecks}$classId/materials/folders/$folderId/decks',
+      queryParameters: {
+        'page': page,
+        'limit': limit,
+        if (search != null && search.isNotEmpty) 'search': search,
+      },
+    );
+  }
+
+  @override
   Future<Response> cloneClassMaterials(
     String classId, {
-    required String folderId,
-    required String deckId,
+    required String targetType,
+    required String targetId,
   }) {
     return dio.post(
       '${ApiEndpoints.classClone}$classId/clone',
-      data: {'folderId': folderId, 'deckId': deckId},
+      data: {'targetType': targetType, 'targetId': targetId},
     );
   }
 
   // Assignments
+  Map<String, dynamic> _assignmentBody({
+    required String title,
+    String? description,
+    DateTime? startAt,
+    required DateTime endAt,
+    String? mode,
+    String? scope,
+    int? targetCount,
+    List<Map<String, dynamic>>? sources,
+    String? testId,
+  }) {
+    return {
+      'title': title,
+      'description': ?description,
+      // Bỏ trống `startAt` = giao ngay. ISO-8601 CÓ múi giờ (UTC).
+      'startAt': startAt?.toUtc().toIso8601String(),
+      'endAt': endAt.toUtc().toIso8601String(),
+      'mode': ?mode,
+      'scope': ?scope,
+      'targetCount': ?targetCount,
+      'sources': ?sources,
+      'testId': ?testId,
+    };
+  }
+
   @override
   Future<Response> createAssignment(
     String classId, {
     required String title,
     String? description,
     required String type,
-    String? deckId,
+    DateTime? startAt,
+    required DateTime endAt,
+    String? mode,
+    String? scope,
+    int? targetCount,
+    List<Map<String, dynamic>>? sources,
     String? testId,
-    required String deadline,
   }) {
     return dio.post(
       '${ApiEndpoints.classAssignments}$classId/assignments',
       data: {
-        'title': title,
-        'description': ?description,
         'type': type,
-        'deckId': ?deckId,
-        'testId': ?testId,
-        'deadline': deadline,
+        ..._assignmentBody(
+          title: title,
+          description: description,
+          startAt: startAt,
+          endAt: endAt,
+          mode: mode,
+          scope: scope,
+          targetCount: targetCount,
+          sources: sources,
+          testId: testId,
+        ),
       },
     );
   }
@@ -257,11 +425,27 @@ class ClassRemoteDataSourceImpl implements ClassRemoteDataSource {
     String assignmentId, {
     required String title,
     String? description,
-    required String deadline,
+    DateTime? startAt,
+    required DateTime endAt,
+    String? mode,
+    String? scope,
+    int? targetCount,
+    List<Map<String, dynamic>>? sources,
+    String? testId,
   }) {
     return dio.put(
       '${ApiEndpoints.classes}/$classId/assignments/$assignmentId',
-      data: {'title': title, 'description': ?description, 'deadline': deadline},
+      data: _assignmentBody(
+        title: title,
+        description: description,
+        startAt: startAt,
+        endAt: endAt,
+        mode: mode,
+        scope: scope,
+        targetCount: targetCount,
+        sources: sources,
+        testId: testId,
+      ),
     );
   }
 
@@ -279,32 +463,6 @@ class ClassRemoteDataSourceImpl implements ClassRemoteDataSource {
   }
 
   @override
-  Future<Response> submitAssignmentTest(
-    String classId,
-    String assignmentId, {
-    String? testId,
-    required int totalQuestions,
-    required int correctAnswers,
-    required int durationMs,
-    String? startedAt,
-    String? completedAt,
-    List<Map<String, dynamic>>? answers,
-  }) {
-    return dio.post(
-      '${ApiEndpoints.classSubmitAssignment}$classId/assignments/$assignmentId/submit',
-      data: {
-        'testId': ?testId,
-        'totalQuestions': totalQuestions,
-        'correctAnswers': correctAnswers,
-        'durationMs': durationMs,
-        'startedAt': ?startedAt,
-        'completedAt': ?completedAt,
-        'answers': ?answers,
-      },
-    );
-  }
-
-  @override
   Future<Response> getSubmissions(String classId, String assignmentId) {
     return dio.get(
       '${ApiEndpoints.classAssignmentSubmissions}$classId/assignments/$assignmentId/submissions',
@@ -318,12 +476,16 @@ class ClassRemoteDataSourceImpl implements ClassRemoteDataSource {
 
   @override
   Future<Response> getOverdueAssignments(String classId) {
-    return dio.get('${ApiEndpoints.classAssignments}$classId/assignments/overdue');
+    return dio.get('${ApiEndpoints.classAssignmentsOverdue}$classId/assignments/overdue');
   }
 
   @override
-  Future<Response> getLeaderboard(String classId) {
-    return dio.get('${ApiEndpoints.classLeaderboard}$classId/leaderboard');
+  Future<Response> getLeaderboard(String classId, {String? month, int limit = 10}) {
+    return dio.get(
+      '${ApiEndpoints.classLeaderboard}$classId/leaderboard',
+      // Không gửi `month` = tháng hiện tại (giờ VN) theo BE.
+      queryParameters: {'month': ?month, 'limit': limit},
+    );
   }
 
   // Analytics
@@ -359,10 +521,40 @@ class ClassRemoteDataSourceImpl implements ClassRemoteDataSource {
   }
 
   @override
-  Future<Response> getAssignmentDrillDown(String classId, String assignmentId, {String? status}) {
+  Future<Response> getAssignmentDrillDown(
+    String classId,
+    String assignmentId, {
+    required String status,
+  }) {
     return dio.get(
       '${ApiEndpoints.analyticsAssignmentDrillDown}$classId/assignments/$assignmentId/drill-down',
-      queryParameters: {'status': ?status},
+      queryParameters: {'status': status},
+    );
+  }
+
+  @override
+  Future<Response> getScoreDistribution(String classId, String assignmentId) {
+    return dio.get(
+      '${ApiEndpoints.analyticsScoreDistribution}$classId/assignments/$assignmentId/score-distribution',
+    );
+  }
+
+  @override
+  Future<Response> getStudentAttempts(String classId, String assignmentId, String userId) {
+    return dio.get(
+      '${ApiEndpoints.analyticsStudentAttempts}$classId/assignments/$assignmentId/students/$userId/attempts',
+    );
+  }
+
+  @override
+  Future<Response> getAttemptDetail(String classId, String attemptId) {
+    return dio.get('${ApiEndpoints.analyticsAttemptDetail}$classId/attempts/$attemptId');
+  }
+
+  @override
+  Future<Response> getStudentAssignments(String classId, String userId) {
+    return dio.get(
+      '${ApiEndpoints.analyticsStudentAssignments}$classId/students/$userId/assignments',
     );
   }
 }

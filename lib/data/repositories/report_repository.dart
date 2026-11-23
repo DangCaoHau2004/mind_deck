@@ -12,10 +12,7 @@ abstract class ReportRepository {
     List<String>? attachments,
   });
 
-  Future<ApiListResponse<ReportModel>> getReports({
-    int page = 1,
-    int limit = 20,
-  });
+  Future<ApiListResponse<ReportModel>> getReports({int page = 1, int limit = 20});
 
   Future<ApiResponse<ReportModel>> getReportById(String id);
 }
@@ -49,15 +46,9 @@ class ReportRepositoryImpl with ApiHandler implements ReportRepository {
   }
 
   @override
-  Future<ApiListResponse<ReportModel>> getReports({
-    int page = 1,
-    int limit = 20,
-  }) async {
+  Future<ApiListResponse<ReportModel>> getReports({int page = 1, int limit = 20}) async {
     return executeApi(() async {
-      final response = await remoteDataSource.getReports(
-        page: page,
-        limit: limit,
-      );
+      final response = await remoteDataSource.getReports(page: page, limit: limit);
       return ApiListResponse<ReportModel>.fromJson(
         response.data as Map<String, dynamic>,
         (json) => ReportModel.fromJson(json),

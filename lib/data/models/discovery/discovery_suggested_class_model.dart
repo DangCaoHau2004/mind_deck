@@ -5,6 +5,7 @@ class DiscoverySuggestedClassModel {
   final String? ownerName;
   final int memberCount;
   final bool isJoined;
+  final bool isPending;
   final String joinCode;
 
   DiscoverySuggestedClassModel({
@@ -14,6 +15,7 @@ class DiscoverySuggestedClassModel {
     this.ownerName,
     required this.memberCount,
     required this.isJoined,
+    this.isPending = false,
     this.joinCode = '',
   });
 
@@ -23,10 +25,9 @@ class DiscoverySuggestedClassModel {
       name: json['name'] as String? ?? '',
       description: json['description'] as String?,
       ownerName: json['ownerName'] as String? ?? json['owner_name'] as String?,
-      memberCount:
-          json['memberCount'] as int? ?? json['member_count'] as int? ?? 0,
-      isJoined:
-          json['isJoined'] as bool? ?? json['is_joined'] as bool? ?? false,
+      memberCount: json['memberCount'] as int? ?? json['member_count'] as int? ?? 0,
+      isJoined: json['isJoined'] as bool? ?? json['is_joined'] as bool? ?? false,
+      isPending: json['isPending'] as bool? ?? json['is_pending'] as bool? ?? false,
       joinCode: json['joinCode'] as String? ?? json['join_code'] as String? ?? '',
     );
   }
@@ -39,6 +40,7 @@ class DiscoverySuggestedClassModel {
       if (ownerName != null) 'ownerName': ownerName,
       'memberCount': memberCount,
       'isJoined': isJoined,
+      'isPending': isPending,
       'joinCode': joinCode,
     };
   }

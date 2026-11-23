@@ -9,8 +9,9 @@ enum AppRoute {
   resetPassword(name: 'reset_password', path: 'reset-password'),
 
   // --- Main ---
-  dashboard(name: 'dashboard', path: '/dashboard'),
+  home(name: 'home', path: '/home'),
   notifications(name: 'notifications', path: '/notifications'),
+  notificationSettings(name: 'notification_settings', path: '/notification-settings'),
 
   library(name: 'library', path: '/library'),
   discover(name: 'discover', path: '/discover'),
@@ -19,9 +20,13 @@ enum AppRoute {
   profile(name: 'profile', path: '/profile'),
   settings(name: 'settings', path: 'settings'),
   statistics(name: 'statistics', path: 'statistics'),
+  coins(name: 'coins', path: 'coins'),
   reportHistory(name: 'report_history', path: 'reports'),
   reportCreate(name: 'report_create', path: 'reports/create'),
   reportDetail(name: 'report_detail', path: 'reports/:id'),
+  documentImport(name: 'document_import', path: 'document-import'),
+  documentImportDrafts(name: 'document_import_drafts', path: 'document-import/drafts'),
+  documentImportDraft(name: 'document_import_draft', path: 'document-import/drafts/:id'),
   classrooms(name: 'classrooms', path: 'classrooms'),
   classJoin(name: 'class_join', path: 'join'),
   classroomDetail(name: 'classroom_detail', path: '/classroom/:id'),

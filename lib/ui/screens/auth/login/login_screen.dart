@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mind_deck/configs/di.dart';
 import 'package:mind_deck/constants/app_assets.dart';
+import 'package:mind_deck/core/extensions/failure_extension.dart';
 import 'package:mind_deck/core/extensions/string_extension.dart';
 import 'package:mind_deck/navigation/app_routes.dart';
 import 'package:mind_deck/ui/commons/input_screens/custom_text_field.dart';
@@ -39,13 +40,11 @@ class _LoginScreenState extends State<LoginScreen> {
       child: BlocConsumer<LoginBloc, LoginState>(
         listener: (context, state) {
           if (state is LoginSuccess) {
-            context.read<AuthBloc>().add(
-              LoggedIn(user: state.authResponse.user),
-            );
+            context.read<AuthBloc>().add(LoggedIn(user: state.authResponse.user));
           } else if (state is LoginCancelled) {
             CustomToast.show(context, CustomToast.warning(message: state.message));
           } else if (state is LoginFailure) {
-            CustomToast.show(context, CustomToast.danger(message: state.error));
+            CustomToast.show(context, CustomToast.danger(message: state.failure.displayMessage));
           }
         },
         builder: (context, state) {
@@ -66,11 +65,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         tag: 'app_logo',
                         child: Transform.scale(
                           scale: 1.3,
-                          child: Image.asset(
-                            AppAssets.iconTransparent,
-                            width: 200,
-                            height: 200,
-                          ),
+                          child: Image.asset(AppAssets.iconTransparent, width: 200, height: 200),
                         ),
                       ),
                       const SizedBox(height: 24),
@@ -84,9 +79,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       const SizedBox(height: 8),
                       Text(
                         'login_subtitle'.tr,
-                        style: textTheme.bodyLarge?.copyWith(
-                          color: colorScheme.onSurfaceVariant,
-                        ),
+                        style: textTheme.bodyLarge?.copyWith(color: colorScheme.onSurfaceVariant),
                       ),
                       const SizedBox(height: 40),
 
@@ -94,20 +87,14 @@ class _LoginScreenState extends State<LoginScreen> {
                       CustomTextField(
                         controller: _emailController,
                         hintText: 'login_email_hint'.tr,
-                        prefixIcon: Icon(
-                          Icons.mail_outline,
-                          color: colorScheme.onSurfaceVariant,
-                        ),
+                        prefixIcon: Icon(Icons.mail_outline, color: colorScheme.onSurfaceVariant),
                       ),
                       const SizedBox(height: 16),
                       CustomTextField(
                         controller: _passwordController,
                         hintText: 'login_password_hint'.tr,
                         obscureText: _obscurePassword,
-                        prefixIcon: Icon(
-                          Icons.lock_outline,
-                          color: colorScheme.onSurfaceVariant,
-                        ),
+                        prefixIcon: Icon(Icons.lock_outline, color: colorScheme.onSurfaceVariant),
                         suffixIcon: IconButton(
                           icon: Icon(
                             _obscurePassword
@@ -115,9 +102,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                 : Icons.visibility_off_outlined,
                             color: colorScheme.onSurfaceVariant,
                           ),
-                          onPressed: () => setState(
-                            () => _obscurePassword = !_obscurePassword,
-                          ),
+                          onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
                         ),
                       ),
 
@@ -158,15 +143,11 @@ class _LoginScreenState extends State<LoginScreen> {
                           style: ElevatedButton.styleFrom(
                             backgroundColor: colorScheme.primary,
                             foregroundColor: colorScheme.onPrimary,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
-                            ),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                             elevation: 0,
                           ),
                           child: state is LoginLoading
-                              ? const CircularProgressIndicator(
-                                  color: Colors.white,
-                                )
+                              ? const CircularProgressIndicator(color: Colors.white)
                               : Text(
                                   'login_button'.tr,
                                   style: textTheme.titleMedium?.copyWith(
@@ -181,9 +162,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       // Dải phân cách "Hoặc"
                       Row(
                         children: [
-                          Expanded(
-                            child: Divider(color: colorScheme.outlineVariant),
-                          ),
+                          Expanded(child: Divider(color: colorScheme.outlineVariant)),
                           Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 16),
                             child: Text(
@@ -193,9 +172,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               ),
                             ),
                           ),
-                          Expanded(
-                            child: Divider(color: colorScheme.outlineVariant),
-                          ),
+                          Expanded(child: Divider(color: colorScheme.outlineVariant)),
                         ],
                       ),
                       const SizedBox(height: 24),
@@ -208,15 +185,9 @@ class _LoginScreenState extends State<LoginScreen> {
                           onPressed: state is LoginLoading
                               ? null
                               : () {
-                                  context.read<LoginBloc>().add(
-                                    LoginWithGoogleSubmitted(),
-                                  );
+                                  context.read<LoginBloc>().add(LoginWithGoogleSubmitted());
                                 },
-                          icon: Image.asset(
-                            AppAssets.googleIcon,
-                            width: 24,
-                            height: 24,
-                          ),
+                          icon: Image.asset(AppAssets.googleIcon, width: 24, height: 24),
                           label: Text(
                             'login_with_google'.tr,
                             style: textTheme.titleMedium?.copyWith(
@@ -225,9 +196,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                           ),
                           style: OutlinedButton.styleFrom(
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
-                            ),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                             side: BorderSide(color: colorScheme.outlineVariant),
                             backgroundColor: Colors.transparent,
                           ),
@@ -250,9 +219,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               context.pushNamed(AppRoute.signup.name);
                             },
                             style: TextButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 4,
-                              ),
+                              padding: const EdgeInsets.symmetric(horizontal: 4),
                               minimumSize: Size.zero,
                             ),
                             child: Text(

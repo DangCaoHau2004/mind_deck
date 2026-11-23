@@ -2,17 +2,24 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mind_deck/core/extensions/string_extension.dart';
+import 'package:mind_deck/utils/image_url_utils.dart';
+import 'package:mind_deck/data/models/image_search_model.dart';
+import 'package:mind_deck/ui/commons/image_screens/image_credit_line.dart';
 
 class CommonImageViewer extends StatefulWidget {
   final List<String> images;
   final int initialIndex;
   final String baseUrl;
 
+  /// Ghi nguồn khi ảnh từ kho ảnh.
+  final ImageCredit? credit;
+
   const CommonImageViewer({
     super.key,
     required this.images,
     required this.initialIndex,
     this.baseUrl = '',
+    this.credit,
   });
 
   static void show(
@@ -20,6 +27,7 @@ class CommonImageViewer extends StatefulWidget {
     required List<String> images,
     required int initialIndex,
     String baseUrl = '',
+    ImageCredit? credit,
   }) {
     showGeneralDialog(
       context: context,
@@ -36,6 +44,7 @@ class CommonImageViewer extends StatefulWidget {
             images: images,
             initialIndex: initialIndex,
             baseUrl: baseUrl,
+            credit: credit,
           ),
         );
       },
@@ -47,8 +56,7 @@ class CommonImageViewer extends StatefulWidget {
 }
 
 // Thêm SingleTickerProviderStateMixin để dùng AnimationController
-class _CommonImageViewerState extends State<CommonImageViewer>
-    with SingleTickerProviderStateMixin {
+class _CommonImageViewerState extends State<CommonImageViewer> with SingleTickerProviderStateMixin {
   late PageController _pageController;
   bool _isZoomed = false;
   bool _showUI = true;
@@ -64,10 +72,7 @@ class _CommonImageViewerState extends State<CommonImageViewer>
     _pageController = PageController(initialPage: widget.initialIndex);
 
     // Khởi tạo animation đàn hồi khi kéo chưa đủ xa
-    _snapController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 250),
-    );
+    _snapController = AnimationController(vsync: this, duration: const Duration(milliseconds: 250));
     _snapController.addListener(() {
       setState(() {
         _dragY = _snapAnimation.value;
@@ -106,9 +111,10 @@ class _CommonImageViewerState extends State<CommonImageViewer>
       context.pop();
     } else {
       // Nếu chưa đủ xa -> Bật hoạt ảnh đàn hồi về 0
-      _snapAnimation = Tween<double>(begin: _dragY, end: 0.0).animate(
-        CurvedAnimation(parent: _snapController, curve: Curves.easeOutCubic),
-      );
+      _snapAnimation = Tween<double>(
+        begin: _dragY,
+        end: 0.0,
+      ).animate(CurvedAnimation(parent: _snapController, curve: Curves.easeOutCubic));
       _snapController.forward(from: 0.0);
       setState(() => _showUI = true); // Hiện lại UI
     }
@@ -167,6 +173,26 @@ class _CommonImageViewerState extends State<CommonImageViewer>
                   },
                 ),
 
+                // Ghi nguồn ảnh kho
+                if (widget.credit != null)
+                  Positioned(
+                    left: 16,
+                    right: 16,
+                    bottom: 16,
+                    child: AnimatedOpacity(
+                      opacity: _showUI ? 1.0 : 0.0,
+                      duration: const Duration(milliseconds: 200),
+                      child: IgnorePointer(
+                        ignoring: !_showUI,
+                        child: ImageCreditLine(
+                          credit: widget.credit,
+                          color: Colors.white,
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    ),
+                  ),
+
                 // Nút Đóng
                 Positioned(
                   top: 16,
@@ -177,11 +203,7 @@ class _CommonImageViewerState extends State<CommonImageViewer>
                     child: IgnorePointer(
                       ignoring: !_showUI,
                       child: IconButton(
-                        icon: const Icon(
-                          Icons.close,
-                          color: Colors.white,
-                          size: 28,
-                        ),
+                        icon: const Icon(Icons.close, color: Colors.white, size: 28),
                         onPressed: () => context.pop(),
                         style: IconButton.styleFrom(
                           backgroundColor: Colors.black.withValues(alpha: 0.5),
@@ -205,14 +227,10 @@ class _CommonImageViewerState extends State<CommonImageViewer>
                         animation: _pageController,
                         builder: (context, child) {
                           int currentIndex = _pageController.hasClients
-                              ? (_pageController.page?.round() ??
-                                    widget.initialIndex)
+                              ? (_pageController.page?.round() ?? widget.initialIndex)
                               : widget.initialIndex;
                           return Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 6,
-                            ),
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                             decoration: BoxDecoration(
                               color: Colors.black.withValues(alpha: 0.5),
                               borderRadius: BorderRadius.circular(20),
@@ -256,8 +274,7 @@ class _ZoomableImagePage extends StatefulWidget {
 
 class _ZoomableImagePageState extends State<_ZoomableImagePage>
     with SingleTickerProviderStateMixin {
-  final TransformationController _transformationController =
-      TransformationController();
+  final TransformationController _transformationController = TransformationController();
   late AnimationController _animationController;
   Animation<Matrix4>? _zoomAnimation;
   TapDownDetails? _doubleTapDetails;
@@ -266,14 +283,12 @@ class _ZoomableImagePageState extends State<_ZoomableImagePage>
   void initState() {
     super.initState();
     _animationController =
-        AnimationController(
-          vsync: this,
-          duration: const Duration(milliseconds: 250),
-        )..addListener(() {
-          if (_zoomAnimation != null) {
-            _transformationController.value = _zoomAnimation!.value;
-          }
-        });
+        AnimationController(vsync: this, duration: const Duration(milliseconds: 250))
+          ..addListener(() {
+            if (_zoomAnimation != null) {
+              _transformationController.value = _zoomAnimation!.value;
+            }
+          });
 
     _transformationController.addListener(() {
       final scale = _transformationController.value.getMaxScaleOnAxis();
@@ -295,8 +310,7 @@ class _ZoomableImagePageState extends State<_ZoomableImagePage>
   void _handleDoubleTap() {
     if (_doubleTapDetails == null) return;
     final position = _doubleTapDetails!.localPosition;
-    final double currentScale = _transformationController.value
-        .getMaxScaleOnAxis();
+    final double currentScale = _transformationController.value.getMaxScaleOnAxis();
     final Matrix4 endMatrix;
 
     if (currentScale > 1.05) {
@@ -310,13 +324,10 @@ class _ZoomableImagePageState extends State<_ZoomableImagePage>
         ..multiply(Matrix4.diagonal3Values(targetScale, targetScale, 1.0));
     }
 
-    _zoomAnimation =
-        Matrix4Tween(
-          begin: _transformationController.value,
-          end: endMatrix,
-        ).animate(
-          CurveTween(curve: Curves.easeInOut).animate(_animationController),
-        );
+    _zoomAnimation = Matrix4Tween(
+      begin: _transformationController.value,
+      end: endMatrix,
+    ).animate(CurveTween(curve: Curves.easeInOut).animate(_animationController));
 
     _animationController.forward(from: 0);
   }
@@ -325,8 +336,7 @@ class _ZoomableImagePageState extends State<_ZoomableImagePage>
     final colorScheme = Theme.of(context).colorScheme;
     final String url = widget.imageUrl;
     final isLocalFile =
-        url.startsWith('file://') ||
-        (url.startsWith('/') && File(url).existsSync());
+        url.startsWith('file://') || (url.startsWith('/') && File(url).existsSync());
     if (isLocalFile) {
       final cleanPath = url.replaceFirst('file://', '');
       return Image.file(
@@ -337,7 +347,7 @@ class _ZoomableImagePageState extends State<_ZoomableImagePage>
       );
     }
     return Image.network(
-      url,
+      getImageUrl(url),
       fit: BoxFit.contain,
       loadingBuilder: (context, child, loadingProgress) {
         if (loadingProgress == null) return child;

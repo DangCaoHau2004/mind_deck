@@ -22,57 +22,50 @@ class InDepthStatisticsPage extends StatelessWidget {
         backgroundColor: colorScheme.surface,
         elevation: 0,
         leading: IconButton(
-          icon: Icon(
-            Icons.arrow_back_ios_new_rounded,
-            color: colorScheme.onSurface,
-            size: 22,
-          ),
+          icon: Icon(Icons.arrow_back_ios_new_rounded, color: colorScheme.onSurface, size: 22),
           onPressed: () => Navigator.pop(context),
         ),
-        title: Text(
-          'Thống kê chuyên sâu',
-          style: theme.textTheme.headlineSmall,
-        ),
+        title: Text('Thống kê chuyên sâu', style: theme.textTheme.headlineSmall),
         centerTitle: true,
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
+      body: const SingleChildScrollView(
+        padding: EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const OverviewCards(),
-            const SizedBox(height: 24),
+            OverviewCards(),
+            SizedBox(height: 24),
 
-            const ChartCard(
+            ChartCard(
               title: 'Đường cong quên lãng',
               subtitle: 'Khả năng truy xuất (R) theo thời gian',
               child: ForgettingCurveChart(),
             ),
-            const SizedBox(height: 24),
+            SizedBox(height: 24),
 
-            const ChartCard(
+            ChartCard(
               title: 'Dự đoán ôn tập',
               subtitle: 'Thẻ đến hạn (Due cards) 7 ngày tới',
               child: FutureReviewsBarChart(),
             ),
-            const SizedBox(height: 24),
+            SizedBox(height: 24),
 
-            const ChartCard(
+            ChartCard(
               title: 'Độ chính xác',
               subtitle: 'Tỷ lệ bấm Good/Easy so với Again',
               child: DailyAccuracyChart(),
             ),
-            const SizedBox(height: 24),
+            SizedBox(height: 24),
 
-            const ChartCard(
+            ChartCard(
               title: 'Tần suất học tập',
               subtitle: 'Hoạt động trong 10 tuần qua',
               child: StudyHeatmap(),
             ),
-            const SizedBox(height: 24),
+            SizedBox(height: 24),
 
-            const DifficultWordsList(),
-            const SizedBox(height: 40),
+            DifficultWordsList(),
+            SizedBox(height: 40),
           ],
         ),
       ),

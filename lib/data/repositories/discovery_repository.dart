@@ -34,10 +34,7 @@ class DiscoveryRepositoryImpl with ApiHandler implements DiscoveryRepository {
     int limit = 20,
   }) async {
     return executeApi(() async {
-      final response = await remoteDataSource.getPopularContent(
-        page: page,
-        limit: limit,
-      );
+      final response = await remoteDataSource.getPopularContent(page: page, limit: limit);
       return ApiListResponse<DiscoverySuggestedContentModel>.fromJson(
         response.data as Map<String, dynamic>,
         (json) => DiscoverySuggestedContentModel.fromJson(json),

@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:mind_deck/configs/di.dart';
+import 'package:mind_deck/core/class_access_monitor.dart';
 import 'package:mind_deck/data/models/class/class_model.dart';
 import 'package:mind_deck/ui/screens/classroom/class_hub/bloc/class_hub_bloc.dart';
 import 'package:mind_deck/ui/screens/classroom/class_hub/bloc/class_hub_event.dart';
@@ -13,6 +16,7 @@ import 'package:mind_deck/ui/screens/classroom/class_materials/class_materials_s
 import 'package:mind_deck/ui/screens/classroom/class_assignments/class_assignments_screen.dart';
 import 'package:mind_deck/ui/screens/classroom/class_leaderboard/class_leaderboard_screen.dart';
 import 'package:mind_deck/ui/screens/classroom/class_analytics/class_analytics_screen.dart';
+import 'package:mind_deck/ui/screens/classroom/class_tests/class_tests_screen.dart';
 import 'package:mind_deck/ui/commons/state_screens/common_empty.dart';
 import 'package:mind_deck/ui/commons/state_screens/common_failure.dart';
 import 'package:mind_deck/ui/commons/state_screens/common_loading.dart';
@@ -45,7 +49,7 @@ class FeatureGridItem extends StatelessWidget {
     final isDark = theme.brightness == Brightness.dark;
 
     // Auto-adapt colors cho Dark/Light mode để bento box luôn đẹp
-    final resolvedBgColor = isDark ? color.withOpacity(0.15) : bgColor;
+    final resolvedBgColor = isDark ? color.withValues(alpha: 0.15) : bgColor;
 
     return Material(
       color: resolvedBgColor,
@@ -64,7 +68,7 @@ class FeatureGridItem extends StatelessWidget {
                 child: Icon(
                   icon,
                   size: 110,
-                  color: isDark ? color.withOpacity(0.1) : color.withOpacity(0.08),
+                  color: isDark ? color.withValues(alpha: 0.1) : color.withValues(alpha: 0.08),
                 ),
               ),
             ),
@@ -79,7 +83,9 @@ class FeatureGridItem extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                      color: isDark ? color.withOpacity(0.2) : Colors.white.withOpacity(0.6),
+                      color: isDark
+                          ? color.withValues(alpha: 0.2)
+                          : Colors.white.withValues(alpha: 0.6),
                       borderRadius: BorderRadius.circular(14),
                     ),
                     child: Icon(icon, color: color, size: 24),
@@ -126,20 +132,148 @@ class ClassHubScreen extends StatelessWidget {
     return BlocProvider(
       create: (context) =>
           DI().sl<ClassHubBloc>(param1: classId, param2: classModel)..add(ClassHubLoaded()),
-      child: const _ClassHubView(),
+      child: _ClassAccessGuard(classId: classId, child: const _ClassHubView()),
     );
   }
 }
 
+/// Đóng mọi màn con của lớp khi một request bất kỳ báo mất quyền vào lớp
+/// (`CLASS_NOT_A_MEMBER` / `CLASS_NOT_FOUND`: bị đuổi, đã rời, lớp bị xóa).
+///
+/// Đưa người dùng về hub rồi tải lại hub: hub nhận cùng lỗi và tự thoát về danh sách lớp
+/// kèm thông báo, nên chỉ có một luồng thoát duy nhất.
+class _ClassAccessGuard extends StatefulWidget {
+  final String classId;
+  final Widget child;
+
+  const _ClassAccessGuard({required this.classId, required this.child});
+
+  @override
+  State<_ClassAccessGuard> createState() => _ClassAccessGuardState();
+}
+
+class _ClassAccessGuardState extends State<_ClassAccessGuard> {
+  StreamSubscription<ClassAccessLost>? _sub;
+
+  @override
+  void initState() {
+    super.initState();
+    _sub = ClassAccessMonitor.instance.forClass(widget.classId).listen((_) => _onLost());
+  }
+
+  void _onLost() {
+    if (!mounted) return;
+    final route = ModalRoute.of(context);
+    // Hub đang ở trên cùng: lỗi đến từ chính hub, hub bloc tự xử lý.
+    if (route == null || route.isCurrent) return;
+    Navigator.of(context).popUntil((r) => r == route);
+    context.read<ClassHubBloc>().add(ClassHubLoaded());
+  }
+
+  @override
+  void dispose() {
+    _sub?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
+}
+
 class _ClassHubView extends StatelessWidget {
   const _ClassHubView();
+
+  Future<void> _confirmLeave(BuildContext context) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Rời khỏi lớp học?'),
+        content: const Text(
+          'Bạn sẽ không còn xem được học liệu của lớp. Tiến trình học cá nhân của bạn vẫn được giữ lại.',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Hủy')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text('Rời lớp', style: TextStyle(color: Theme.of(ctx).colorScheme.error)),
+          ),
+        ],
+      ),
+    );
+    if (ok == true && context.mounted) {
+      context.read<ClassHubBloc>().add(ClassHubLeaveRequested());
+    }
+  }
+
+  Future<void> _confirmDelete(BuildContext context) async {
+    final reasonController = TextEditingController();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Xóa lớp học?'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Lớp sẽ biến mất với mọi thành viên. Dữ liệu được giữ 90 ngày rồi xóa hẳn và không thể khôi phục.',
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: reasonController,
+              maxLength: 1000,
+              maxLines: 2,
+              decoration: const InputDecoration(
+                labelText: 'Lý do (không bắt buộc)',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Hủy')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text('Xóa lớp', style: TextStyle(color: Theme.of(ctx).colorScheme.error)),
+          ),
+        ],
+      ),
+    );
+    final reason = reasonController.text.trim();
+    reasonController.dispose();
+    if (ok == true && context.mounted) {
+      context.read<ClassHubBloc>().add(
+        ClassHubDeleteRequested(reason: reason.isEmpty ? null : reason),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
-    return BlocBuilder<ClassHubBloc, ClassHubState>(
+    return BlocConsumer<ClassHubBloc, ClassHubState>(
+      listenWhen: (p, c) => c.noticeId != p.noticeId || (c.exit != null && p.exit != c.exit),
+      listener: (context, state) {
+        final notice = state.notice;
+        if (notice != null) {
+          CustomToast.show(
+            context,
+            state.noticeIsError
+                ? CustomToast.danger(message: notice)
+                : CustomToast.success(message: notice),
+          );
+        }
+        // Không còn ở trong lớp (rời / xóa / từ chối lời mời / lớp không còn truy cập được).
+        // Đóng cả các màn con đang mở phía trên hub (nếu có) rồi mới đóng hub.
+        if (state.exit != null) {
+          final route = ModalRoute.of(context);
+          final navigator = Navigator.of(context);
+          if (route != null && !route.isCurrent) navigator.popUntil((r) => r == route);
+          navigator.maybePop();
+        }
+      },
       builder: (context, state) {
         Widget buildRefreshable(Widget child) {
           return CommonRefresh(
@@ -186,13 +320,15 @@ class _ClassHubView extends StatelessWidget {
           );
         }
 
-        final bool isAdminOrTutor =
-            classData.isOwner || classData.myRole == 'admin' || classData.myRole == 'tutor';
+        final bool isTeacher = classData.isTeacher;
+        final bool isPreview = classData.isPreview;
+        final joinCode = classData.joinCode;
+        final bool hasJoinCode = !isPreview && joinCode != null && joinCode.isNotEmpty;
 
         return Scaffold(
           backgroundColor: colorScheme.background,
           appBar: AppBar(
-            backgroundColor: colorScheme.surface.withOpacity(0.8), // Kính mờ nhẹ
+            backgroundColor: colorScheme.surface.withValues(alpha: 0.8), // Kính mờ nhẹ
             scrolledUnderElevation: 0,
             elevation: 0,
             leading: IconButton(
@@ -209,6 +345,24 @@ class _ClassHubView extends StatelessWidget {
               ),
             ),
             centerTitle: true,
+            actions: [
+              if (!isPreview)
+                PopupMenuButton<String>(
+                  enabled: !state.isBusy,
+                  icon: Icon(Icons.more_vert_rounded, color: colorScheme.onSurface),
+                  onSelected: (value) {
+                    if (value == 'leave') _confirmLeave(context);
+                    if (value == 'delete') _confirmDelete(context);
+                  },
+                  itemBuilder: (_) => [
+                    // Chủ lớp không rời lớp được (phải xóa lớp).
+                    if (classData.isOwner)
+                      const PopupMenuItem(value: 'delete', child: Text('Xóa lớp học'))
+                    else
+                      const PopupMenuItem(value: 'leave', child: Text('Rời lớp học')),
+                  ],
+                ),
+            ],
           ),
           body: SingleChildScrollView(
             physics: const BouncingScrollPhysics(),
@@ -231,7 +385,7 @@ class _ClassHubView extends StatelessWidget {
                     borderRadius: BorderRadius.circular(32),
                     boxShadow: [
                       BoxShadow(
-                        color: colorScheme.primary.withOpacity(0.3),
+                        color: colorScheme.primary.withValues(alpha: 0.3),
                         blurRadius: 20,
                         offset: const Offset(0, 10),
                       ),
@@ -248,7 +402,7 @@ class _ClassHubView extends StatelessWidget {
                           height: 150,
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
-                            color: colorScheme.onPrimary.withOpacity(0.1),
+                            color: colorScheme.onPrimary.withValues(alpha: 0.1),
                           ),
                         ),
                       ),
@@ -260,7 +414,7 @@ class _ClassHubView extends StatelessWidget {
                           height: 200,
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
-                            color: colorScheme.onPrimary.withOpacity(0.08),
+                            color: colorScheme.onPrimary.withValues(alpha: 0.08),
                           ),
                         ),
                       ),
@@ -285,17 +439,16 @@ class _ClassHubView extends StatelessWidget {
                                     ),
                                   ),
                                 ),
-                                if (isAdminOrTutor)
+                                // Mọi thành viên đều có cài đặt thông báo của mình; phần cài đặt lớp
+                                // chỉ owner/admin sửa được (xem màn cài đặt).
+                                if (!isPreview)
                                   Container(
                                     decoration: BoxDecoration(
-                                      color: colorScheme.onPrimary.withOpacity(0.2),
+                                      color: colorScheme.onPrimary.withValues(alpha: 0.2),
                                       shape: BoxShape.circle,
                                     ),
                                     child: IconButton(
-                                      icon: Icon(
-                                        Icons.tune,
-                                        color: colorScheme.onPrimary,
-                                      ), // Đổi icon nhìn pro hơn
+                                      icon: Icon(Icons.tune, color: colorScheme.onPrimary),
                                       onPressed: () async {
                                         final result = await Navigator.push(
                                           context,
@@ -303,7 +456,7 @@ class _ClassHubView extends StatelessWidget {
                                             page: ClassSettingsScreen(classData: classData),
                                           ),
                                         );
-                                        if (result == true) {
+                                        if (result == true && context.mounted) {
                                           context.read<ClassHubBloc>().add(ClassHubLoaded());
                                         }
                                       },
@@ -314,13 +467,13 @@ class _ClassHubView extends StatelessWidget {
                             const SizedBox(height: 24),
 
                             // Stats dạng Glassmorphism blocks
-                            Row(
-                              children: [
-                                if (isAdminOrTutor) ...[
+                            if (isPreview) ...[
+                              Row(
+                                children: [
                                   Expanded(
                                     child: _buildStatBlock(
                                       context,
-                                      "SĨ SỐ",
+                                      "THÀNH VIÊN",
                                       "${classData.memberCount}",
                                     ),
                                   ),
@@ -328,157 +481,61 @@ class _ClassHubView extends StatelessWidget {
                                   Expanded(
                                     child: _buildStatBlock(
                                       context,
-                                      "CHỜ DUYỆT",
-                                      "${state.pendingCount}",
+                                      "GIÁO VIÊN",
+                                      classData.ownerName ?? '--',
+                                      small: true,
                                     ),
-                                  ),
-                                ] else ...[
-                                  Expanded(
-                                    child: _buildStatBlock(
-                                      context,
-                                      "ĐIỂM THI ĐUA",
-                                      "${state.totalScore}",
-                                    ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: _buildStatBlock(context, "HẠNG", "#${state.rank}"),
                                   ),
                                 ],
+                              ),
+                              if (classData.description != null &&
+                                  classData.description!.isNotEmpty) ...[
+                                const SizedBox(height: 16),
+                                Text(
+                                  classData.description!,
+                                  style: TextStyle(
+                                    color: colorScheme.onPrimary.withValues(alpha: 0.9),
+                                    height: 1.4,
+                                  ),
+                                ),
                               ],
-                            ),
-                            const SizedBox(height: 16),
-
-                            // Join Code Container mỏng, dài
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                              decoration: BoxDecoration(
-                                color: colorScheme.onPrimary.withOpacity(0.15),
-                                borderRadius: BorderRadius.circular(16),
-                                border: Border.all(color: colorScheme.onPrimary.withOpacity(0.2)),
-                              ),
-                              child: Row(
+                            ] else
+                              Row(
                                 children: [
-                                  Icon(
-                                    Icons.vpn_key_rounded,
-                                    color: colorScheme.onPrimary.withOpacity(0.8),
-                                    size: 16,
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    "Mã lớp:",
-                                    style: TextStyle(
-                                      color: colorScheme.onPrimary.withOpacity(0.9),
-                                      fontSize: 13,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 6),
-                                  Text(
-                                    classData.joinCode,
-                                    style: TextStyle(
-                                      color: colorScheme.onPrimary,
-                                      fontSize: 15,
-                                      fontWeight: FontWeight.w900,
-                                      letterSpacing: 1.5,
-                                    ),
-                                  ),
-                                  const Spacer(),
-                                  GestureDetector(
-                                    onTap: () {
-                                      Clipboard.setData(ClipboardData(text: classData.joinCode));
-                                      CustomToast.show(
+                                  if (isTeacher) ...[
+                                    Expanded(
+                                      child: _buildStatBlock(
                                         context,
-                                        CustomToast.success(message: 'Đã copy mã lớp!'),
-                                      );
-                                    },
-                                    child: Container(
-                                      padding: const EdgeInsets.all(6),
-                                      decoration: BoxDecoration(
-                                        color: colorScheme.onPrimary.withOpacity(0.2),
-                                        borderRadius: BorderRadius.circular(6),
-                                      ),
-                                      child: Icon(
-                                        Icons.copy,
-                                        color: colorScheme.onPrimary,
-                                        size: 14,
+                                        "SĨ SỐ",
+                                        "${classData.memberCount}",
                                       ),
                                     ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  GestureDetector(
-                                    onTap: () {
-                                      showDialog(
-                                        context: context,
-                                        builder: (_) => Dialog(
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(28),
-                                          ),
-                                          backgroundColor: colorScheme.surface,
-                                          child: Padding(
-                                            padding: const EdgeInsets.all(32.0),
-                                            child: Column(
-                                              mainAxisSize: MainAxisSize.min,
-                                              children: [
-                                                Text(
-                                                  'Mã QR Lớp Học',
-                                                  style: theme.textTheme.titleLarge?.copyWith(
-                                                    fontWeight: FontWeight.w900,
-                                                  ),
-                                                ),
-                                                const SizedBox(height: 24),
-                                                ShareQrWidget(
-                                                  targetType: 'class',
-                                                  targetId: 'join',
-                                                  shareToken: classData.joinCode,
-                                                  customLink:
-                                                      "minddeck://minddeck.com/profile/classrooms/join?code=${classData.joinCode}",
-                                                ),
-                                                const SizedBox(height: 24),
-                                                Text(
-                                                  "Mã lớp: ${classData.joinCode}",
-                                                  style: theme.textTheme.titleMedium?.copyWith(
-                                                    fontWeight: FontWeight.w900,
-                                                    letterSpacing: 2,
-                                                  ),
-                                                ),
-                                                const SizedBox(height: 24),
-                                                SizedBox(
-                                                  width: double.infinity,
-                                                  child: ElevatedButton(
-                                                    style: ElevatedButton.styleFrom(
-                                                      padding: const EdgeInsets.symmetric(
-                                                        vertical: 16,
-                                                      ),
-                                                      shape: RoundedRectangleBorder(
-                                                        borderRadius: BorderRadius.circular(16),
-                                                      ),
-                                                    ),
-                                                    onPressed: () => Navigator.pop(context),
-                                                    child: const Text("Đóng"),
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                        ),
-                                      );
-                                    },
-                                    child: Container(
-                                      padding: const EdgeInsets.all(6),
-                                      decoration: BoxDecoration(
-                                        color: colorScheme.onPrimary,
-                                        borderRadius: BorderRadius.circular(6),
-                                      ),
-                                      child: Icon(
-                                        Icons.qr_code_2,
-                                        color: colorScheme.primary,
-                                        size: 14,
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: _buildStatBlock(
+                                        context,
+                                        "CHỜ DUYỆT",
+                                        "${state.pendingCount}",
                                       ),
                                     ),
-                                  ),
+                                  ] else
+                                    // Học viên: hạng/điểm xem trong màn Bảng xếp hạng (BE dặn không
+                                    // gọi bảng xếp hạng khi mở lớp).
+                                    Expanded(
+                                      child: _buildStatBlock(
+                                        context,
+                                        "THÀNH VIÊN",
+                                        "${classData.memberCount}",
+                                      ),
+                                    ),
                                 ],
                               ),
-                            ),
+
+                            // Mã lớp chỉ giảng viên mới có (học viên nhận null)
+                            if (hasJoinCode) ...[
+                              const SizedBox(height: 16),
+                              _buildJoinCodeBar(context, classData, joinCode),
+                            ],
                           ],
                         ),
                       ),
@@ -486,147 +543,174 @@ class _ClassHubView extends StatelessWidget {
                   ),
                 ),
 
-                const SizedBox(height: 32),
-                Padding(
-                  padding: const EdgeInsets.only(left: 4),
-                  child: Text(
-                    "Chức năng",
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w900,
-                      fontSize: 18,
-                      color: colorScheme.onBackground,
+                if (isPreview)
+                  _buildPreviewActions(context, state, classData)
+                else ...[
+                  const SizedBox(height: 32),
+                  Padding(
+                    padding: const EdgeInsets.only(left: 4),
+                    child: Text(
+                      "Chức năng",
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w900,
+                        fontSize: 18,
+                        color: colorScheme.onBackground,
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(height: 16),
+                  const SizedBox(height: 16),
 
-                // Grid Chức năng (Tăng aspect ratio để form thẻ bento hơi thuôn đẹp mắt)
-                GridView.count(
-                  crossAxisCount: 2,
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  mainAxisSpacing: 16,
-                  crossAxisSpacing: 16,
-                  childAspectRatio: 0.9,
-                  children: [
-                    FeatureGridItem(
-                      title: "Học liệu",
-                      subtitle: "Thẻ & Thư mục",
-                      icon: CupertinoIcons.book_solid,
-                      color: Colors.blue.shade600,
-                      bgColor: Colors.blue.shade50,
-                      onTap: () => Navigator.push(
-                        context,
-                        SlideRightRoute(page: ClassMaterialsScreen(classData: classData)),
+                  // Grid Chức năng (Tăng aspect ratio để form thẻ bento hơi thuôn đẹp mắt)
+                  GridView.count(
+                    crossAxisCount: 2,
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    mainAxisSpacing: 16,
+                    crossAxisSpacing: 16,
+                    childAspectRatio: 0.9,
+                    children: [
+                      FeatureGridItem(
+                        title: "Học liệu",
+                        subtitle: "Thẻ & Thư mục",
+                        icon: CupertinoIcons.book_solid,
+                        color: Colors.blue.shade600,
+                        bgColor: Colors.blue.shade50,
+                        onTap: () => Navigator.push(
+                          context,
+                          SlideRightRoute(page: ClassMaterialsScreen(classData: classData)),
+                        ),
                       ),
-                    ),
-                    FeatureGridItem(
-                      title: "Bài tập",
-                      subtitle: "Kiểm tra",
-                      icon: CupertinoIcons.doc_text_fill,
-                      color: Colors.orange.shade600,
-                      bgColor: Colors.orange.shade50,
-                      onTap: () => Navigator.push(
-                        context,
-                        SlideRightRoute(page: ClassAssignmentsScreen(classData: classData)),
+                      FeatureGridItem(
+                        title: "Bài tập",
+                        subtitle: "Kiểm tra",
+                        icon: CupertinoIcons.doc_text_fill,
+                        color: Colors.orange.shade600,
+                        bgColor: Colors.orange.shade50,
+                        onTap: () => Navigator.push(
+                          context,
+                          SlideRightRoute(page: ClassAssignmentsScreen(classData: classData)),
+                        ),
                       ),
-                    ),
-                    FeatureGridItem(
-                      title: "Thống kê",
-                      subtitle: "Tiến độ học",
-                      icon: CupertinoIcons.chart_pie_fill,
-                      color: Colors.purple.shade600,
-                      bgColor: Colors.purple.shade50,
-                      onTap: () => Navigator.push(
-                        context,
-                        SlideRightRoute(page: AnalyticsScreen(classData: classData)),
+                      FeatureGridItem(
+                        title: "Thống kê",
+                        subtitle: "Tiến độ học",
+                        icon: CupertinoIcons.chart_pie_fill,
+                        color: Colors.purple.shade600,
+                        bgColor: Colors.purple.shade50,
+                        onTap: () => Navigator.push(
+                          context,
+                          SlideRightRoute(page: AnalyticsScreen(classData: classData)),
+                        ),
                       ),
-                    ),
-                    FeatureGridItem(
-                      title: "Bảng xếp hạng",
-                      subtitle: "Đua top",
-                      icon: Icons.workspace_premium_rounded,
-                      color: Colors.yellow.shade800,
-                      bgColor: Colors.yellow.shade100,
-                      onTap: () => Navigator.push(
-                        context,
-                        SlideRightRoute(page: ClassLeaderboardScreen(classData: classData)),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
+                      // Kho đề: chỉ giảng viên tạo / sửa đề của lớp.
+                      if (isTeacher)
+                        FeatureGridItem(
+                          title: "Kho đề",
+                          subtitle: "Tạo & quản lý đề",
+                          icon: CupertinoIcons.square_list_fill,
+                          color: Colors.teal.shade600,
+                          bgColor: Colors.teal.shade50,
+                          onTap: () => Navigator.push(
+                            context,
+                            SlideRightRoute(page: ClassTestsScreen(classData: classData)),
+                          ),
+                        ),
+                      // Lớp có thể tắt bảng xếp hạng với học viên (`permissions.canViewLeaderboard`).
+                      if (classData.canViewLeaderboard)
+                        FeatureGridItem(
+                          title: "Bảng xếp hạng",
+                          subtitle: "Đua top",
+                          icon: Icons.workspace_premium_rounded,
+                          color: Colors.yellow.shade800,
+                          bgColor: Colors.yellow.shade100,
+                          onTap: () {
+                            final hubBloc = context.read<ClassHubBloc>();
+                            Navigator.push<dynamic>(
+                              context,
+                              SlideRightRoute(page: ClassLeaderboardScreen(classData: classData)),
+                            ).then((closedByDisabled) {
+                              // Lớp vừa tắt bảng xếp hạng: tải lại chi tiết lớp để ẩn nút này.
+                              if (closedByDisabled == true) hubBloc.add(ClassHubLoaded());
+                            });
+                          },
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
 
-                // Nút Danh sách thành viên kiểu Wide Bento Card
-                Material(
-                  color: colorScheme.surface,
-                  borderRadius: BorderRadius.circular(28),
-                  child: InkWell(
+                  // Nút Danh sách thành viên kiểu Wide Bento Card
+                  Material(
+                    color: colorScheme.surface,
                     borderRadius: BorderRadius.circular(28),
-                    onTap: () => Navigator.push(
-                      context,
-                      SlideRightRoute(page: ClassMembersScreen(classData: classData)),
-                    ),
-                    child: Container(
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(28),
-                        border: Border.all(color: colorScheme.outlineVariant.withOpacity(0.4)),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(28),
+                      onTap: () => Navigator.push(
+                        context,
+                        SlideRightRoute(page: ClassMembersScreen(classData: classData)),
                       ),
-                      child: Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(16),
-                            decoration: BoxDecoration(
-                              color: colorScheme.primaryContainer,
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: Icon(
-                              Icons.people_alt_rounded,
-                              color: colorScheme.onPrimaryContainer,
-                              size: 28,
-                            ),
+                      child: Container(
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(28),
+                          border: Border.all(
+                            color: colorScheme.outlineVariant.withValues(alpha: 0.4),
                           ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  "Danh sách Thành viên",
-                                  style: theme.textTheme.titleMedium?.copyWith(
-                                    fontWeight: FontWeight.w900,
-                                    color: colorScheme.onSurface,
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: colorScheme.primaryContainer,
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Icon(
+                                Icons.people_alt_rounded,
+                                color: colorScheme.onPrimaryContainer,
+                                size: 28,
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    "Danh sách Thành viên",
+                                    style: theme.textTheme.titleMedium?.copyWith(
+                                      fontWeight: FontWeight.w900,
+                                      color: colorScheme.onSurface,
+                                    ),
                                   ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  "Xem những người tham gia",
-                                  style: theme.textTheme.bodySmall?.copyWith(
-                                    fontWeight: FontWeight.w600,
-                                    color: colorScheme.onSurfaceVariant,
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    "Xem những người tham gia",
+                                    style: theme.textTheme.bodySmall?.copyWith(
+                                      fontWeight: FontWeight.w600,
+                                      color: colorScheme.onSurfaceVariant,
+                                    ),
                                   ),
-                                ),
-                              ],
+                                ],
+                              ),
                             ),
-                          ),
-                          Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: colorScheme.surfaceVariant.withOpacity(0.5),
-                              shape: BoxShape.circle,
+                            Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: colorScheme.surfaceVariant.withValues(alpha: 0.5),
+                                shape: BoxShape.circle,
+                              ),
+                              child: Icon(
+                                CupertinoIcons.arrow_right,
+                                color: colorScheme.onSurface,
+                                size: 18,
+                              ),
                             ),
-                            child: Icon(
-                              CupertinoIcons.arrow_right,
-                              color: colorScheme.onSurface,
-                              size: 18,
-                            ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
                   ),
-                ),
+                ],
                 const SizedBox(height: 40),
               ],
             ),
@@ -636,15 +720,203 @@ class _ClassHubView extends StatelessWidget {
     );
   }
 
+  /// Người ngoài lớp: nút theo `myStatus` (not_joined → Tham gia, pending → Chờ duyệt,
+  /// invited → Chấp nhận / Từ chối). Chưa có API tự hủy yêu cầu đang chờ duyệt.
+  Widget _buildPreviewActions(BuildContext context, ClassHubState state, ClassModel classData) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final bloc = context.read<ClassHubBloc>();
+
+    Widget progress() => const SizedBox(
+      height: 22,
+      width: 22,
+      child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
+    );
+
+    final Widget actions;
+    switch (classData.myStatus) {
+      case 'pending':
+        actions = FilledButton(
+          onPressed: null,
+          style: FilledButton.styleFrom(minimumSize: const Size(double.infinity, 56)),
+          child: const Text('Đang chờ giáo viên duyệt'),
+        );
+      case 'invited':
+        actions = Column(
+          children: [
+            const Text('Bạn được mời tham gia lớp học này', textAlign: TextAlign.center),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: state.isBusy
+                        ? null
+                        : () => bloc.add(const ClassHubInviteResponded(accept: false)),
+                    style: OutlinedButton.styleFrom(minimumSize: const Size(0, 56)),
+                    child: const Text('Từ chối'),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: FilledButton(
+                    onPressed: state.isBusy
+                        ? null
+                        : () => bloc.add(const ClassHubInviteResponded(accept: true)),
+                    style: FilledButton.styleFrom(minimumSize: const Size(0, 56)),
+                    child: state.isBusy ? progress() : const Text('Chấp nhận'),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        );
+      default:
+        actions = Column(
+          children: [
+            FilledButton(
+              onPressed: state.isBusy ? null : () => bloc.add(ClassHubJoinRequested()),
+              style: FilledButton.styleFrom(minimumSize: const Size(double.infinity, 56)),
+              child: state.isBusy ? progress() : const Text('Tham gia lớp học'),
+            ),
+            if (classData.requireApproval)
+              Padding(
+                padding: const EdgeInsets.only(top: 10),
+                child: Text(
+                  'Cần sự phê duyệt của giáo viên',
+                  style: theme.textTheme.bodySmall?.copyWith(color: colorScheme.onSurfaceVariant),
+                ),
+              ),
+          ],
+        );
+    }
+
+    return Padding(padding: const EdgeInsets.only(top: 24), child: actions);
+  }
+
+  Widget _buildJoinCodeBar(BuildContext context, ClassModel classData, String joinCode) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: colorScheme.onPrimary.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: colorScheme.onPrimary.withValues(alpha: 0.2)),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            Icons.vpn_key_rounded,
+            color: colorScheme.onPrimary.withValues(alpha: 0.8),
+            size: 16,
+          ),
+          const SizedBox(width: 8),
+          Text(
+            "Mã lớp:",
+            style: TextStyle(color: colorScheme.onPrimary.withValues(alpha: 0.9), fontSize: 13),
+          ),
+          const SizedBox(width: 6),
+          Text(
+            joinCode,
+            style: TextStyle(
+              color: colorScheme.onPrimary,
+              fontSize: 15,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 1.5,
+            ),
+          ),
+          const Spacer(),
+          GestureDetector(
+            onTap: () {
+              Clipboard.setData(ClipboardData(text: joinCode));
+              CustomToast.show(context, CustomToast.success(message: 'Đã copy mã lớp!'));
+            },
+            child: Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: colorScheme.onPrimary.withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Icon(Icons.copy, color: colorScheme.onPrimary, size: 14),
+            ),
+          ),
+          const SizedBox(width: 8),
+          GestureDetector(
+            onTap: () {
+              showDialog(
+                context: context,
+                builder: (_) => Dialog(
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+                  backgroundColor: colorScheme.surface,
+                  child: Padding(
+                    padding: const EdgeInsets.all(32.0),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          'Mã QR Lớp Học',
+                          style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
+                        ),
+                        const SizedBox(height: 24),
+                        ShareQrWidget(
+                          targetType: 'class',
+                          targetId: 'join',
+                          shareToken: joinCode,
+                          customLink:
+                              "minddeck://minddeck.com/profile/classrooms/join?code=$joinCode",
+                        ),
+                        const SizedBox(height: 24),
+                        Text(
+                          "Mã lớp: $joinCode",
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 2,
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                            ),
+                            onPressed: () => Navigator.pop(context),
+                            child: const Text("Đóng"),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
+            child: Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: colorScheme.onPrimary,
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Icon(Icons.qr_code_2, color: colorScheme.primary, size: 14),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   // Widget con hỗ trợ vẽ thông số trong Banner để code clean hơn
-  Widget _buildStatBlock(BuildContext context, String label, String value) {
+  Widget _buildStatBlock(BuildContext context, String label, String value, {bool small = false}) {
     final colorScheme = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
       decoration: BoxDecoration(
-        color: colorScheme.onPrimary.withOpacity(0.12), // Hiệu ứng kính
+        color: colorScheme.onPrimary.withValues(alpha: 0.12), // Hiệu ứng kính
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: colorScheme.onPrimary.withOpacity(0.2)),
+        border: Border.all(color: colorScheme.onPrimary.withValues(alpha: 0.2)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -652,7 +924,7 @@ class _ClassHubView extends StatelessWidget {
           Text(
             label,
             style: TextStyle(
-              color: colorScheme.onPrimary.withOpacity(0.7),
+              color: colorScheme.onPrimary.withValues(alpha: 0.7),
               fontSize: 10,
               fontWeight: FontWeight.bold,
               letterSpacing: 1,
@@ -661,9 +933,11 @@ class _ClassHubView extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: TextStyle(
               color: colorScheme.onPrimary,
-              fontSize: 24,
+              fontSize: small ? 16 : 24,
               fontWeight: FontWeight.w900,
             ),
           ),

@@ -6,8 +6,25 @@ class InitStudyEvent extends FlashcardStudyEvent {
   final String sessionId;
   final List<FlashcardModel> cards;
   final List<Map<String, dynamic>> reviewLogs;
+  final int timeLimitSeconds;
+  final int elapsedSeconds;
+  final bool showBackFirst;
+  final bool readOnly;
 
-  InitStudyEvent({required this.sessionId, required this.cards, required this.reviewLogs});
+  InitStudyEvent({
+    required this.sessionId,
+    required this.cards,
+    required this.reviewLogs,
+    this.timeLimitSeconds = 0,
+    this.elapsedSeconds = 0,
+    this.showBackFirst = false,
+    this.readOnly = false,
+  });
+}
+
+class StudyTimerTickedEvent extends FlashcardStudyEvent {
+  final int remainingSeconds;
+  StudyTimerTickedEvent(this.remainingSeconds);
 }
 
 class SwipeCardEvent extends FlashcardStudyEvent {

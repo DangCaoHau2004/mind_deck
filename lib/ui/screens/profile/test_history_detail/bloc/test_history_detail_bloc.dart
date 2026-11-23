@@ -3,12 +3,10 @@ import 'package:mind_deck/data/repositories/test_repository.dart';
 import 'package:mind_deck/ui/screens/profile/test_history_detail/bloc/test_history_detail_event.dart';
 import 'package:mind_deck/ui/screens/profile/test_history_detail/bloc/test_history_detail_state.dart';
 
-class TestHistoryDetailBloc
-    extends Bloc<TestHistoryDetailEvent, TestHistoryDetailState> {
+class TestHistoryDetailBloc extends Bloc<TestHistoryDetailEvent, TestHistoryDetailState> {
   final TestRepository testRepository;
 
-  TestHistoryDetailBloc({required this.testRepository})
-    : super(const TestHistoryDetailState()) {
+  TestHistoryDetailBloc({required this.testRepository}) : super(const TestHistoryDetailState()) {
     on<TestHistoryDetailFetched>(_onFetched);
   }
 
@@ -18,16 +16,9 @@ class TestHistoryDetailBloc
   ) async {
     emit(state.copyWith(status: TestHistoryDetailStatus.loading));
     try {
-      final response = await testRepository.getTestAttemptDetail(
-        event.attemptId,
-      );
+      final response = await testRepository.getTestAttemptDetail(event.attemptId);
       if (response.success && response.data != null) {
-        emit(
-          state.copyWith(
-            status: TestHistoryDetailStatus.success,
-            detail: response.data,
-          ),
-        );
+        emit(state.copyWith(status: TestHistoryDetailStatus.success, detail: response.data));
       } else {
         emit(
           state.copyWith(
@@ -37,12 +28,7 @@ class TestHistoryDetailBloc
         );
       }
     } catch (e) {
-      emit(
-        state.copyWith(
-          status: TestHistoryDetailStatus.failure,
-          errorMessage: e.toString(),
-        ),
-      );
+      emit(state.copyWith(status: TestHistoryDetailStatus.failure, errorMessage: e.toString()));
     }
   }
 }

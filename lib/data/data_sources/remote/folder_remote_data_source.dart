@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:mind_deck/constants/api_endpoints.dart';
+import 'package:mind_deck/utils/timezone_utils.dart';
 
 abstract class FolderRemoteDataSource {
   Future<Response> createFolder(Map<String, dynamic> data);
@@ -11,9 +12,21 @@ abstract class FolderRemoteDataSource {
     String? order,
     bool? isStarred,
   });
-  Future<Response> getFolderById(String id, {String? token});
+
+  /// Chi tiết thư mục kèm MỘT TRANG bộ thẻ (tìm/sắp xếp/phân trang), `deckCount` và `dueCount` luôn là tổng cả thư mục.
+  Future<Response> getFolderById(
+    String id, {
+    int page = 1,
+    int limit = 20,
+    String? search,
+    String? sort,
+    String? order,
+    String? token,
+  });
   Future<Response> updateFolder(String id, Map<String, dynamic> data);
-  Future<Response> deleteFolder(String id, {required bool keepDecks});
+  Future<Response> deleteFolder(String id);
+  Future<Response> deleteFolders(List<String> ids);
+  Future<Response> starFolders(List<String> ids, {required bool isStarred});
   Future<Response> shareFolder(String id, {required String accessLevel});
   Future<Response> cloneFolder(String id, {String? token});
   Future<Response> starFolder(String id);
@@ -39,7 +52,7 @@ class FolderRemoteDataSourceImpl implements FolderRemoteDataSource {
     String? sort,
     String? order,
     bool? isStarred,
-  }) {
+  }) async {
     return dio.get(
       ApiEndpoints.folders,
       queryParameters: {
@@ -49,15 +62,32 @@ class FolderRemoteDataSourceImpl implements FolderRemoteDataSource {
         if (sort != null && sort.isNotEmpty) 'sort': sort,
         if (order != null && order.isNotEmpty) 'order': order,
         'isStarred': ?isStarred,
+        'timezone': ?await localTimezone(),
       },
     );
   }
 
   @override
-  Future<Response> getFolderById(String id, {String? token}) {
+  Future<Response> getFolderById(
+    String id, {
+    int page = 1,
+    int limit = 20,
+    String? search,
+    String? sort,
+    String? order,
+    String? token,
+  }) async {
     return dio.get(
       '${ApiEndpoints.folderById}$id',
-      queryParameters: {'token': ?token},
+      queryParameters: {
+        'page': page,
+        'limit': limit,
+        if (search != null && search.isNotEmpty) 'search': search,
+        'sort': ?sort,
+        'order': ?order,
+        'token': ?token,
+        'timezone': ?await localTimezone(),
+      },
     );
   }
 
@@ -67,8 +97,18 @@ class FolderRemoteDataSourceImpl implements FolderRemoteDataSource {
   }
 
   @override
-  Future<Response> deleteFolder(String id, {required bool keepDecks}) {
-    return dio.delete('${ApiEndpoints.folderById}$id', queryParameters: {'keepDecks': keepDecks});
+  Future<Response> deleteFolder(String id) {
+    return dio.delete('${ApiEndpoints.folderById}$id');
+  }
+
+  @override
+  Future<Response> deleteFolders(List<String> ids) {
+    return dio.delete(ApiEndpoints.folders, data: {'ids': ids});
+  }
+
+  @override
+  Future<Response> starFolders(List<String> ids, {required bool isStarred}) {
+    return dio.patch('${ApiEndpoints.folders}/star', data: {'ids': ids, 'isStarred': isStarred});
   }
 
   @override
@@ -81,10 +121,7 @@ class FolderRemoteDataSourceImpl implements FolderRemoteDataSource {
 
   @override
   Future<Response> cloneFolder(String id, {String? token}) {
-    return dio.post(
-      '${ApiEndpoints.cloneFolder}$id/clone',
-      queryParameters: {'token': ?token},
-    );
+    return dio.post('${ApiEndpoints.cloneFolder}$id/clone', queryParameters: {'token': ?token});
   }
 
   @override

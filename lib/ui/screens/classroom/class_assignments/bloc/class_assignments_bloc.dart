@@ -1,14 +1,17 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:mind_deck/constants/class_error_messages.dart';
+import 'package:mind_deck/core/failures.dart';
+import 'package:mind_deck/data/models/api_response_model.dart';
+import 'package:mind_deck/data/models/class/class_assignment_model.dart';
+import 'package:mind_deck/data/models/class/class_assignment_submission_model.dart';
 import 'package:mind_deck/data/repositories/class_repository.dart';
 import 'class_assignments_event.dart';
 import 'class_assignments_state.dart';
 
-class ClassAssignmentsBloc
-    extends Bloc<ClassAssignmentsEvent, ClassAssignmentsState> {
+class ClassAssignmentsBloc extends Bloc<ClassAssignmentsEvent, ClassAssignmentsState> {
   final ClassRepository repository;
 
-  ClassAssignmentsBloc({required this.repository})
-    : super(const ClassAssignmentsState()) {
+  ClassAssignmentsBloc({required this.repository}) : super(const ClassAssignmentsState()) {
     on<ClassAssignmentsLoaded>(_onClassAssignmentsLoaded);
     on<ClassAssignmentCreated>(_onClassAssignmentCreated);
     on<ClassAssignmentUpdated>(_onClassAssignmentUpdated);
@@ -19,40 +22,33 @@ class ClassAssignmentsBloc
     ClassAssignmentsLoaded event,
     Emitter<ClassAssignmentsState> emit,
   ) async {
-    emit(state.copyWith(status: ClassAssignmentsStatus.loading));
+    emit(state.copyWith(status: ClassAssignmentsStatus.loading, isTeacher: event.isTeacher));
     try {
-      final responses = await Future.wait([
-        repository.getAssignments(event.classId, tab: event.tab),
-        repository.getMySubmissions(event.classId),
-        repository.getOverdueAssignments(event.classId),
-      ]);
+      // Giảng viên không gọi `overdue` (luôn rỗng). Học viên cần thêm danh sách quá hạn.
+      final results = await (
+        repository.getAssignments(event.classId, tab: 'active'),
+        repository.getAssignments(event.classId, tab: 'history'),
+        event.isTeacher
+            ? Future<ApiListResponse<ClassAssignmentSubmissionModel>?>.value(null)
+            : repository
+                  .getOverdueAssignments(event.classId)
+                  .then<ApiListResponse<ClassAssignmentSubmissionModel>?>((r) => r)
+                  .catchError((_) => null),
+      ).wait;
 
-      final activeResponse = responses[0] as dynamic; // ApiListResponse<ClassAssignmentModel>
-      final submissionsResponse = responses[1] as dynamic; // ApiListResponse<ClassAssignmentSubmissionModel>
-      final overdueResponse = responses[2] as dynamic; // ApiListResponse<ClassAssignmentSubmissionModel>
-
-      if (activeResponse.success && activeResponse.data != null) {
-        emit(
-          state.copyWith(
-            status: ClassAssignmentsStatus.success,
-            assignments: activeResponse.data,
-            mySubmissions: submissionsResponse.success ? submissionsResponse.data : [],
-            overdueAssignments: overdueResponse.success ? overdueResponse.data : [],
-          ),
-        );
-      } else {
-        emit(
-          state.copyWith(
-            status: ClassAssignmentsStatus.failure,
-            errorMessage: activeResponse.message ?? 'Không thể tải danh sách bài tập',
-          ),
-        );
-      }
-    } catch (e) {
+      emit(
+        state.copyWith(
+          status: ClassAssignmentsStatus.success,
+          active: results.$1.data,
+          history: results.$2.data,
+          overdue: results.$3?.data ?? const [],
+        ),
+      );
+    } on Failure catch (f) {
       emit(
         state.copyWith(
           status: ClassAssignmentsStatus.failure,
-          errorMessage: e.toString(),
+          errorMessage: ClassErrorMessages.of(f),
         ),
       );
     }
@@ -62,32 +58,36 @@ class ClassAssignmentsBloc
     ClassAssignmentCreated event,
     Emitter<ClassAssignmentsState> emit,
   ) async {
-    emit(state.copyWith(isProcessing: true, processErrorMessage: null));
+    if (state.isProcessing) return;
+    emit(state.copyWith(isProcessing: true));
+    final d = event.draft;
     try {
-      final response = await repository.createAssignment(
+      await repository.createAssignment(
         event.classId,
-        title: event.title,
-        description: event.description,
-        type: event.type,
-        deckId: event.deckId,
-        testId: event.testId,
-        deadline: event.deadline,
+        title: d.title,
+        description: d.description,
+        type: d.type,
+        startAt: d.startAt,
+        endAt: d.endAt,
+        mode: d.mode,
+        scope: d.scope,
+        targetCount: d.targetCount,
+        sources: d.type == AssignmentType.studyMission ? d.sources : null,
+        testId: d.testId,
       );
-      if (response.success) {
-        emit(state.copyWith(isProcessing: false));
-        add(ClassAssignmentsLoaded(event.classId));
-      } else {
-        emit(
-          state.copyWith(
-            isProcessing: false,
-            processErrorMessage: response.message ?? 'Không thể tạo bài tập',
-          ),
-        );
-      }
-    } catch (e) {
       emit(
-        state.copyWith(isProcessing: false, processErrorMessage: e.toString()),
+        state.copyWith(
+          isProcessing: false,
+          saved: true,
+          notice: d.startAt != null && d.startAt!.isAfter(DateTime.now())
+              ? 'Đã hẹn giờ giao bài'
+              : 'Đã giao bài tập',
+        ),
       );
+      // `phase` trong response luôn là "scheduled": tải lại danh sách để có trạng thái thật.
+      add(ClassAssignmentsLoaded(event.classId, isTeacher: state.isTeacher));
+    } on Failure catch (f) {
+      emit(state.copyWith(isProcessing: false, formError: ClassErrorMessages.of(f)));
     }
   }
 
@@ -95,31 +95,28 @@ class ClassAssignmentsBloc
     ClassAssignmentUpdated event,
     Emitter<ClassAssignmentsState> emit,
   ) async {
-    emit(state.copyWith(isProcessing: true, processErrorMessage: null));
+    if (state.isProcessing) return;
+    emit(state.copyWith(isProcessing: true));
+    final d = event.draft;
     try {
-      final response = await repository.updateAssignment(
+      await repository.updateAssignment(
         event.classId,
         event.assignmentId,
-        title: event.title,
-        description: event.description,
-        deadline: event.deadline,
+        title: d.title,
+        description: d.description,
+        startAt: d.startAt,
+        endAt: d.endAt,
+        mode: d.mode,
+        scope: d.scope,
+        targetCount: d.targetCount,
+        sources: d.type == AssignmentType.studyMission ? d.sources : null,
+        testId: d.testId,
       );
-      if (response.success) {
-        emit(state.copyWith(isProcessing: false));
-        add(ClassAssignmentsLoaded(event.classId)); // Reload sau khi update
-      } else {
-        emit(
-          state.copyWith(
-            isProcessing: false,
-            processErrorMessage:
-                response.message ?? 'Không thể cập nhật bài tập',
-          ),
-        );
-      }
-    } catch (e) {
-      emit(
-        state.copyWith(isProcessing: false, processErrorMessage: e.toString()),
-      );
+      emit(state.copyWith(isProcessing: false, saved: true, notice: 'Đã lưu thay đổi'));
+      add(ClassAssignmentsLoaded(event.classId, isTeacher: state.isTeacher));
+    } on Failure catch (f) {
+      // 403 CLASS_ASSIGNMENT_LOCKED: bài đã có hoạt động nên không đổi được nội dung / giờ bắt đầu.
+      emit(state.copyWith(isProcessing: false, formError: ClassErrorMessages.of(f)));
     }
   }
 
@@ -127,26 +124,15 @@ class ClassAssignmentsBloc
     ClassAssignmentDeleted event,
     Emitter<ClassAssignmentsState> emit,
   ) async {
-    emit(state.copyWith(isProcessing: true, processErrorMessage: null));
+    if (state.isProcessing) return;
+    emit(state.copyWith(isProcessing: true));
     try {
-      final response = await repository.deleteAssignment(
-        event.classId,
-        event.assignmentId,
-      );
-      if (response.success) {
-        emit(state.copyWith(isProcessing: false));
-        add(ClassAssignmentsLoaded(event.classId)); // Reload sau khi xóa
-      } else {
-        emit(
-          state.copyWith(
-            isProcessing: false,
-            processErrorMessage: response.message ?? 'Không thể xóa bài tập',
-          ),
-        );
-      }
-    } catch (e) {
+      await repository.deleteAssignment(event.classId, event.assignmentId);
+      emit(state.copyWith(isProcessing: false, notice: 'Đã xóa bài tập'));
+      add(ClassAssignmentsLoaded(event.classId, isTeacher: state.isTeacher));
+    } on Failure catch (f) {
       emit(
-        state.copyWith(isProcessing: false, processErrorMessage: e.toString()),
+        state.copyWith(isProcessing: false, notice: ClassErrorMessages.of(f), noticeIsError: true),
       );
     }
   }

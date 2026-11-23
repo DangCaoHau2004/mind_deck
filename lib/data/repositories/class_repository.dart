@@ -2,11 +2,14 @@ import 'package:mind_deck/data/data_sources/remote/class_remote_data_source.dart
 import 'package:mind_deck/data/models/api_response_model.dart';
 import 'package:mind_deck/data/models/class/class_model.dart';
 import 'package:mind_deck/data/models/class/class_member_model.dart';
+import 'package:mind_deck/data/models/class/class_settings_model.dart';
+import 'package:mind_deck/data/models/class/class_invitation_model.dart';
 import 'package:mind_deck/data/models/class/class_material_response_model.dart';
 import 'package:mind_deck/data/models/class/class_leaderboard_response_model.dart';
 import 'package:mind_deck/data/models/class/class_analytics_models.dart';
 import 'package:mind_deck/data/models/class/class_assignment_model.dart';
 import 'package:mind_deck/data/models/class/class_assignment_submission_model.dart';
+import 'package:mind_deck/data/models/test_attempt_detail_model.dart';
 import 'package:mind_deck/core/api_handler.dart';
 
 abstract class ClassRepository {
@@ -26,98 +29,182 @@ abstract class ClassRepository {
     bool requireApproval = false,
     bool isPublic = false,
   });
-  Future<ApiResponse<void>> deleteClass(String classId);
-  Future<ApiResponse<ClassModel>> joinClass({required String classId, required String joinCode});
+
+  /// Chỉ owner. Xóa mềm, xóa cứng sau 90 ngày. `reason` tùy chọn.
+  Future<ApiResponse<void>> deleteClass(String classId, {String? reason});
+
+  /// Gửi `joinCode` HOẶC `classId` (lớp công khai).
+  Future<ApiResponse<JoinResult>> joinClass({String? joinCode, String? classId});
   Future<ApiResponse<ClassModel>> previewClass(String code);
   Future<ApiResponse<void>> approveMember(String classId, String userId);
-  Future<ApiResponse<void>> kickMember(String classId, String userId);
+
+  /// Từ chối (pending) / thu hồi lời mời (invited) / đuổi (approved) theo trạng thái hiện tại.
+  Future<ApiResponse<RemoveMemberResult>> kickMember(String classId, String userId);
   Future<ApiResponse<void>> updateMemberRole(String classId, String userId, String role);
-  Future<ApiListResponse<ClassMemberModel>> getPendingMembers(String classId);
+  Future<ApiListResponse<ClassMemberModel>> getPendingMembers(
+    String classId, {
+    String status = 'pending',
+  });
   Future<ApiListResponse<ClassMemberModel>> getMembers(String classId);
-  Future<ApiResponse<void>> addMaterials(
+  Future<ApiResponse<void>> leaveClass(String classId);
+
+  /// Chỉ gửi khóa muốn đổi. `notifications` là map con (khóa snake_case).
+  Future<ApiResponse<ClassSettings>> updateClassSettings(
+    String classId, {
+    bool? allowMemberAdd,
+    bool? allowMemberClone,
+    bool? showLeaderboard,
+    bool? showMemberEmails,
+    Map<String, bool>? notifications,
+  });
+  Future<ApiResponse<MyNotifySettings>> updateMyNotifications(
+    String classId, {
+    bool? muted,
+    Map<String, bool>? types,
+  });
+
+  // Invitations
+  Future<ApiListResponse<ClassInvitationModel>> getInvitations();
+  Future<ApiResponse<List<InviteLookupRow>>> lookupInvites(String classId, List<String> emails);
+  Future<ApiResponse<List<InviteLookupRow>>> sendInvites(String classId, List<String> emails);
+  Future<ApiResponse<void>> revokeInvite(String classId, String userId);
+  Future<ApiResponse<JoinResult>> acceptInvite(String classId);
+  Future<ApiResponse<void>> declineInvite(String classId);
+
+  // Materials
+  /// Ném `ServerFailure` 409 `CLASS_MATERIAL_DUPLICATE` (kèm `params.duplicates`) khi có học liệu
+  /// trùng mà chưa gửi `duplicatePolicy` (skip | add_anyway | merge).
+  Future<ApiResponse<AddMaterialsResult>> addMaterials(
+    String classId, {
+    required List<String> folderIds,
+    required List<String> deckIds,
+    String? duplicatePolicy,
+  });
+  Future<ApiResponse<CheckMaterialsResult>> checkMaterials(
     String classId, {
     required List<String> folderIds,
     required List<String> deckIds,
   });
-  Future<ApiResponse<void>> deleteMaterials(
+
+  /// Id phải là id BẢN SAO trong lớp (lấy từ [getMaterials]).
+  Future<ApiResponse<RemoveMaterialsResult>> deleteMaterials(
     String classId, {
     required List<String> folderIds,
     required List<String> deckIds,
   });
-  Future<ApiResponse<ClassMaterialResponseModel>> getMaterials(
+  Future<ClassMaterialsPage> getMaterials(
     String classId, {
     int page = 1,
     int limit = 20,
     String? search,
   });
-  Future<ApiResponse<void>> cloneClassMaterials(
+  Future<ClassMaterialsPage> getFolderDecks(
+    String classId,
+    String folderId, {
+    int page = 1,
+    int limit = 20,
+    String? search,
+  });
+
+  /// `targetType`: 'deck' | 'folder'; `targetId` là id BẢN SAO trong lớp. Trả deck/folder cá nhân mới.
+  Future<ApiResponse<Map<String, dynamic>>> cloneClassMaterials(
     String classId, {
-    required String folderId,
-    required String deckId,
+    required String targetType,
+    required String targetId,
   });
 
   // Assignments
+  /// Bài học (`study_mission`) cần `mode` + `scope` (+ `targetCount` khi `scope = count`) + `sources`
+  /// (id BẢN SAO deck / folder của lớp); bài kiểm tra (`graded_test`) cần `testId`.
+  /// `startAt` bỏ trống = giao ngay. Phase của response luôn là `scheduled`: hãy tải lại danh sách.
   Future<ApiResponse<ClassAssignmentModel>> createAssignment(
     String classId, {
     required String title,
     String? description,
     required AssignmentType type,
-    String? deckId,
+    DateTime? startAt,
+    required DateTime endAt,
+    String? mode,
+    String? scope,
+    int? targetCount,
+    List<AssignmentSource>? sources,
     String? testId,
-    required String deadline,
   });
-  Future<ApiResponse<void>> updateAssignment(
+
+  /// 403 `CLASS_ASSIGNMENT_LOCKED` khi đổi nội dung / giờ bắt đầu mà bài đã có hoạt động.
+  Future<ApiResponse<ClassAssignmentModel>> updateAssignment(
     String classId,
     String assignmentId, {
     required String title,
     String? description,
-    required String deadline,
+    DateTime? startAt,
+    required DateTime endAt,
+    String? mode,
+    String? scope,
+    int? targetCount,
+    List<AssignmentSource>? sources,
+    String? testId,
   });
   Future<ApiResponse<void>> deleteAssignment(String classId, String assignmentId);
   Future<ApiListResponse<ClassAssignmentModel>> getAssignments(
     String classId, {
     String tab = 'active',
   });
-  Future<ApiResponse<ClassAssignmentSubmissionModel>> submitAssignmentTest(
-    String classId,
-    String assignmentId, {
-    String? testId,
-    required int totalQuestions,
-    required int correctAnswers,
-    required int durationMs,
-    String? startedAt,
-    String? completedAt,
-    List<Map<String, dynamic>>? answers,
-  });
-  Future<ApiListResponse<ClassAssignmentSubmissionModel>> getSubmissions(
+
+  /// Roster của một bài giao: mọi học viên được giao (kể cả chưa làm / bị bỏ qua).
+  Future<ApiListResponse<AssignmentDrillDownModel>> getSubmissions(
     String classId,
     String assignmentId,
   );
   Future<ApiListResponse<ClassAssignmentSubmissionModel>> getMySubmissions(String classId);
   Future<ApiListResponse<ClassAssignmentSubmissionModel>> getOverdueAssignments(String classId);
-  Future<ApiResponse<ClassLeaderboardResponseModel>> getLeaderboard(String classId);
+
+  /// Bảng xếp hạng theo THÁNG. `month` dạng `YYYY-MM`; null = tháng hiện tại.
+  Future<ApiResponse<ClassLeaderboardResponseModel>> getLeaderboard(
+    String classId, {
+    String? month,
+    int limit = 10,
+  });
 
   // Analytics
+  /// Giảng viên BẮT BUỘC truyền `studentId` (id của chính mình để xem của mình).
   Future<ApiListResponse<ReviewWorkloadModel>> getReviewWorkload(
     String classId, {
     String? studentId,
     String? timezone,
   });
   Future<ApiListResponse<HardestCardModel>> getHardestCards(String classId, {String? studentId});
-  Future<ApiListResponse<DeckHealthModel>> getDeckHealth(
+
+  /// BE trả OBJECT (trước đây là mảng). Bỏ `deckId` = toàn bộ deck của lớp.
+  Future<ApiResponse<DeckHealthResponse>> getDeckHealth(
     String classId, {
     String? deckId,
     String? studentId,
   });
+
+  /// Luôn đủ 6 trạng thái: scheduled, pending, in_progress, completed, overdue, skipped.
   Future<ApiListResponse<AssignmentProgressModel>> getAssignmentProgress(
     String classId,
     String assignmentId,
   );
+
+  /// `status` bắt buộc (một trong 6 trạng thái ở trên).
   Future<ApiListResponse<AssignmentDrillDownModel>> getAssignmentDrillDown(
     String classId,
     String assignmentId, {
-    String? status,
+    required String status,
   });
+  Future<ApiResponse<ScoreDistribution>> getScoreDistribution(String classId, String assignmentId);
+  Future<ApiListResponse<StudentAttemptModel>> getStudentAttempts(
+    String classId,
+    String assignmentId,
+    String userId,
+  );
+  Future<ApiResponse<TestAttemptDetailModel>> getAttemptDetail(String classId, String attemptId);
+  Future<ApiListResponse<StudentAssignmentResult>> getStudentAssignments(
+    String classId,
+    String userId,
+  );
 }
 
 class ClassRepositoryImpl with ApiHandler implements ClassRepository {
@@ -190,23 +277,20 @@ class ClassRepositoryImpl with ApiHandler implements ClassRepository {
   }
 
   @override
-  Future<ApiResponse<void>> deleteClass(String classId) async {
+  Future<ApiResponse<void>> deleteClass(String classId, {String? reason}) async {
     return executeApi(() async {
-      final response = await remoteDataSource.deleteClass(classId);
+      final response = await remoteDataSource.deleteClass(classId, reason: reason);
       return ApiResponse<void>.fromJson(response.data as Map<String, dynamic>, (_) => {});
     });
   }
 
   @override
-  Future<ApiResponse<ClassModel>> joinClass({
-    required String classId,
-    required String joinCode,
-  }) async {
+  Future<ApiResponse<JoinResult>> joinClass({String? joinCode, String? classId}) async {
     return executeApi(() async {
-      final response = await remoteDataSource.joinClass(classId: classId, joinCode: joinCode);
-      return ApiResponse<ClassModel>.fromJson(
+      final response = await remoteDataSource.joinClass(joinCode: joinCode, classId: classId);
+      return ApiResponse<JoinResult>.fromJson(
         response.data as Map<String, dynamic>,
-        (json) => ClassModel.fromJson(json),
+        (json) => JoinResult.fromJson(json),
       );
     });
   }
@@ -231,10 +315,13 @@ class ClassRepositoryImpl with ApiHandler implements ClassRepository {
   }
 
   @override
-  Future<ApiResponse<void>> kickMember(String classId, String userId) async {
+  Future<ApiResponse<RemoveMemberResult>> kickMember(String classId, String userId) async {
     return executeApi(() async {
       final response = await remoteDataSource.kickMember(classId, userId);
-      return ApiResponse<void>.fromJson(response.data as Map<String, dynamic>, (_) => {});
+      return ApiResponse<RemoveMemberResult>.fromJson(
+        response.data as Map<String, dynamic>,
+        (json) => RemoveMemberResult.fromJson(json),
+      );
     });
   }
 
@@ -247,9 +334,12 @@ class ClassRepositoryImpl with ApiHandler implements ClassRepository {
   }
 
   @override
-  Future<ApiListResponse<ClassMemberModel>> getPendingMembers(String classId) async {
+  Future<ApiListResponse<ClassMemberModel>> getPendingMembers(
+    String classId, {
+    String status = 'pending',
+  }) async {
     return executeApi(() async {
-      final response = await remoteDataSource.getPendingMembers(classId);
+      final response = await remoteDataSource.getPendingMembers(classId, status: status);
       return ApiListResponse<ClassMemberModel>.fromJson(
         response.data as Map<String, dynamic>,
         (json) => ClassMemberModel.fromJson(json),
@@ -269,23 +359,172 @@ class ClassRepositoryImpl with ApiHandler implements ClassRepository {
   }
 
   @override
-  Future<ApiResponse<void>> addMaterials(
+  Future<ApiResponse<void>> leaveClass(String classId) async {
+    return executeApi(() async {
+      final response = await remoteDataSource.leaveClass(classId);
+      return ApiResponse<void>.fromJson(response.data as Map<String, dynamic>, (_) => {});
+    });
+  }
+
+  @override
+  Future<ApiResponse<ClassSettings>> updateClassSettings(
+    String classId, {
+    bool? allowMemberAdd,
+    bool? allowMemberClone,
+    bool? showLeaderboard,
+    bool? showMemberEmails,
+    Map<String, bool>? notifications,
+  }) async {
+    return executeApi(() async {
+      final response = await remoteDataSource.patchClassSettings(classId, {
+        'allowMemberAdd': ?allowMemberAdd,
+        'allowMemberClone': ?allowMemberClone,
+        'showLeaderboard': ?showLeaderboard,
+        'showMemberEmails': ?showMemberEmails,
+        'notifications': ?notifications,
+      });
+      return ApiResponse<ClassSettings>.fromJson(
+        response.data as Map<String, dynamic>,
+        (json) => ClassSettings.fromJson(json),
+      );
+    });
+  }
+
+  @override
+  Future<ApiResponse<MyNotifySettings>> updateMyNotifications(
+    String classId, {
+    bool? muted,
+    Map<String, bool>? types,
+  }) async {
+    return executeApi(() async {
+      final response = await remoteDataSource.patchMyNotifications(classId, {
+        'muted': ?muted,
+        ...?types,
+      });
+      return ApiResponse<MyNotifySettings>.fromJson(
+        response.data as Map<String, dynamic>,
+        (json) => MyNotifySettings.fromJson(json),
+      );
+    });
+  }
+
+  // Invitations
+  @override
+  Future<ApiListResponse<ClassInvitationModel>> getInvitations() async {
+    return executeApi(() async {
+      final response = await remoteDataSource.getInvitations();
+      return ApiListResponse<ClassInvitationModel>.fromJson(
+        response.data as Map<String, dynamic>,
+        (json) => ClassInvitationModel.fromJson(json),
+      );
+    });
+  }
+
+  List<InviteLookupRow> _parseInviteRows(dynamic data) => data is List
+      ? [
+          for (final e in data)
+            if (e is Map<String, dynamic>) InviteLookupRow.fromJson(e),
+        ]
+      : const [];
+
+  @override
+  Future<ApiResponse<List<InviteLookupRow>>> lookupInvites(
+    String classId,
+    List<String> emails,
+  ) async {
+    return executeApi(() async {
+      final response = await remoteDataSource.lookupInvites(classId, emails);
+      return ApiResponse<List<InviteLookupRow>>.fromJsonAny(
+        response.data as Map<String, dynamic>,
+        _parseInviteRows,
+      );
+    });
+  }
+
+  @override
+  Future<ApiResponse<List<InviteLookupRow>>> sendInvites(
+    String classId,
+    List<String> emails,
+  ) async {
+    return executeApi(() async {
+      final response = await remoteDataSource.sendInvites(classId, emails);
+      return ApiResponse<List<InviteLookupRow>>.fromJsonAny(
+        response.data as Map<String, dynamic>,
+        _parseInviteRows,
+      );
+    });
+  }
+
+  @override
+  Future<ApiResponse<void>> revokeInvite(String classId, String userId) async {
+    return executeApi(() async {
+      final response = await remoteDataSource.revokeInvite(classId, userId);
+      return ApiResponse<void>.fromJson(response.data as Map<String, dynamic>, (_) => {});
+    });
+  }
+
+  @override
+  Future<ApiResponse<JoinResult>> acceptInvite(String classId) async {
+    return executeApi(() async {
+      final response = await remoteDataSource.acceptInvite(classId);
+      return ApiResponse<JoinResult>.fromJson(
+        response.data as Map<String, dynamic>,
+        (json) => JoinResult.fromJson(json),
+      );
+    });
+  }
+
+  @override
+  Future<ApiResponse<void>> declineInvite(String classId) async {
+    return executeApi(() async {
+      final response = await remoteDataSource.declineInvite(classId);
+      return ApiResponse<void>.fromJson(response.data as Map<String, dynamic>, (_) => {});
+    });
+  }
+
+  // Materials
+  @override
+  Future<ApiResponse<AddMaterialsResult>> addMaterials(
     String classId, {
     required List<String> folderIds,
     required List<String> deckIds,
+    String? duplicatePolicy,
   }) async {
     return executeApi(() async {
       final response = await remoteDataSource.addMaterials(
         classId,
         folderIds: folderIds,
         deckIds: deckIds,
+        duplicatePolicy: duplicatePolicy,
       );
-      return ApiResponse<void>.fromJson(response.data as Map<String, dynamic>, (_) => {});
+      return ApiResponse<AddMaterialsResult>.fromJson(
+        response.data as Map<String, dynamic>,
+        (json) => AddMaterialsResult.fromJson(json),
+      );
     });
   }
 
   @override
-  Future<ApiResponse<void>> deleteMaterials(
+  Future<ApiResponse<CheckMaterialsResult>> checkMaterials(
+    String classId, {
+    required List<String> folderIds,
+    required List<String> deckIds,
+  }) async {
+    return executeApi(() async {
+      final response = await remoteDataSource.checkMaterials(
+        classId,
+        folderIds: folderIds,
+        deckIds: deckIds,
+      );
+      return ApiResponse<CheckMaterialsResult>.fromJson(
+        response.data as Map<String, dynamic>,
+        (json) => CheckMaterialsResult.fromJson(json),
+      );
+    });
+  }
+
+  @override
+  Future<ApiResponse<RemoveMaterialsResult>> deleteMaterials(
     String classId, {
     required List<String> folderIds,
     required List<String> deckIds,
@@ -296,12 +535,15 @@ class ClassRepositoryImpl with ApiHandler implements ClassRepository {
         folderIds: folderIds,
         deckIds: deckIds,
       );
-      return ApiResponse<void>.fromJson(response.data as Map<String, dynamic>, (_) => {});
+      return ApiResponse<RemoveMaterialsResult>.fromJson(
+        response.data as Map<String, dynamic>,
+        (json) => RemoveMaterialsResult.fromJson(json),
+      );
     });
   }
 
   @override
-  Future<ApiResponse<ClassMaterialResponseModel>> getMaterials(
+  Future<ClassMaterialsPage> getMaterials(
     String classId, {
     int page = 1,
     int limit = 20,
@@ -314,26 +556,49 @@ class ClassRepositoryImpl with ApiHandler implements ClassRepository {
         limit: limit,
         search: search,
       );
-      return ApiResponse<ClassMaterialResponseModel>.fromJson(
+      return ClassMaterialsPage.fromBody(response.data as Map<String, dynamic>);
+    });
+  }
+
+  @override
+  Future<ClassMaterialsPage> getFolderDecks(
+    String classId,
+    String folderId, {
+    int page = 1,
+    int limit = 20,
+    String? search,
+  }) async {
+    return executeApi(() async {
+      final response = await remoteDataSource.getFolderDecks(
+        classId,
+        folderId,
+        page: page,
+        limit: limit,
+        search: search,
+      );
+      return ClassMaterialsPage.fromBody(
         response.data as Map<String, dynamic>,
-        (json) => ClassMaterialResponseModel.fromJson(json),
+        itemFallbackType: ClassMaterialItem.typeDeck,
       );
     });
   }
 
   @override
-  Future<ApiResponse<void>> cloneClassMaterials(
+  Future<ApiResponse<Map<String, dynamic>>> cloneClassMaterials(
     String classId, {
-    required String folderId,
-    required String deckId,
+    required String targetType,
+    required String targetId,
   }) async {
     return executeApi(() async {
       final response = await remoteDataSource.cloneClassMaterials(
         classId,
-        folderId: folderId,
-        deckId: deckId,
+        targetType: targetType,
+        targetId: targetId,
       );
-      return ApiResponse<void>.fromJson(response.data as Map<String, dynamic>, (_) => {});
+      return ApiResponse<Map<String, dynamic>>.fromJson(
+        response.data as Map<String, dynamic>,
+        (json) => json,
+      );
     });
   }
 
@@ -344,9 +609,13 @@ class ClassRepositoryImpl with ApiHandler implements ClassRepository {
     required String title,
     String? description,
     required AssignmentType type,
-    String? deckId,
+    DateTime? startAt,
+    required DateTime endAt,
+    String? mode,
+    String? scope,
+    int? targetCount,
+    List<AssignmentSource>? sources,
     String? testId,
-    required String deadline,
   }) async {
     return executeApi(() async {
       final response = await remoteDataSource.createAssignment(
@@ -354,9 +623,13 @@ class ClassRepositoryImpl with ApiHandler implements ClassRepository {
         title: title,
         description: description,
         type: type.toJson(),
-        deckId: deckId,
+        startAt: startAt,
+        endAt: endAt,
+        mode: mode,
+        scope: scope,
+        targetCount: targetCount,
+        sources: sources?.map((s) => s.toJson()).toList(),
         testId: testId,
-        deadline: deadline,
       );
       return ApiResponse<ClassAssignmentModel>.fromJson(
         response.data as Map<String, dynamic>,
@@ -366,12 +639,18 @@ class ClassRepositoryImpl with ApiHandler implements ClassRepository {
   }
 
   @override
-  Future<ApiResponse<void>> updateAssignment(
+  Future<ApiResponse<ClassAssignmentModel>> updateAssignment(
     String classId,
     String assignmentId, {
     required String title,
     String? description,
-    required String deadline,
+    DateTime? startAt,
+    required DateTime endAt,
+    String? mode,
+    String? scope,
+    int? targetCount,
+    List<AssignmentSource>? sources,
+    String? testId,
   }) async {
     return executeApi(() async {
       final response = await remoteDataSource.updateAssignment(
@@ -379,9 +658,18 @@ class ClassRepositoryImpl with ApiHandler implements ClassRepository {
         assignmentId,
         title: title,
         description: description,
-        deadline: deadline,
+        startAt: startAt,
+        endAt: endAt,
+        mode: mode,
+        scope: scope,
+        targetCount: targetCount,
+        sources: sources?.map((s) => s.toJson()).toList(),
+        testId: testId,
       );
-      return ApiResponse<void>.fromJson(response.data as Map<String, dynamic>, (_) => {});
+      return ApiResponse<ClassAssignmentModel>.fromJson(
+        response.data as Map<String, dynamic>,
+        (json) => ClassAssignmentModel.fromJson(json),
+      );
     });
   }
 
@@ -408,46 +696,15 @@ class ClassRepositoryImpl with ApiHandler implements ClassRepository {
   }
 
   @override
-  Future<ApiResponse<ClassAssignmentSubmissionModel>> submitAssignmentTest(
-    String classId,
-    String assignmentId, {
-    String? testId,
-    required int totalQuestions,
-    required int correctAnswers,
-    required int durationMs,
-    String? startedAt,
-    String? completedAt,
-    List<Map<String, dynamic>>? answers,
-  }) async {
-    return executeApi(() async {
-      final response = await remoteDataSource.submitAssignmentTest(
-        classId,
-        assignmentId,
-        testId: testId,
-        totalQuestions: totalQuestions,
-        correctAnswers: correctAnswers,
-        durationMs: durationMs,
-        startedAt: startedAt,
-        completedAt: completedAt,
-        answers: answers,
-      );
-      return ApiResponse<ClassAssignmentSubmissionModel>.fromJson(
-        response.data as Map<String, dynamic>,
-        (json) => ClassAssignmentSubmissionModel.fromJson(json),
-      );
-    });
-  }
-
-  @override
-  Future<ApiListResponse<ClassAssignmentSubmissionModel>> getSubmissions(
+  Future<ApiListResponse<AssignmentDrillDownModel>> getSubmissions(
     String classId,
     String assignmentId,
   ) async {
     return executeApi(() async {
       final response = await remoteDataSource.getSubmissions(classId, assignmentId);
-      return ApiListResponse<ClassAssignmentSubmissionModel>.fromJson(
+      return ApiListResponse<AssignmentDrillDownModel>.fromJson(
         response.data as Map<String, dynamic>,
-        (json) => ClassAssignmentSubmissionModel.fromJson(json),
+        (json) => AssignmentDrillDownModel.fromJson(json),
       );
     });
   }
@@ -477,9 +734,13 @@ class ClassRepositoryImpl with ApiHandler implements ClassRepository {
   }
 
   @override
-  Future<ApiResponse<ClassLeaderboardResponseModel>> getLeaderboard(String classId) async {
+  Future<ApiResponse<ClassLeaderboardResponseModel>> getLeaderboard(
+    String classId, {
+    String? month,
+    int limit = 10,
+  }) async {
     return executeApi(() async {
-      final response = await remoteDataSource.getLeaderboard(classId);
+      final response = await remoteDataSource.getLeaderboard(classId, month: month, limit: limit);
       return ApiResponse<ClassLeaderboardResponseModel>.fromJson(
         response.data as Map<String, dynamic>,
         (json) => ClassLeaderboardResponseModel.fromJson(json),
@@ -522,7 +783,7 @@ class ClassRepositoryImpl with ApiHandler implements ClassRepository {
   }
 
   @override
-  Future<ApiListResponse<DeckHealthModel>> getDeckHealth(
+  Future<ApiResponse<DeckHealthResponse>> getDeckHealth(
     String classId, {
     String? deckId,
     String? studentId,
@@ -533,9 +794,9 @@ class ClassRepositoryImpl with ApiHandler implements ClassRepository {
         deckId: deckId,
         studentId: studentId,
       );
-      return ApiListResponse<DeckHealthModel>.fromJson(
+      return ApiResponse<DeckHealthResponse>.fromJson(
         response.data as Map<String, dynamic>,
-        (json) => DeckHealthModel.fromJson(json),
+        (json) => DeckHealthResponse.fromJson(json),
       );
     });
   }
@@ -558,7 +819,7 @@ class ClassRepositoryImpl with ApiHandler implements ClassRepository {
   Future<ApiListResponse<AssignmentDrillDownModel>> getAssignmentDrillDown(
     String classId,
     String assignmentId, {
-    String? status,
+    required String status,
   }) async {
     return executeApi(() async {
       final response = await remoteDataSource.getAssignmentDrillDown(
@@ -569,6 +830,63 @@ class ClassRepositoryImpl with ApiHandler implements ClassRepository {
       return ApiListResponse<AssignmentDrillDownModel>.fromJson(
         response.data as Map<String, dynamic>,
         (json) => AssignmentDrillDownModel.fromJson(json),
+      );
+    });
+  }
+
+  @override
+  Future<ApiResponse<ScoreDistribution>> getScoreDistribution(
+    String classId,
+    String assignmentId,
+  ) async {
+    return executeApi(() async {
+      final response = await remoteDataSource.getScoreDistribution(classId, assignmentId);
+      return ApiResponse<ScoreDistribution>.fromJson(
+        response.data as Map<String, dynamic>,
+        (json) => ScoreDistribution.fromJson(json),
+      );
+    });
+  }
+
+  @override
+  Future<ApiListResponse<StudentAttemptModel>> getStudentAttempts(
+    String classId,
+    String assignmentId,
+    String userId,
+  ) async {
+    return executeApi(() async {
+      final response = await remoteDataSource.getStudentAttempts(classId, assignmentId, userId);
+      return ApiListResponse<StudentAttemptModel>.fromJson(
+        response.data as Map<String, dynamic>,
+        (json) => StudentAttemptModel.fromJson(json),
+      );
+    });
+  }
+
+  @override
+  Future<ApiResponse<TestAttemptDetailModel>> getAttemptDetail(
+    String classId,
+    String attemptId,
+  ) async {
+    return executeApi(() async {
+      final response = await remoteDataSource.getAttemptDetail(classId, attemptId);
+      return ApiResponse<TestAttemptDetailModel>.fromJson(
+        response.data as Map<String, dynamic>,
+        (json) => TestAttemptDetailModel.fromJson(json),
+      );
+    });
+  }
+
+  @override
+  Future<ApiListResponse<StudentAssignmentResult>> getStudentAssignments(
+    String classId,
+    String userId,
+  ) async {
+    return executeApi(() async {
+      final response = await remoteDataSource.getStudentAssignments(classId, userId);
+      return ApiListResponse<StudentAssignmentResult>.fromJson(
+        response.data as Map<String, dynamic>,
+        (json) => StudentAssignmentResult.fromJson(json),
       );
     });
   }

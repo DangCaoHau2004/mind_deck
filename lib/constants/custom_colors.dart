@@ -12,4 +12,8 @@ class CustomColors {
   static const Color toastDanger = Color(0xFFE53935);
   static const Color toastWarning = Color(0xFFFFA000);
   static const Color toastGeneral = Color(0xFF37474F);
+
+  // Mức độ chính xác (biểu đồ Home): từ 80% dùng màu chính của theme
+  static const Color accuracyWarning = Color(0xFFFF9800); // cam, 30–79%
+  static const Color accuracyBad = Color(0xFFE57373); // đỏ nhạt, dưới 30%
 }

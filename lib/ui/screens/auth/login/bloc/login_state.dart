@@ -1,3 +1,4 @@
+import 'package:mind_deck/core/failures.dart';
 import 'package:mind_deck/data/models/auth/auth_response_model.dart';
 
 abstract class LoginState {}
@@ -12,8 +13,8 @@ class LoginSuccess extends LoginState {
 }
 
 class LoginFailure extends LoginState {
-  final String error;
-  LoginFailure({required this.error});
+  final Failure failure;
+  LoginFailure({required this.failure});
 }
 
 class LoginCancelled extends LoginState {

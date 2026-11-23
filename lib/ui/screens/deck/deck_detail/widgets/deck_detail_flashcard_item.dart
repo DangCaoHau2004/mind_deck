@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:mind_deck/core/extensions/card_state_extension.dart';
 import 'package:mind_deck/data/models/enums.dart';
 import 'package:mind_deck/data/models/flashcard_model.dart';
-import 'package:mind_deck/utils/extensions/card_state_extension.dart';
-import 'flashcard_detail_dialog.dart';
+import 'package:mind_deck/ui/commons/image_screens/image_credit_line.dart';
+import 'package:mind_deck/utils/image_url_utils.dart';
 
+/// Một thẻ trong danh sách của chi tiết bộ thẻ. Không bấm được; hiện đầy đủ ảnh, mặt trước, mặt sau (không
+/// cắt dòng, không cắt ảnh) và viên trạng thái học.
 class DeckDetailFlashcardItem extends StatelessWidget {
   final FlashcardModel cardData;
 
@@ -12,99 +15,72 @@ class DeckDetailFlashcardItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
     final state = cardData.progress?.state ?? CardState.newCard;
+    final stateColor = state == CardState.newCard ? colorScheme.onSurface : state.color;
+    final imageUrl = cardData.frontImageUrl;
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 16),
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border(bottom: BorderSide(color: state.color, width: 4)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 4),
-          ),
-        ],
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: colorScheme.outline.withValues(alpha: 0.15)),
       ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(16),
-          onTap: () => FlashcardDetailDialog.show(context, cardData: cardData),
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (imageUrl != null && imageUrl.isNotEmpty) ...[
+            ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              // Vừa chiều ngang, chiều cao theo tỉ lệ ảnh nên không bị cắt
+              child: Image.network(
+                getImageUrl(imageUrl),
+                width: double.infinity,
+                fit: BoxFit.fitWidth,
+                errorBuilder: (context, error, stackTrace) => const SizedBox.shrink(),
+              ),
+            ),
+            const SizedBox(height: 4),
+            ImageCreditLine(credit: cardData.frontImageCredit),
+            const SizedBox(height: 10),
+          ],
+          Text(
+            cardData.frontText,
+            style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            cardData.backText,
+            style: theme.textTheme.bodyLarge?.copyWith(
+              color: colorScheme.onSurface.withValues(alpha: 0.7),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              color: state.color.withValues(alpha: 0.14),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
               children: [
+                Icon(Icons.circle, size: 8, color: state.color),
+                const SizedBox(width: 6),
                 Text(
-                  cardData.frontText,
-                  style: theme.textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.w800,
-                    color: theme.colorScheme.onSurface,
+                  state.label,
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    color: stateColor,
+                    fontWeight: FontWeight.w700,
                   ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 12),
-                Divider(color: theme.colorScheme.outline.withValues(alpha: 0.08), height: 1),
-                const SizedBox(height: 12),
-                Text(
-                  cardData.backText,
-                  style: theme.textTheme.bodyLarge,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: state.color.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.circle, size: 8, color: state.color),
-                          const SizedBox(width: 6),
-                          Text(
-                            state.label,
-                            style: theme.textTheme.labelSmall?.copyWith(
-                              color: state.color,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          'Xem chi tiết',
-                          style: theme.textTheme.labelSmall?.copyWith(
-                            color: theme.colorScheme.primary,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(width: 4),
-                        Icon(
-                          Icons.arrow_forward_ios_rounded,
-                          size: 10,
-                          color: theme.colorScheme.primary,
-                        ),
-                      ],
-                    ),
-                  ],
                 ),
               ],
             ),
           ),
-        ),
+        ],
       ),
     );
   }

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:mind_deck/data/models/flashcard_model.dart';
+import 'package:mind_deck/utils/image_url_utils.dart';
+import 'package:mind_deck/ui/commons/image_screens/image_credit_line.dart';
 
 class FlashcardStudyCardView extends StatelessWidget {
   final FlashcardModel card;
@@ -28,10 +30,7 @@ class FlashcardStudyCardView extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(
-          color: theme.colorScheme.outline.withValues(alpha: 0.2),
-          width: 1.5,
-        ),
+        border: Border.all(color: theme.colorScheme.outline.withValues(alpha: 0.2), width: 1.5),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.12),
@@ -52,51 +51,73 @@ class FlashcardStudyCardView extends StatelessWidget {
                 if (isFront && card.frontImageUrl != null)
                   Expanded(
                     flex: 5,
-                    child: SizedBox(
-                      width: double.infinity,
-                      child: Image.network(
-                        card.frontImageUrl!,
-                        fit: BoxFit.cover,
-                        loadingBuilder: (context, child, loadingProgress) {
-                          if (loadingProgress == null) return child;
-                          return Container(
-                            color: theme.colorScheme.surfaceContainerHighest,
-                            child: Center(
-                              child: CircularProgressIndicator(
-                                strokeWidth: 3,
-                                color: theme.colorScheme.outline,
-                                value: loadingProgress.expectedTotalBytes != null
-                                    ? loadingProgress.cumulativeBytesLoaded /
-                                        (loadingProgress.expectedTotalBytes ?? 1)
-                                    : null,
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        Image.network(
+                          getImageUrl(card.frontImageUrl),
+                          fit: BoxFit.cover,
+                          loadingBuilder: (context, child, loadingProgress) {
+                            if (loadingProgress == null) return child;
+                            return Container(
+                              color: theme.colorScheme.surfaceContainerHighest,
+                              child: Center(
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 3,
+                                  color: theme.colorScheme.outline,
+                                  value: loadingProgress.expectedTotalBytes != null
+                                      ? loadingProgress.cumulativeBytesLoaded /
+                                            (loadingProgress.expectedTotalBytes ?? 1)
+                                      : null,
+                                ),
+                              ),
+                            );
+                          },
+                          errorBuilder: (context, error, stackTrace) {
+                            return Container(
+                              color: theme.colorScheme.surfaceContainerHighest,
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
+                                    Icons.broken_image_rounded,
+                                    color: theme.colorScheme.outlineVariant,
+                                    size: 48,
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    'Lỗi hiển thị ảnh',
+                                    style: TextStyle(
+                                      color: theme.colorScheme.outline,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+                        if (card.frontImageCredit != null)
+                          Positioned(
+                            left: 8,
+                            right: 8,
+                            bottom: 8,
+                            child: Align(
+                              alignment: Alignment.centerLeft,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: Colors.black54,
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: ImageCreditLine(
+                                  credit: card.frontImageCredit,
+                                  color: Colors.white,
+                                ),
                               ),
                             ),
-                          );
-                        },
-                        errorBuilder: (context, error, stackTrace) {
-                          return Container(
-                            color: theme.colorScheme.surfaceContainerHighest,
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(
-                                  Icons.broken_image_rounded,
-                                  color: theme.colorScheme.outlineVariant,
-                                  size: 48,
-                                ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  'Lỗi hiển thị ảnh',
-                                  style: TextStyle(
-                                    color: theme.colorScheme.outline,
-                                    fontSize: 12,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          );
-                        },
-                      ),
+                          ),
+                      ],
                     ),
                   ),
                 Expanded(
@@ -127,19 +148,13 @@ class FlashcardStudyCardView extends StatelessWidget {
             Container(
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(24),
-                border: Border.all(
-                  color: overlayColor.withValues(alpha: dragOpacity),
-                  width: 4,
-                ),
+                border: Border.all(color: overlayColor.withValues(alpha: dragOpacity), width: 4),
               ),
               child: Center(
                 child: Opacity(
                   opacity: dragOpacity,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 24,
-                      vertical: 12,
-                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                     decoration: BoxDecoration(
                       border: Border.all(color: overlayColor, width: 4),
                       borderRadius: BorderRadius.circular(16),

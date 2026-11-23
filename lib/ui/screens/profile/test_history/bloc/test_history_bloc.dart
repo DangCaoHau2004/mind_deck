@@ -6,8 +6,7 @@ import 'package:mind_deck/ui/screens/profile/test_history/bloc/test_history_stat
 class TestHistoryBloc extends Bloc<TestHistoryEvent, TestHistoryState> {
   final TestRepository testRepository;
 
-  TestHistoryBloc({required this.testRepository})
-    : super(const TestHistoryState()) {
+  TestHistoryBloc({required this.testRepository}) : super(const TestHistoryState()) {
     on<TestHistoryFetched>(_onFetched);
     on<TestHistoryRefreshed>(_onRefreshed);
     on<TestHistoryFilterChanged>(_onFilterChanged);
@@ -24,8 +23,7 @@ class TestHistoryBloc extends Bloc<TestHistoryEvent, TestHistoryState> {
       status: TestHistoryStatus.loading,
       page: 1,
       hasReachedMax: false,
-      selectedQuestionType:
-          event.questionTypes != null && event.questionTypes!.isEmpty
+      selectedQuestionType: event.questionTypes != null && event.questionTypes!.isEmpty
           ? null
           : questionType,
       searchQuery: search,
@@ -39,8 +37,8 @@ class TestHistoryBloc extends Bloc<TestHistoryEvent, TestHistoryState> {
         limit: 15,
         questionTypes: event.questionTypes,
       );
-      if (response.success && response.data != null) {
-        final items = response.data!;
+      if (response.success) {
+        final items = response.data;
         emit(
           state.copyWith(
             status: TestHistoryStatus.success,
@@ -50,27 +48,14 @@ class TestHistoryBloc extends Bloc<TestHistoryEvent, TestHistoryState> {
           ),
         );
       } else {
-        emit(
-          state.copyWith(
-            status: TestHistoryStatus.failure,
-            errorMessage: response.message ?? 'Lỗi khi tải lịch sử',
-          ),
-        );
+        emit(state.copyWith(status: TestHistoryStatus.failure, errorMessage: response.message));
       }
     } catch (e) {
-      emit(
-        state.copyWith(
-          status: TestHistoryStatus.failure,
-          errorMessage: e.toString(),
-        ),
-      );
+      emit(state.copyWith(status: TestHistoryStatus.failure, errorMessage: e.toString()));
     }
   }
 
-  Future<void> _onFetched(
-    TestHistoryFetched event,
-    Emitter<TestHistoryState> emit,
-  ) async {
+  Future<void> _onFetched(TestHistoryFetched event, Emitter<TestHistoryState> emit) async {
     if (state.hasReachedMax) return;
     try {
       if (state.status == TestHistoryStatus.initial) {
@@ -80,8 +65,8 @@ class TestHistoryBloc extends Bloc<TestHistoryEvent, TestHistoryState> {
           limit: 15,
           questionTypes: state.selectedQuestionType,
         );
-        if (response.success && response.data != null) {
-          final items = response.data!;
+        if (response.success) {
+          final items = response.data;
           emit(
             state.copyWith(
               status: TestHistoryStatus.success,
@@ -91,12 +76,7 @@ class TestHistoryBloc extends Bloc<TestHistoryEvent, TestHistoryState> {
             ),
           );
         } else {
-          emit(
-            state.copyWith(
-              status: TestHistoryStatus.failure,
-              errorMessage: response.message ?? 'Lỗi khi tải lịch sử',
-            ),
-          );
+          emit(state.copyWith(status: TestHistoryStatus.failure, errorMessage: response.message));
         }
         return;
       }
@@ -106,8 +86,8 @@ class TestHistoryBloc extends Bloc<TestHistoryEvent, TestHistoryState> {
         limit: 15,
         questionTypes: state.selectedQuestionType,
       );
-      if (response.success && response.data != null) {
-        final items = response.data!;
+      if (response.success) {
+        final items = response.data;
         emit(
           items.isEmpty
               ? state.copyWith(hasReachedMax: true)
@@ -120,34 +100,20 @@ class TestHistoryBloc extends Bloc<TestHistoryEvent, TestHistoryState> {
         );
       }
     } catch (e) {
-      emit(
-        state.copyWith(
-          status: TestHistoryStatus.failure,
-          errorMessage: e.toString(),
-        ),
-      );
+      emit(state.copyWith(status: TestHistoryStatus.failure, errorMessage: e.toString()));
     }
   }
 
-  Future<void> _onRefreshed(
-    TestHistoryRefreshed event,
-    Emitter<TestHistoryState> emit,
-  ) async {
-    emit(
-      state.copyWith(
-        status: TestHistoryStatus.loading,
-        page: 1,
-        hasReachedMax: false,
-      ),
-    );
+  Future<void> _onRefreshed(TestHistoryRefreshed event, Emitter<TestHistoryState> emit) async {
+    emit(state.copyWith(status: TestHistoryStatus.loading, page: 1, hasReachedMax: false));
     try {
       final response = await testRepository.getHistoryTests(
         page: 1,
         limit: 15,
         questionTypes: state.selectedQuestionType,
       );
-      if (response.success && response.data != null) {
-        final items = response.data!;
+      if (response.success) {
+        final items = response.data;
         emit(
           state.copyWith(
             status: TestHistoryStatus.success,
@@ -157,20 +123,10 @@ class TestHistoryBloc extends Bloc<TestHistoryEvent, TestHistoryState> {
           ),
         );
       } else {
-        emit(
-          state.copyWith(
-            status: TestHistoryStatus.failure,
-            errorMessage: response.message ?? 'Lỗi khi làm mới lịch sử',
-          ),
-        );
+        emit(state.copyWith(status: TestHistoryStatus.failure, errorMessage: response.message));
       }
     } catch (e) {
-      emit(
-        state.copyWith(
-          status: TestHistoryStatus.failure,
-          errorMessage: e.toString(),
-        ),
-      );
+      emit(state.copyWith(status: TestHistoryStatus.failure, errorMessage: e.toString()));
     }
   }
 }

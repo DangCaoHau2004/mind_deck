@@ -5,10 +5,23 @@ import 'package:mind_deck/configs/di.dart';
 import 'package:mind_deck/data/models/class/class_model.dart';
 import 'package:mind_deck/data/models/class/class_member_model.dart';
 import 'package:mind_deck/data/models/enums.dart';
+import 'package:mind_deck/ui/commons/custom_toast.dart';
 import 'package:mind_deck/ui/screens/classroom/class_members/bloc/class_members_bloc.dart';
 import 'package:mind_deck/ui/screens/classroom/class_members/bloc/class_members_event.dart';
 import 'package:mind_deck/ui/screens/classroom/class_members/bloc/class_members_state.dart';
+import 'package:mind_deck/ui/screens/classroom/class_members/widgets/invite_members_sheet.dart';
 import 'package:mind_deck/ui/commons/common_refresh.dart';
+
+/// Danh sách đang hiển thị: thành viên, yêu cầu chờ duyệt hoặc lời mời chưa trả lời.
+enum _ListMode { joined, pending, invited }
+
+/// Thứ bậc: owner > admin > tutor > student. Chỉ người CAO bậc hơn mới đuổi được.
+int _rank(ClassRole role) => switch (role) {
+  ClassRole.owner => 4,
+  ClassRole.admin => 3,
+  ClassRole.tutor => 2,
+  _ => 1,
+};
 
 class ClassMembersScreen extends StatelessWidget {
   final ClassModel classData;
@@ -18,7 +31,9 @@ class ClassMembersScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return BlocProvider(
-      create: (context) => DI().sl<ClassMembersBloc>()..add(ClassMembersLoaded(classData.id)),
+      create: (context) =>
+          DI().sl<ClassMembersBloc>()
+            ..add(ClassMembersLoaded(classData.id, canManage: classData.isAdminOrOwner)),
       child: _ClassMembersView(classData: classData),
     );
   }
@@ -29,142 +44,212 @@ class _ClassMembersView extends StatelessWidget {
 
   const _ClassMembersView({required this.classData});
 
+  /// Hạng của tôi trong lớp (dùng để quyết định ai đuổi được ai).
+  int get _myRank => classData.isOwner
+      ? 4
+      : switch (classData.myRole) {
+          'admin' => 3,
+          'tutor' => 2,
+          _ => 1,
+        };
+
+  Future<void> _confirmKick(BuildContext context, ClassMemberModel member) async {
+    final name = member.fullName.isNotEmpty ? member.fullName : 'thành viên này';
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Đuổi khỏi lớp?'),
+        content: Text(
+          '$name sẽ mất quyền xem học liệu và không còn trong thống kê của lớp. '
+          'Tiến trình học cá nhân của họ vẫn được giữ lại.',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Hủy')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text('Đuổi', style: TextStyle(color: Theme.of(ctx).colorScheme.error)),
+          ),
+        ],
+      ),
+    );
+    if (ok == true && context.mounted) {
+      context.read<ClassMembersBloc>().add(MemberKicked(classData.id, member.userId));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    final bool isAdminOrOwner = classData.isOwner || classData.myRole == 'admin';
+    final bool canManage = classData.isAdminOrOwner;
 
-    return DefaultTabController(
-      length: isAdminOrOwner ? 2 : 1,
-      child: Scaffold(
-        backgroundColor: colorScheme.background,
-        appBar: AppBar(
-          leading: IconButton(
-            icon: Icon(CupertinoIcons.back, color: colorScheme.onSurface),
-            onPressed: () => Navigator.pop(context),
-          ),
-          title: Text(
-            "Thành viên",
-            style: theme.textTheme.titleLarge?.copyWith(
-              color: colorScheme.onSurface,
-              fontWeight: FontWeight.w900, // Chữ đậm, phá cách
-              letterSpacing: 0.5,
-            ),
-          ),
-          backgroundColor: Colors.transparent, // Trong suốt để hiện nền
-          scrolledUnderElevation: 0,
-          elevation: 0,
-          centerTitle: true,
-          // Phá cách: Biến TabBar mặc định thành Segmented Control hiện đại
-          bottom: PreferredSize(
-            preferredSize: const Size.fromHeight(66),
-            child: Container(
-              height: 50,
-              margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-              padding: const EdgeInsets.all(6),
-              decoration: BoxDecoration(
-                color: colorScheme.surfaceVariant.withOpacity(0.6),
-                borderRadius: BorderRadius.circular(30),
+    return BlocConsumer<ClassMembersBloc, ClassMembersState>(
+      listenWhen: (prev, current) => prev.noticeId != current.noticeId,
+      listener: (context, state) {
+        final notice = state.notice;
+        if (notice == null) return;
+        CustomToast.show(
+          context,
+          state.noticeIsError
+              ? CustomToast.danger(message: notice)
+              : CustomToast.success(message: notice),
+        );
+      },
+      builder: (context, state) {
+        return DefaultTabController(
+          length: canManage ? 3 : 1,
+          child: Scaffold(
+            backgroundColor: colorScheme.background,
+            appBar: AppBar(
+              leading: IconButton(
+                icon: Icon(CupertinoIcons.back, color: colorScheme.onSurface),
+                onPressed: () => Navigator.pop(context),
               ),
-              child: TabBar(
-                indicatorSize: TabBarIndicatorSize.tab,
-                dividerColor: Colors.transparent,
-                indicator: BoxDecoration(
-                  color: colorScheme.primary,
-                  borderRadius: BorderRadius.circular(24),
-                  boxShadow: [
-                    BoxShadow(
-                      color: colorScheme.primary.withOpacity(0.4),
-                      blurRadius: 8,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
+              title: Text(
+                "Thành viên",
+                style: theme.textTheme.titleLarge?.copyWith(
+                  color: colorScheme.onSurface,
+                  fontWeight: FontWeight.w900, // Chữ đậm, phá cách
+                  letterSpacing: 0.5,
                 ),
-                labelColor: colorScheme.onPrimary,
-                unselectedLabelColor: colorScheme.onSurfaceVariant,
-                labelStyle: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
-                unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
-                tabs: [
-                  const Tab(text: "Đã tham gia"),
-                  if (isAdminOrOwner) const Tab(text: "Chờ duyệt"),
-                ],
               ),
-            ),
-          ),
-        ),
-        body: BlocConsumer<ClassMembersBloc, ClassMembersState>(
-          listenWhen: (prev, current) => prev.isProcessing != current.isProcessing,
-          listener: (context, state) {
-            if (!state.isProcessing && state.processErrorMessage != null) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(
-                    state.processErrorMessage!,
-                    style: const TextStyle(fontWeight: FontWeight.bold),
+              backgroundColor: Colors.transparent, // Trong suốt để hiện nền
+              scrolledUnderElevation: 0,
+              elevation: 0,
+              centerTitle: true,
+              actions: [
+                // Giảng viên luôn mời được; học viên chỉ khi lớp bật `allowMemberAdd`.
+                if (classData.canInviteMembers)
+                  IconButton(
+                    tooltip: 'Mời thành viên',
+                    icon: Icon(CupertinoIcons.person_add, color: colorScheme.primary),
+                    onPressed: () => showInviteMembersSheet(context, classId: classData.id),
                   ),
-                  backgroundColor: colorScheme.error,
-                  behavior: SnackBarBehavior.floating,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                  margin: const EdgeInsets.all(20),
-                ),
-              );
-            }
-          },
-          builder: (context, state) {
-            if (state.status == ClassMembersStatus.loading) {
-              return Center(
-                child: CircularProgressIndicator(color: colorScheme.primary, strokeWidth: 4),
-              );
-            }
-            if (state.status == ClassMembersStatus.failure) {
-              return Center(
-                child: Text(
-                  state.errorMessage ?? 'Có lỗi xảy ra',
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    color: colorScheme.error,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              );
-            }
-
-            return TabBarView(
-              physics: const NeverScrollableScrollPhysics(),
-              children: [
-                // Tab 1: Đã tham gia
-                _buildMemberList(context, state.members, isAdminOrOwner, false),
-
-                // Tab 2: Chờ duyệt (nếu có quyền)
-                if (isAdminOrOwner)
-                  _buildMemberList(context, state.pendingMembers, isAdminOrOwner, true),
               ],
-            );
-          },
-        ),
-      ),
+              // Phá cách: Biến TabBar mặc định thành Segmented Control hiện đại
+              bottom: canManage
+                  ? PreferredSize(
+                      preferredSize: const Size.fromHeight(66),
+                      child: Container(
+                        height: 50,
+                        margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: colorScheme.surfaceVariant.withValues(alpha: 0.6),
+                          borderRadius: BorderRadius.circular(30),
+                        ),
+                        child: TabBar(
+                          indicatorSize: TabBarIndicatorSize.tab,
+                          dividerColor: Colors.transparent,
+                          indicator: BoxDecoration(
+                            color: colorScheme.primary,
+                            borderRadius: BorderRadius.circular(24),
+                            boxShadow: [
+                              BoxShadow(
+                                color: colorScheme.primary.withValues(alpha: 0.4),
+                                blurRadius: 8,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          labelColor: colorScheme.onPrimary,
+                          unselectedLabelColor: colorScheme.onSurfaceVariant,
+                          labelStyle: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
+                          unselectedLabelStyle: const TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 13,
+                          ),
+                          tabs: [
+                            const Tab(text: "Đã tham gia"),
+                            Tab(
+                              text: state.pendingMembers.isEmpty
+                                  ? "Chờ duyệt"
+                                  : "Chờ duyệt (${state.pendingMembers.length})",
+                            ),
+                            Tab(
+                              text: state.invitedMembers.isEmpty
+                                  ? "Đã mời"
+                                  : "Đã mời (${state.invitedMembers.length})",
+                            ),
+                          ],
+                        ),
+                      ),
+                    )
+                  : null,
+            ),
+            body: Builder(
+              builder: (context) {
+                if (state.status == ClassMembersStatus.loading) {
+                  return Center(
+                    child: CircularProgressIndicator(color: colorScheme.primary, strokeWidth: 4),
+                  );
+                }
+                if (state.status == ClassMembersStatus.failure) {
+                  return Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            state.errorMessage ?? 'Có lỗi xảy ra',
+                            textAlign: TextAlign.center,
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              color: colorScheme.error,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          OutlinedButton.icon(
+                            onPressed: () => context.read<ClassMembersBloc>().add(
+                              ClassMembersLoaded(classData.id, canManage: canManage),
+                            ),
+                            icon: const Icon(Icons.refresh_rounded),
+                            label: const Text('Thử lại'),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                }
+
+                return TabBarView(
+                  physics: const NeverScrollableScrollPhysics(),
+                  children: [
+                    // Tab 1: Đã tham gia
+                    _buildMemberList(context, state.members, _ListMode.joined),
+
+                    // Tab 2, 3: Chờ duyệt / Đã mời (chỉ owner/admin)
+                    if (canManage) ...[
+                      _buildMemberList(context, state.pendingMembers, _ListMode.pending),
+                      _buildMemberList(context, state.invitedMembers, _ListMode.invited),
+                    ],
+                  ],
+                );
+              },
+            ),
+          ),
+        );
+      },
     );
   }
 
-  Widget _buildMemberList(
-    BuildContext context,
-    List<ClassMemberModel> members,
-    bool isAdminOrOwner,
-    bool isPending,
-  ) {
+  Widget _buildMemberList(BuildContext context, List<ClassMemberModel> members, _ListMode mode) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+    final bool canManage = classData.isAdminOrOwner;
+    final bool isPending = mode == _ListMode.pending;
+    final bool isInvited = mode == _ListMode.invited;
 
-    final bool canViewEmail =
-        classData.isOwner || classData.myRole == 'admin' || classData.myRole == 'tutor';
+    Future<void> onRefresh() async {
+      final bloc = context.read<ClassMembersBloc>();
+      bloc.add(ClassMembersRefreshed(classData.id));
+      await bloc.stream.firstWhere((ClassMembersState s) => !s.isRefreshing);
+    }
 
     if (members.isEmpty) {
       return CommonRefresh(
-        onRefresh: () async {
-          final bloc = context.read<ClassMembersBloc>();
-          bloc.add(ClassMembersRefreshed(classData.id));
-          await bloc.stream.firstWhere((ClassMembersState s) => !s.isRefreshing);
-        },
+        onRefresh: onRefresh,
         slivers: [
           SliverFillRemaining(
             child: Center(
@@ -174,11 +259,11 @@ class _ClassMembersView extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.all(24),
                     decoration: BoxDecoration(
-                      color: colorScheme.surfaceVariant.withOpacity(0.5),
+                      color: colorScheme.surfaceVariant.withValues(alpha: 0.5),
                       shape: BoxShape.circle,
                     ),
                     child: Icon(
-                      isPending
+                      isPending || isInvited
                           ? CupertinoIcons.person_crop_circle_badge_exclam
                           : CupertinoIcons.person_3_fill,
                       size: 80,
@@ -187,7 +272,11 @@ class _ClassMembersView extends StatelessWidget {
                   ),
                   const SizedBox(height: 24),
                   Text(
-                    isPending ? "Không có yêu cầu chờ duyệt." : "Lớp học chưa có ai.",
+                    isPending
+                        ? "Không có yêu cầu chờ duyệt."
+                        : isInvited
+                        ? "Chưa có lời mời nào đang chờ."
+                        : "Lớp học chưa có ai.",
                     style: theme.textTheme.titleMedium?.copyWith(
                       color: colorScheme.onSurfaceVariant,
                       fontWeight: FontWeight.w800,
@@ -203,11 +292,7 @@ class _ClassMembersView extends StatelessWidget {
     }
 
     return CommonRefresh(
-      onRefresh: () async {
-        final bloc = context.read<ClassMembersBloc>();
-        bloc.add(ClassMembersRefreshed(classData.id));
-        await bloc.stream.firstWhere((ClassMembersState s) => !s.isRefreshing);
-      },
+      onRefresh: onRefresh,
       slivers: [
         SliverPadding(
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
@@ -229,6 +314,14 @@ class _ClassMembersView extends StatelessWidget {
                   ? Icons.shield_rounded
                   : (isTutor ? Icons.school_rounded : Icons.person_rounded);
 
+              // Email là null với học viên (trừ khi lớp bật `showMemberEmails`); giảng viên luôn thấy.
+              final email = member.email ?? member.user?.email;
+              final canKick =
+                  canManage &&
+                  mode == _ListMode.joined &&
+                  member.userId != classData.ownerId &&
+                  _rank(member.role) < _myRank;
+
               return Container(
                 margin: const EdgeInsets.only(bottom: 16),
                 clipBehavior: Clip.antiAlias, // Để watermark không tràn viền
@@ -237,7 +330,7 @@ class _ClassMembersView extends StatelessWidget {
                   borderRadius: BorderRadius.circular(28),
                   boxShadow: [
                     BoxShadow(
-                      color: roleColor.withOpacity(0.05),
+                      color: roleColor.withValues(alpha: 0.05),
                       blurRadius: 20,
                       offset: const Offset(0, 10),
                     ),
@@ -259,7 +352,7 @@ class _ClassMembersView extends StatelessWidget {
                       bottom: -20,
                       child: Transform.rotate(
                         angle: -0.2,
-                        child: Icon(roleIcon, size: 100, color: roleColor.withOpacity(0.04)),
+                        child: Icon(roleIcon, size: 100, color: roleColor.withValues(alpha: 0.04)),
                       ),
                     ),
 
@@ -273,14 +366,12 @@ class _ClassMembersView extends StatelessWidget {
                             width: 56,
                             height: 56,
                             decoration: BoxDecoration(
-                              color: roleColor.withOpacity(0.15),
+                              color: roleColor.withValues(alpha: 0.15),
                               borderRadius: BorderRadius.circular(18),
                             ),
                             alignment: Alignment.center,
                             child: Text(
-                              member.user?.fullName.isNotEmpty == true
-                                  ? member.user!.fullName[0].toUpperCase()
-                                  : '?',
+                              member.fullName.isNotEmpty ? member.fullName[0].toUpperCase() : '?',
                               style: theme.textTheme.headlineSmall?.copyWith(
                                 color: roleColor,
                                 fontWeight: FontWeight.w900,
@@ -294,7 +385,7 @@ class _ClassMembersView extends StatelessWidget {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  member.user?.fullName ?? 'Unknown User',
+                                  member.fullName.isNotEmpty ? member.fullName : 'Unknown User',
                                   style: theme.textTheme.titleMedium?.copyWith(
                                     fontWeight: FontWeight.w900,
                                     fontSize: 17,
@@ -303,12 +394,10 @@ class _ClassMembersView extends StatelessWidget {
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                 ),
-                                if (canViewEmail &&
-                                    member.user?.email != null &&
-                                    member.user!.email.isNotEmpty) ...[
+                                if (email != null && email.isNotEmpty) ...[
                                   const SizedBox(height: 4),
                                   Text(
-                                    member.user!.email,
+                                    email,
                                     style: theme.textTheme.bodySmall?.copyWith(
                                       color: colorScheme.onSurfaceVariant,
                                       fontWeight: FontWeight.w600,
@@ -317,7 +406,7 @@ class _ClassMembersView extends StatelessWidget {
                                     overflow: TextOverflow.ellipsis,
                                   ),
                                 ],
-                                if (!isPending) ...[
+                                if (mode == _ListMode.joined) ...[
                                   const SizedBox(height: 8),
                                   Row(
                                     children: [
@@ -335,12 +424,21 @@ class _ClassMembersView extends StatelessWidget {
                                     ],
                                   ),
                                 ],
+                                if (isInvited && member.invitedAt != null) ...[
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    'Đã mời ${_formatDate(member.invitedAt!)}',
+                                    style: theme.textTheme.labelSmall?.copyWith(
+                                      color: colorScheme.outline,
+                                    ),
+                                  ),
+                                ],
                               ],
                             ),
                           ),
 
                           // Khối Actions
-                          if (isAdminOrOwner && isPending) ...[
+                          if (canManage && isPending) ...[
                             Column(
                               children: [
                                 InkWell(
@@ -351,7 +449,7 @@ class _ClassMembersView extends StatelessWidget {
                                   child: Container(
                                     padding: const EdgeInsets.all(10),
                                     decoration: BoxDecoration(
-                                      color: Colors.green.withOpacity(0.15),
+                                      color: Colors.green.withValues(alpha: 0.15),
                                       borderRadius: BorderRadius.circular(12),
                                     ),
                                     child: const Icon(
@@ -370,7 +468,7 @@ class _ClassMembersView extends StatelessWidget {
                                   child: Container(
                                     padding: const EdgeInsets.all(10),
                                     decoration: BoxDecoration(
-                                      color: Colors.red.withOpacity(0.15),
+                                      color: Colors.red.withValues(alpha: 0.15),
                                       borderRadius: BorderRadius.circular(12),
                                     ),
                                     child: const Icon(
@@ -382,13 +480,23 @@ class _ClassMembersView extends StatelessWidget {
                                 ),
                               ],
                             ),
-                          ] else if (isAdminOrOwner &&
-                              !isPending &&
-                              member.userId != classData.ownerId &&
-                              member.role != ClassRole.owner) ...[
+                          ] else if (canManage && isInvited) ...[
+                            TextButton(
+                              onPressed: () => context.read<ClassMembersBloc>().add(
+                                InviteRevoked(classData.id, member.userId),
+                              ),
+                              child: Text(
+                                'Thu hồi',
+                                style: TextStyle(
+                                  color: colorScheme.error,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                            ),
+                          ] else if (canKick) ...[
                             Container(
                               decoration: BoxDecoration(
-                                color: colorScheme.surfaceVariant.withOpacity(0.4),
+                                color: colorScheme.surfaceVariant.withValues(alpha: 0.4),
                                 borderRadius: BorderRadius.circular(16),
                               ),
                               child: PopupMenuButton<String>(
@@ -402,9 +510,7 @@ class _ClassMembersView extends StatelessWidget {
                                 offset: const Offset(0, 40),
                                 onSelected: (value) {
                                   if (value == 'kick') {
-                                    context.read<ClassMembersBloc>().add(
-                                      MemberKicked(classData.id, member.userId),
-                                    );
+                                    _confirmKick(context, member);
                                   } else if (value == 'role' && classData.isOwner) {
                                     _showRoleDialog(context, member);
                                   }
@@ -461,6 +567,12 @@ class _ClassMembersView extends StatelessWidget {
         ),
       ],
     );
+  }
+
+  String _formatDate(DateTime d) {
+    final l = d.toLocal();
+    String two(int n) => n.toString().padLeft(2, '0');
+    return '${two(l.day)}/${two(l.month)}/${l.year}';
   }
 
   void _showRoleDialog(BuildContext context, ClassMemberModel member) {
@@ -542,7 +654,7 @@ class _ClassMembersView extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: color.withOpacity(0.15),
+                color: color.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Icon(icon, color: color, size: 24),

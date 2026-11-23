@@ -1,4 +1,5 @@
 import 'package:equatable/equatable.dart';
+import 'package:mind_deck/core/failures.dart';
 import 'package:mind_deck/data/models/user_model.dart';
 
 abstract class AuthEvent extends Equatable {
@@ -19,4 +20,15 @@ class LoggedIn extends AuthEvent {
   List<Object?> get props => [user];
 }
 
-class LoggedOut extends AuthEvent {}
+/// Thử tải lại hồ sơ khi đang ở `AuthAuthenticatedOffline` (mạng có lại, quay lại app, người dùng làm mới).
+class ProfileRetried extends AuthEvent {
+  const ProfileRetried();
+}
+
+class LoggedOut extends AuthEvent {
+  final Failure? failure;
+  const LoggedOut({this.failure});
+
+  @override
+  List<Object?> get props => [failure];
+}

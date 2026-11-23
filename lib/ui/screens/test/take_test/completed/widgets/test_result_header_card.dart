@@ -39,9 +39,7 @@ class TestResultHeaderCard extends StatelessWidget {
       child: Column(
         children: [
           Icon(
-            isPass
-                ? Icons.emoji_events_rounded
-                : Icons.sentiment_very_dissatisfied_rounded,
+            isPass ? Icons.emoji_events_rounded : Icons.sentiment_very_dissatisfied_rounded,
             size: 72,
             color: Colors.white,
           ),

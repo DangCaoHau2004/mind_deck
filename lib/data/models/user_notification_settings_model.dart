@@ -1,95 +1,126 @@
+/// Công tắc thông báo lớp theo loại (áp cho mọi lớp).
+class ClassNotificationTypes {
+  final bool assignment;
+  final bool announcement;
+  final bool joinRequest;
+  final bool joinApproved;
+
+  const ClassNotificationTypes({
+    this.assignment = true,
+    this.announcement = true,
+    this.joinRequest = true,
+    this.joinApproved = true,
+  });
+
+  factory ClassNotificationTypes.fromJson(Map<String, dynamic>? json) {
+    if (json == null) return const ClassNotificationTypes();
+    return ClassNotificationTypes(
+      assignment: json['assignment'] as bool? ?? true,
+      announcement: json['announcement'] as bool? ?? true,
+      joinRequest: json['joinRequest'] as bool? ?? true,
+      joinApproved: json['joinApproved'] as bool? ?? true,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+    'assignment': assignment,
+    'announcement': announcement,
+    'joinRequest': joinRequest,
+    'joinApproved': joinApproved,
+  };
+
+  ClassNotificationTypes copyWith({
+    bool? assignment,
+    bool? announcement,
+    bool? joinRequest,
+    bool? joinApproved,
+  }) {
+    return ClassNotificationTypes(
+      assignment: assignment ?? this.assignment,
+      announcement: announcement ?? this.announcement,
+      joinRequest: joinRequest ?? this.joinRequest,
+      joinApproved: joinApproved ?? this.joinApproved,
+    );
+  }
+}
+
+/// Cấu hình thông báo của người dùng (`GET/PUT /notifications/settings`).
+/// Giờ là `HH:MM:SS`; thẻ đến hạn luôn nhắc cố định 20:00 giờ máy nên không có giờ riêng.
 class UserNotificationSettingsModel {
-  final String userId;
+  final bool isAllNotificationsEnabled;
+  final bool isAllClassNotificationsEnabled;
   final bool isMorningMotivationEnabled;
   final String morningTime;
   final bool isSrsDueEnabled;
-  final String srsDueTime;
+  final bool isStudyReminderEnabled;
+  final String studyTime;
   final bool isStreakWarningEnabled;
-  final bool isClassUpdateEnabled;
-  final DateTime updatedAt;
+  final ClassNotificationTypes classNotificationTypes;
 
-  UserNotificationSettingsModel({
-    required this.userId,
-    required this.isMorningMotivationEnabled,
-    required this.morningTime,
-    required this.isSrsDueEnabled,
-    required this.srsDueTime,
-    required this.isStreakWarningEnabled,
-    required this.isClassUpdateEnabled,
-    required this.updatedAt,
+  const UserNotificationSettingsModel({
+    this.isAllNotificationsEnabled = true,
+    this.isAllClassNotificationsEnabled = true,
+    this.isMorningMotivationEnabled = true,
+    this.morningTime = '07:00:00',
+    this.isSrsDueEnabled = true,
+    this.isStudyReminderEnabled = false,
+    this.studyTime = '20:00:00',
+    this.isStreakWarningEnabled = true,
+    this.classNotificationTypes = const ClassNotificationTypes(),
   });
 
   factory UserNotificationSettingsModel.fromJson(Map<String, dynamic> json) {
     return UserNotificationSettingsModel(
-      userId: json['userId'] as String? ?? json['user_id'] as String? ?? '',
-      isMorningMotivationEnabled:
-          json['isMorningMotivationEnabled'] as bool? ??
-          json['is_morning_motivation_enabled'] as bool? ??
-          true,
-      morningTime:
-          json['morningTime'] as String? ??
-          json['morning_time'] as String? ??
-          '07:00:00',
-      isSrsDueEnabled:
-          json['isSrsDueEnabled'] as bool? ??
-          json['is_srs_due_enabled'] as bool? ??
-          true,
-      srsDueTime:
-          json['srsDueTime'] as String? ??
-          json['srs_due_time'] as String? ??
-          '20:00:00',
-      isStreakWarningEnabled:
-          json['isStreakWarningEnabled'] as bool? ??
-          json['is_streak_warning_enabled'] as bool? ??
-          true,
-      isClassUpdateEnabled:
-          json['isClassUpdateEnabled'] as bool? ??
-          json['is_class_update_enabled'] as bool? ??
-          true,
-      updatedAt:
-          DateTime.tryParse(
-            json['updatedAt']?.toString() ??
-                json['updated_at']?.toString() ??
-                '',
-          ) ??
-          DateTime.now(),
+      isAllNotificationsEnabled: json['isAllNotificationsEnabled'] as bool? ?? true,
+      isAllClassNotificationsEnabled: json['isAllClassNotificationsEnabled'] as bool? ?? true,
+      isMorningMotivationEnabled: json['isMorningMotivationEnabled'] as bool? ?? true,
+      morningTime: json['morningTime'] as String? ?? '07:00:00',
+      isSrsDueEnabled: json['isSrsDueEnabled'] as bool? ?? true,
+      isStudyReminderEnabled: json['isStudyReminderEnabled'] as bool? ?? false,
+      studyTime: json['studyTime'] as String? ?? '20:00:00',
+      isStreakWarningEnabled: json['isStreakWarningEnabled'] as bool? ?? true,
+      classNotificationTypes: ClassNotificationTypes.fromJson(
+        json['classNotificationTypes'] as Map<String, dynamic>?,
+      ),
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
-      'userId': userId,
+      'isAllNotificationsEnabled': isAllNotificationsEnabled,
+      'isAllClassNotificationsEnabled': isAllClassNotificationsEnabled,
       'isMorningMotivationEnabled': isMorningMotivationEnabled,
       'morningTime': morningTime,
       'isSrsDueEnabled': isSrsDueEnabled,
-      'srsDueTime': srsDueTime,
+      'isStudyReminderEnabled': isStudyReminderEnabled,
+      'studyTime': studyTime,
       'isStreakWarningEnabled': isStreakWarningEnabled,
-      'isClassUpdateEnabled': isClassUpdateEnabled,
-      'updatedAt': updatedAt.toIso8601String(),
+      'classNotificationTypes': classNotificationTypes.toJson(),
     };
   }
 
   UserNotificationSettingsModel copyWith({
-    String? userId,
+    bool? isAllNotificationsEnabled,
+    bool? isAllClassNotificationsEnabled,
     bool? isMorningMotivationEnabled,
     String? morningTime,
     bool? isSrsDueEnabled,
-    String? srsDueTime,
+    bool? isStudyReminderEnabled,
+    String? studyTime,
     bool? isStreakWarningEnabled,
-    bool? isClassUpdateEnabled,
-    DateTime? updatedAt,
+    ClassNotificationTypes? classNotificationTypes,
   }) {
     return UserNotificationSettingsModel(
-      userId: userId ?? this.userId,
-      isMorningMotivationEnabled:
-          isMorningMotivationEnabled ?? this.isMorningMotivationEnabled,
+      isAllNotificationsEnabled: isAllNotificationsEnabled ?? this.isAllNotificationsEnabled,
+      isAllClassNotificationsEnabled:
+          isAllClassNotificationsEnabled ?? this.isAllClassNotificationsEnabled,
+      isMorningMotivationEnabled: isMorningMotivationEnabled ?? this.isMorningMotivationEnabled,
       morningTime: morningTime ?? this.morningTime,
       isSrsDueEnabled: isSrsDueEnabled ?? this.isSrsDueEnabled,
-      srsDueTime: srsDueTime ?? this.srsDueTime,
-      isStreakWarningEnabled:
-          isStreakWarningEnabled ?? this.isStreakWarningEnabled,
-      isClassUpdateEnabled: isClassUpdateEnabled ?? this.isClassUpdateEnabled,
-      updatedAt: updatedAt ?? this.updatedAt,
+      isStudyReminderEnabled: isStudyReminderEnabled ?? this.isStudyReminderEnabled,
+      studyTime: studyTime ?? this.studyTime,
+      isStreakWarningEnabled: isStreakWarningEnabled ?? this.isStreakWarningEnabled,
+      classNotificationTypes: classNotificationTypes ?? this.classNotificationTypes,
     );
   }
 }

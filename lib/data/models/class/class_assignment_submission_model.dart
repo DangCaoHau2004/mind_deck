@@ -1,105 +1,61 @@
 import 'class_assignment_model.dart';
 
+/// Một dòng của `GET /classes/:id/my-submissions` và `GET /classes/:id/assignments/overdue`.
+/// Hai API có shape khác nhau: `my-submissions` dùng `assignmentId`, `overdue` dùng `id`
+/// (+ `my{}`) -> đọc cả hai.
 class ClassAssignmentSubmissionModel {
-  final String id;
   final String assignmentId;
-  final String userId;
-  final AssignmentStatus status;
-  final int progressCount;
-  final String? testAttemptId;
-  final double? scorePercentage;
-  final DateTime? completedAt;
-  final DateTime updatedAt;
-
-  // Extra fields from joined query
   final String? title;
   final AssignmentType? type;
-  final DateTime? deadline;
+  final DateTime? endAt;
+  final AssignmentStatus status;
+  final int? targetCount;
+  final int progressCount;
+
+  /// null khi đề tắt `showScore`.
+  final double? scorePercentage;
+  final int attemptsCount;
+  final DateTime? completedAt;
+  final String? testAttemptId;
+
+  /// Chỉ có ở `overdue`.
+  final AssignmentMine? my;
 
   ClassAssignmentSubmissionModel({
-    required this.id,
     required this.assignmentId,
-    required this.userId,
-    required this.status,
-    required this.progressCount,
-    this.testAttemptId,
-    this.scorePercentage,
-    this.completedAt,
-    required this.updatedAt,
     this.title,
     this.type,
-    this.deadline,
+    this.endAt,
+    required this.status,
+    this.targetCount,
+    this.progressCount = 0,
+    this.scorePercentage,
+    this.attemptsCount = 0,
+    this.completedAt,
+    this.testAttemptId,
+    this.my,
   });
 
+  /// Bí danh cũ của `endAt`.
+  DateTime? get deadline => endAt;
+
   factory ClassAssignmentSubmissionModel.fromJson(Map<String, dynamic> json) {
+    final rawMy = json['my'];
+    final mine = rawMy is Map<String, dynamic> ? AssignmentMine.fromJson(rawMy) : null;
     return ClassAssignmentSubmissionModel(
-      id: json['id'] as String? ?? '',
-      assignmentId: json['assignmentId'] as String? ?? json['assignment_id'] as String? ?? '',
-      userId: json['userId'] as String? ?? json['user_id'] as String? ?? '',
-      status: AssignmentStatus.fromString(json['status'] as String?),
-      progressCount: json['progressCount'] as int? ?? json['progress_count'] as int? ?? 0,
-      testAttemptId: json['testAttemptId'] as String? ?? json['test_attempt_id'] as String?,
-      scorePercentage:
-          (json['scorePercentage'] as num?)?.toDouble() ??
-          (json['score_percentage'] as num?)?.toDouble(),
-      completedAt: DateTime.tryParse(
-        json['completedAt']?.toString() ?? json['completed_at']?.toString() ?? '',
-      ),
-      updatedAt:
-          DateTime.tryParse(
-            json['updatedAt']?.toString() ?? json['updated_at']?.toString() ?? '',
-          ) ??
-          DateTime.now(),
+      assignmentId: json['assignmentId'] as String? ?? json['id'] as String? ?? '',
       title: json['title'] as String?,
       type: json['type'] != null ? AssignmentType.fromString(json['type'] as String?) : null,
-      deadline: DateTime.tryParse(json['deadline']?.toString() ?? ''),
-    );
-  }
-
-  Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'assignmentId': assignmentId,
-      'userId': userId,
-      'status': status.toJson(),
-      'progressCount': progressCount,
-      if (testAttemptId != null) 'testAttemptId': testAttemptId,
-      if (scorePercentage != null) 'scorePercentage': scorePercentage,
-      if (completedAt != null) 'completedAt': completedAt!.toIso8601String(),
-      'updatedAt': updatedAt.toIso8601String(),
-      if (title != null) 'title': title,
-      if (type != null) 'type': type!.toJson(),
-      if (deadline != null) 'deadline': deadline!.toIso8601String(),
-    };
-  }
-
-  ClassAssignmentSubmissionModel copyWith({
-    String? id,
-    String? assignmentId,
-    String? userId,
-    AssignmentStatus? status,
-    int? progressCount,
-    String? testAttemptId,
-    double? scorePercentage,
-    DateTime? completedAt,
-    DateTime? updatedAt,
-    String? title,
-    AssignmentType? type,
-    DateTime? deadline,
-  }) {
-    return ClassAssignmentSubmissionModel(
-      id: id ?? this.id,
-      assignmentId: assignmentId ?? this.assignmentId,
-      userId: userId ?? this.userId,
-      status: status ?? this.status,
-      progressCount: progressCount ?? this.progressCount,
-      testAttemptId: testAttemptId ?? this.testAttemptId,
-      scorePercentage: scorePercentage ?? this.scorePercentage,
-      completedAt: completedAt ?? this.completedAt,
-      updatedAt: updatedAt ?? this.updatedAt,
-      title: title ?? this.title,
-      type: type ?? this.type,
-      deadline: deadline ?? this.deadline,
+      endAt: DateTime.tryParse(json['endAt']?.toString() ?? json['deadline']?.toString() ?? ''),
+      // `overdue`: `status` là hằng số, trạng thái thật nằm ở `my.status`.
+      status: mine?.status ?? AssignmentStatus.fromString(json['status'] as String?),
+      targetCount: (json['targetCount'] as num?)?.toInt(),
+      progressCount: (json['progressCount'] as num?)?.toInt() ?? 0,
+      scorePercentage: (json['scorePercentage'] as num?)?.toDouble(),
+      attemptsCount: (json['attemptsCount'] as num?)?.toInt() ?? mine?.attemptsCount ?? 0,
+      completedAt: DateTime.tryParse(json['completedAt']?.toString() ?? ''),
+      testAttemptId: json['testAttemptId'] as String?,
+      my: mine,
     );
   }
 }

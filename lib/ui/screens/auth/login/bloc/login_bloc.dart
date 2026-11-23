@@ -1,10 +1,12 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:mind_deck/constants/app_error_codes.dart';
 import 'package:mind_deck/core/extensions/string_extension.dart';
 import 'package:mind_deck/core/validators.dart';
 import 'package:mind_deck/data/repositories/auth_repository.dart';
 import 'package:mind_deck/services/storage_service.dart';
 import 'login_event.dart';
 import 'login_state.dart';
+import 'package:mind_deck/core/failures.dart';
 
 class LoginBloc extends Bloc<LoginEvent, LoginState> {
   final AuthRepository authRepository;
@@ -20,12 +22,12 @@ class LoginBloc extends Bloc<LoginEvent, LoginState> {
     final password = event.password;
 
     if (!Validators.isValidEmail(email)) {
-      emit(LoginFailure(error: 'auth_email_invalid'.tr));
+      emit(LoginFailure(failure: ValidationFailure('auth_email_invalid'.tr)));
       return;
     }
 
     if (password.isEmpty) {
-      emit(LoginFailure(error: 'auth_password_empty'.tr));
+      emit(LoginFailure(failure: ValidationFailure('auth_password_empty'.tr)));
       return;
     }
 
@@ -34,16 +36,29 @@ class LoginBloc extends Bloc<LoginEvent, LoginState> {
       final response = await authRepository.login(email: email, password: password);
       if (response.success && response.data != null) {
         final authData = response.data!;
+        if (authData.requireLogin) {
+          emit(LoginFailure(failure: UnknownFailure(message: 'login_failed'.tr)));
+          return;
+        }
         await storageService.saveTokens(
           accessToken: authData.accessToken,
           refreshToken: authData.refreshToken,
         );
         emit(LoginSuccess(authResponse: authData));
       } else {
-        emit(LoginFailure(error: response.message ?? 'login_failed'.tr));
+        emit(
+          LoginFailure(
+            failure: UnknownFailure(
+              message: AppErrorCodes.requestFailed.tr,
+              errorCode: AppErrorCodes.requestFailed,
+            ),
+          ),
+        );
       }
+    } on Failure catch (f) {
+      emit(LoginFailure(failure: f));
     } catch (e) {
-      emit(LoginFailure(error: e.toString()));
+      emit(LoginFailure(failure: UnknownFailure(message: e.toString())));
     }
   }
 
@@ -60,16 +75,29 @@ class LoginBloc extends Bloc<LoginEvent, LoginState> {
       }
       if (response.success && response.data != null) {
         final authData = response.data!;
+        if (authData.requireLogin) {
+          emit(LoginFailure(failure: UnknownFailure(message: 'login_failed'.tr)));
+          return;
+        }
         await storageService.saveTokens(
           accessToken: authData.accessToken,
           refreshToken: authData.refreshToken,
         );
         emit(LoginSuccess(authResponse: authData));
       } else {
-        emit(LoginFailure(error: response.message ?? 'login_google_failed'.tr));
+        emit(
+          LoginFailure(
+            failure: UnknownFailure(
+              message: AppErrorCodes.requestFailed.tr,
+              errorCode: AppErrorCodes.requestFailed,
+            ),
+          ),
+        );
       }
+    } on Failure catch (f) {
+      emit(LoginFailure(failure: f));
     } catch (e) {
-      emit(LoginFailure(error: e.toString()));
+      emit(LoginFailure(failure: UnknownFailure(message: e.toString())));
     }
   }
 }

@@ -66,21 +66,16 @@ class _FillInTheBlankBodyState extends State<FillInTheBlankBody> {
           ),
         ),
         const SizedBox(height: 16),
-        buildPromptContainer(context, prompt, imageUrl),
+        buildPromptContainer(context, prompt, imageUrl, widget.question.promptImageCredit),
         const SizedBox(height: 32),
         TextField(
           controller: _controller,
           enabled: !widget.isChecked,
           onChanged: widget.onChanged,
-          style: theme.textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.w600,
-          ),
+          style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
           decoration: InputDecoration(
             hintText: 'Nhập câu trả lời...',
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 20,
-              vertical: 18,
-            ),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
             filled: true,
             fillColor: widget.isChecked
                 ? (isCorrect
@@ -89,35 +84,25 @@ class _FillInTheBlankBodyState extends State<FillInTheBlankBody> {
                 : colorScheme.surface,
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(16),
-              borderSide: BorderSide(
-                color: colorScheme.outline.withValues(alpha: 0.3),
-              ),
+              borderSide: BorderSide(color: colorScheme.outline.withValues(alpha: 0.3)),
             ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(16),
-              borderSide: BorderSide(
-                color: colorScheme.outline.withValues(alpha: 0.3),
-              ),
+              borderSide: BorderSide(color: colorScheme.outline.withValues(alpha: 0.3)),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(16),
               borderSide: BorderSide(color: colorScheme.primary, width: 2),
             ),
-            errorText: widget.isChecked && !isCorrect
-                ? 'Đáp án đúng: $expected'
-                : null,
+            errorText: widget.isChecked && !isCorrect ? 'Đáp án đúng: $expected' : null,
             errorStyle: theme.textTheme.bodyMedium?.copyWith(
               color: colorScheme.error,
               fontWeight: FontWeight.w600,
             ),
             suffixIcon: widget.isChecked
                 ? Icon(
-                    isCorrect
-                        ? Icons.check_circle_rounded
-                        : Icons.cancel_rounded,
-                    color: isCorrect
-                        ? Colors.green.shade600
-                        : colorScheme.error,
+                    isCorrect ? Icons.check_circle_rounded : Icons.cancel_rounded,
+                    color: isCorrect ? Colors.green.shade600 : colorScheme.error,
                   )
                 : null,
           ),

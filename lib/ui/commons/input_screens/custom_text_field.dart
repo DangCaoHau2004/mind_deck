@@ -17,6 +17,9 @@ class CustomTextField extends StatelessWidget {
   final void Function()? onTap;
   final bool isRequired;
 
+  /// true: nhãn, chữ nhập và gợi ý cỡ 16 (titleMedium/bodyLarge) cho các form lớn; false: cỡ 14 như cũ.
+  final bool large;
+
   const CustomTextField({
     super.key,
     this.controller,
@@ -33,6 +36,7 @@ class CustomTextField extends StatelessWidget {
     this.onChanged,
     this.onTap,
     this.isRequired = false,
+    this.large = false,
     this.alignLabelWithHint = false,
   });
 
@@ -52,35 +56,28 @@ class CustomTextField extends StatelessWidget {
       readOnly: readOnly,
       onChanged: onChanged,
       onTap: onTap,
-      style: textTheme.bodyMedium?.copyWith(
+      style: (large ? textTheme.bodyLarge : textTheme.bodyMedium)?.copyWith(
         color: enabled ? colorScheme.onSurface : colorScheme.onSurfaceVariant,
       ),
       decoration: InputDecoration(
         hintText: hintText,
-        hintStyle: textTheme.bodyMedium?.copyWith(
+        hintStyle: (large ? textTheme.bodyLarge : textTheme.bodyMedium)?.copyWith(
           color: colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
         ),
         filled: true,
         fillColor: enabled ? colorScheme.surfaceContainer : colorScheme.surface,
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 16,
-        ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         prefixIcon: prefixIcon,
         suffixIcon: suffixIcon,
         alignLabelWithHint: alignLabelWithHint,
         errorMaxLines: 3,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(
-            color: colorScheme.outline.withValues(alpha: 0.5),
-          ),
+          borderSide: BorderSide(color: colorScheme.outline.withValues(alpha: 0.5)),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(
-            color: colorScheme.outline.withValues(alpha: 0.5),
-          ),
+          borderSide: BorderSide(color: colorScheme.outline.withValues(alpha: 0.5)),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
@@ -96,9 +93,7 @@ class CustomTextField extends StatelessWidget {
         ),
         disabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(
-            color: colorScheme.outlineVariant.withValues(alpha: 0.5),
-          ),
+          borderSide: BorderSide(color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
         ),
       ),
     );
@@ -114,7 +109,9 @@ class CustomTextField extends StatelessWidget {
         RichText(
           text: TextSpan(
             text: label,
-            style: textTheme.titleSmall?.copyWith(color: colorScheme.onSurface),
+            style: (large ? textTheme.titleMedium : textTheme.titleSmall)?.copyWith(
+              color: colorScheme.onSurface,
+            ),
             children: [
               if (isRequired)
                 TextSpan(

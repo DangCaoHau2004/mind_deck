@@ -12,8 +12,6 @@ class FolderDetailOverlayAppBar extends StatelessWidget {
   final FolderModel folder;
   final String folderId;
   final String? token;
-  final Color contentColor;
-  final bool isLight;
   final bool isFolderOwner;
   final VoidCallback onDeleteFolder;
   final VoidCallback onCloneFolder;
@@ -23,21 +21,19 @@ class FolderDetailOverlayAppBar extends StatelessWidget {
     required this.folder,
     required this.folderId,
     this.token,
-    required this.contentColor,
-    required this.isLight,
     required this.isFolderOwner,
     required this.onDeleteFolder,
     required this.onCloneFolder,
   });
 
-  Widget _buildCircleButton({required Widget child, required bool isLight}) {
+  Widget _buildCircleButton({required Widget child}) {
     return Container(
       decoration: BoxDecoration(
-        color: isLight ? Colors.white.withValues(alpha: 0.85) : Colors.black.withValues(alpha: 0.4),
+        color: Colors.black.withValues(alpha: 0.4),
         shape: BoxShape.circle,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.12),
+            color: Colors.black.withValues(alpha: 0.08),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -50,6 +46,7 @@ class FolderDetailOverlayAppBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    const iconColor = Colors.white;
 
     return Positioned(
       top: MediaQuery.of(context).padding.top,
@@ -62,9 +59,8 @@ class FolderDetailOverlayAppBar extends StatelessWidget {
           children: [
             // Back Button
             _buildCircleButton(
-              isLight: isLight,
               child: IconButton(
-                icon: Icon(Icons.arrow_back_ios_new_rounded, color: contentColor),
+                icon: const Icon(Icons.arrow_back_rounded, color: iconColor),
                 iconSize: 20,
                 constraints: const BoxConstraints(),
                 padding: const EdgeInsets.all(10),
@@ -72,111 +68,102 @@ class FolderDetailOverlayAppBar extends StatelessWidget {
               ),
             ),
 
-            // More Options Popup Menu
-            _buildCircleButton(
-              isLight: isLight,
-              child: PopupMenuButton<String>(
-                icon: Icon(Icons.more_vert_rounded, color: contentColor),
-                iconSize: 20,
-                constraints: const BoxConstraints(),
-                padding: const EdgeInsets.all(10),
-                color: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                offset: const Offset(0, 50),
-                onSelected: (value) {
-                  if (value == 'edit') {
-                    context
-                        .pushNamed(
-                          AppRoute.folderEdit.name,
-                          pathParameters: {'id': folderId},
-                          extra: folder.toJson(),
-                        )
-                        .then((result) {
-                          if (result != null && result is String && context.mounted) {
-                            CustomToast.show(
-                              context,
-                              CustomToast.success(message: result),
-                            );
-                            context.read<FolderDetailBloc>().add(
-                              FolderDetailRefreshed(folderId),
-                            );
-                          }
-                        });
-                  } else if (value == 'delete') {
-                    onDeleteFolder();
-                  } else if (value == 'share') {
-                    ShareFolderDialog.show(
-                      context,
-                      folder: folder,
-                      isOwner: isFolderOwner,
-                    );
-                  } else if (value == 'clone') {
-                    onCloneFolder();
-                  }
-                },
-                itemBuilder: (context) => [
-                  if (folder.canClone)
-                    PopupMenuItem(
-                      value: 'clone',
-                      child: Row(
-                        children: [
-                          const Icon(
-                            Icons.copy_all_rounded,
-                            color: Colors.black87,
-                            size: 22,
-                          ),
-                          const SizedBox(width: 12),
-                          Text('Nhân bản', style: theme.textTheme.titleSmall),
-                        ],
-                      ),
+            // Chia sẻ + menu tuỳ chọn
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Bản sao lớp không chia sẻ được (BE từ chối)
+                if (!folder.isClassCopy) ...[
+                  _buildCircleButton(
+                    child: IconButton(
+                      icon: const Icon(Icons.share_rounded, color: iconColor),
+                      iconSize: 18,
+                      constraints: const BoxConstraints(),
+                      padding: const EdgeInsets.all(10),
+                      onPressed: () =>
+                          ShareFolderDialog.show(context, folder: folder, isOwner: isFolderOwner),
                     ),
-                  if (isFolderOwner) ...[
-                    PopupMenuItem(
-                      value: 'edit',
-                      child: Row(
-                        children: [
-                          const Icon(Icons.edit_rounded, color: Colors.black87, size: 22),
-                          const SizedBox(width: 12),
-                          Text('Chỉnh sửa', style: theme.textTheme.titleSmall),
-                        ],
-                      ),
-                    ),
-                    PopupMenuItem(
-                      value: 'delete',
-                      child: Row(
-                        children: [
-                          const Icon(
-                            Icons.delete_outline_rounded,
-                            color: Colors.redAccent,
-                            size: 22,
-                          ),
-                          const SizedBox(width: 12),
-                          Text(
-                            'Xóa thư mục',
-                            style: theme.textTheme.titleSmall?.copyWith(
-                              color: Colors.redAccent,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ] else
-                    PopupMenuItem(
-                      value: 'share',
-                      child: Row(
-                        children: [
-                          const Icon(
-                            Icons.share_rounded,
-                            color: Colors.black87,
-                            size: 22,
-                          ),
-                          const SizedBox(width: 12),
-                          Text('Chia sẻ', style: theme.textTheme.titleSmall),
-                        ],
-                      ),
-                    ),
+                  ),
+                  const SizedBox(width: 8),
                 ],
-              ),
+                _buildCircleButton(
+                  child: PopupMenuButton<String>(
+                    icon: const Icon(Icons.more_horiz_rounded, color: iconColor),
+                    iconSize: 20,
+                    constraints: const BoxConstraints(),
+                    padding: const EdgeInsets.all(10),
+                    color: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    offset: const Offset(0, 50),
+                    onSelected: (value) {
+                      if (value == 'edit') {
+                        context
+                            .pushNamed(
+                              AppRoute.folderEdit.name,
+                              pathParameters: {'id': folderId},
+                              extra: folder.toJson(),
+                            )
+                            .then((result) {
+                              if (result != null && result is String && context.mounted) {
+                                CustomToast.show(context, CustomToast.success(message: result));
+                                context.read<FolderDetailBloc>().add(
+                                  FolderDetailRefreshed(folderId, token: token),
+                                );
+                              }
+                            });
+                      } else if (value == 'delete') {
+                        onDeleteFolder();
+                      } else if (value == 'clone') {
+                        onCloneFolder();
+                      }
+                    },
+                    itemBuilder: (context) => [
+                      if (folder.canClone && !folder.isClassCopy)
+                        PopupMenuItem(
+                          value: 'clone',
+                          child: Row(
+                            children: [
+                              const Icon(Icons.copy_all_rounded, color: Colors.black87, size: 22),
+                              const SizedBox(width: 12),
+                              Text('Nhân bản', style: theme.textTheme.titleSmall),
+                            ],
+                          ),
+                        ),
+                      if (isFolderOwner) ...[
+                        PopupMenuItem(
+                          value: 'edit',
+                          child: Row(
+                            children: [
+                              const Icon(Icons.edit_rounded, color: Colors.black87, size: 22),
+                              const SizedBox(width: 12),
+                              Text('Chỉnh sửa', style: theme.textTheme.titleSmall),
+                            ],
+                          ),
+                        ),
+                        PopupMenuItem(
+                          value: 'delete',
+                          child: Row(
+                            children: [
+                              const Icon(
+                                Icons.delete_outline_rounded,
+                                color: Colors.redAccent,
+                                size: 22,
+                              ),
+                              const SizedBox(width: 12),
+                              Text(
+                                'Xóa thư mục',
+                                style: theme.textTheme.titleSmall?.copyWith(
+                                  color: Colors.redAccent,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
             ),
           ],
         ),

@@ -10,12 +10,16 @@ class DeckFormState extends Equatable {
   final List<TagModel> availableTags;
   final TagModel? recentlyAddedTag;
 
+  /// Đang chờ danh sách tag lần đầu (chưa có bản đã nhớ): form hiện chip giữ chỗ.
+  final bool isLoadingTags;
+
   const DeckFormState({
     this.status = DeckFormStatus.initial,
     this.errorMessage,
     this.successMessage,
     this.availableTags = const [],
     this.recentlyAddedTag,
+    this.isLoadingTags = true,
   });
 
   DeckFormState copyWith({
@@ -24,14 +28,15 @@ class DeckFormState extends Equatable {
     String? successMessage,
     List<TagModel>? availableTags,
     TagModel? recentlyAddedTag,
+    bool? isLoadingTags,
   }) {
     return DeckFormState(
       status: status ?? this.status,
       errorMessage: errorMessage,
       successMessage: successMessage,
       availableTags: availableTags ?? this.availableTags,
-      recentlyAddedTag:
-          recentlyAddedTag, // don't persist if not provided to clear it
+      isLoadingTags: isLoadingTags ?? this.isLoadingTags,
+      recentlyAddedTag: recentlyAddedTag, // don't persist if not provided to clear it
     );
   }
 
@@ -42,5 +47,6 @@ class DeckFormState extends Equatable {
     successMessage,
     availableTags,
     recentlyAddedTag,
+    isLoadingTags,
   ];
 }

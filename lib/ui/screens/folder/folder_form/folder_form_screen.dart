@@ -3,9 +3,17 @@ import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:mind_deck/ui/commons/widgets/add_tag_sheet.dart';
 import 'package:mind_deck/ui/commons/input_screens/custom_text_field.dart';
 import 'package:mind_deck/ui/commons/custom_toast.dart';
+import 'package:mind_deck/ui/commons/folder_illustration.dart';
+import 'package:mind_deck/ui/commons/tag_pill.dart';
+import 'package:mind_deck/ui/commons/widgets/form_preview_frame.dart';
+import 'package:mind_deck/ui/commons/widgets/public_switch_card.dart';
+import 'package:mind_deck/ui/commons/widgets/tag_picker.dart';
+import 'package:mind_deck/core/extensions/string_extension.dart';
 import 'package:mind_deck/data/models/folder_model.dart';
+import 'package:mind_deck/data/models/tag_model.dart';
 import 'package:mind_deck/constants/app_icons.dart';
 import 'package:mind_deck/utils/color_utils.dart';
 import 'package:mind_deck/ui/screens/folder/folder_form/bloc/folder_form_bloc.dart';
@@ -34,7 +42,7 @@ class CreateFolderScreen extends StatelessWidget {
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
-          'Tạo thư mục mới',
+          'folder_form_title_new'.tr,
           style: theme.textTheme.titleLarge?.copyWith(
             fontWeight: FontWeight.bold,
             color: Colors.black87,
@@ -43,7 +51,7 @@ class CreateFolderScreen extends StatelessWidget {
       ),
       body: _SharedFolderForm(
         isEdit: false,
-        onSubmit: (name, description, color, icon, isPublic) {
+        onSubmit: (name, description, color, icon, isPublic, tagIds) {
           context.read<FolderFormBloc>().add(
             FolderFormCreate(
               name: name,
@@ -51,6 +59,7 @@ class CreateFolderScreen extends StatelessWidget {
               color: color,
               icon: icon,
               isPublic: isPublic,
+              tagIds: tagIds,
             ),
           );
         },
@@ -93,7 +102,7 @@ class EditFolderScreen extends StatelessWidget {
       body: _SharedFolderForm(
         isEdit: true,
         initialData: folder,
-        onSubmit: (name, description, color, icon, isPublic) {
+        onSubmit: (name, description, color, icon, isPublic, tagIds) {
           context.read<FolderFormBloc>().add(
             FolderFormUpdate(
               id: folder.id,
@@ -101,7 +110,9 @@ class EditFolderScreen extends StatelessWidget {
               description: description,
               color: color,
               icon: icon,
-              isPublic: isPublic,
+              // Chỉ gửi quyền riêng tư khi người dùng đổi, để BE giữ nguyên (vd thư mục chia sẻ qua link)
+              isPublic: isPublic != folder.isPublic ? isPublic : null,
+              tagIds: tagIds,
             ),
           );
         },
@@ -116,21 +127,17 @@ class EditFolderScreen extends StatelessWidget {
 class _SharedFolderForm extends StatefulWidget {
   final bool isEdit;
   final FolderModel? initialData;
-  // SỬA SIGNATURE ĐỂ TRUYỀN TỪNG BIẾN
   final void Function(
     String name,
     String description,
     String color,
     String icon,
     bool isPublic,
+    List<String> tagIds,
   )
   onSubmit;
 
-  const _SharedFolderForm({
-    required this.isEdit,
-    this.initialData,
-    required this.onSubmit,
-  });
+  const _SharedFolderForm({required this.isEdit, this.initialData, required this.onSubmit});
 
   @override
   State<_SharedFolderForm> createState() => _SharedFolderFormState();
@@ -145,6 +152,7 @@ class _SharedFolderFormState extends State<_SharedFolderForm> {
   late Color _selectedColor;
   late String _selectedIcon;
   late bool _isPublic;
+  List<TagModel> _selectedTags = [];
 
   final List<Color> _availableColors = [
     const Color(0xFFFFFFFF),
@@ -167,20 +175,23 @@ class _SharedFolderFormState extends State<_SharedFolderForm> {
   @override
   void initState() {
     super.initState();
-    _nameController = TextEditingController(
-      text: widget.initialData?.name ?? '',
-    );
-    _descController = TextEditingController(
-      text: widget.initialData?.description ?? '',
-    );
+    _nameController = TextEditingController(text: widget.initialData?.name ?? '');
+    _descController = TextEditingController(text: widget.initialData?.description ?? '');
 
     _selectedColor = widget.initialData?.color != null
         ? ColorUtils.parseHex(widget.initialData!.color)
         : _availableColors[1];
 
-    _selectedIcon =
-        widget.initialData?.icon ?? AppIcons.availableIconKeys.first;
+    _selectedIcon = widget.initialData?.icon ?? AppIcons.availableIconKeys.first;
     _isPublic = widget.initialData?.isPublic ?? false;
+
+    if (widget.initialData != null) {
+      _selectedTags = List<TagModel>.from(widget.initialData!.tags ?? []);
+    }
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<FolderFormBloc>().add(const FolderFormLoadTags());
+    });
   }
 
   @override
@@ -192,13 +203,13 @@ class _SharedFolderFormState extends State<_SharedFolderForm> {
 
   void _submitForm() {
     if (_formKey.currentState!.validate()) {
-      // GỌI HÀM VÀ TRUYỀN TỪNG BIẾN VÀO THAY VÌ TẠO MAP
       widget.onSubmit(
         _nameController.text.trim(),
         _descController.text.trim(),
         ColorUtils.toHex(_selectedColor),
         _selectedIcon,
         _isPublic,
+        _selectedTags.map((t) => t.id).toList(),
       );
     }
   }
@@ -223,9 +234,7 @@ class _SharedFolderFormState extends State<_SharedFolderForm> {
             return AlertDialog(
               backgroundColor: Colors.white,
               surfaceTintColor: Colors.transparent,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(28),
-              ),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
               title: const Text(
                 'Chọn màu tùy chỉnh',
                 style: TextStyle(fontWeight: FontWeight.bold),
@@ -242,9 +251,7 @@ class _SharedFolderFormState extends State<_SharedFolderForm> {
                         topLeft: Radius.circular(24),
                         bottomRight: Radius.circular(24),
                       ),
-                      border: isLight
-                          ? Border.all(color: Colors.grey.shade300, width: 1.5)
-                          : null,
+                      border: isLight ? Border.all(color: Colors.grey.shade300, width: 1.5) : null,
                       boxShadow: [
                         BoxShadow(
                           color: displayColor.withValues(alpha: 0.25),
@@ -255,10 +262,7 @@ class _SharedFolderFormState extends State<_SharedFolderForm> {
                     ),
                     alignment: Alignment.center,
                     child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 6,
-                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
                       decoration: BoxDecoration(
                         color: isLight
                             ? Colors.grey.shade100
@@ -284,9 +288,7 @@ class _SharedFolderFormState extends State<_SharedFolderForm> {
                       labelText: 'Mã HEX Color',
                       prefixText: '# ',
                       counterText: '',
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(14),
-                      ),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(14),
                         borderSide: BorderSide(
@@ -294,15 +296,10 @@ class _SharedFolderFormState extends State<_SharedFolderForm> {
                           width: 2,
                         ),
                       ),
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 14,
-                      ),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                     ),
                     maxLength: 6,
-                    inputFormatters: [
-                      FilteringTextInputFormatter.allow(RegExp(r'[0-9a-fA-F]')),
-                    ],
+                    inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9a-fA-F]'))],
                     onChanged: (value) {
                       String hex = value.trim();
                       if (hex.length == 6) {
@@ -349,15 +346,8 @@ class _SharedFolderFormState extends State<_SharedFolderForm> {
                         onChanged: (value) {
                           setStateDialog(() {
                             currentHue = value;
-                            displayColor = HSVColor.fromAHSV(
-                              1.0,
-                              currentHue,
-                              1.0,
-                              1.0,
-                            ).toColor();
-                            hexController.text = ColorUtils.toHex(
-                              displayColor,
-                            ).replaceAll('#', '');
+                            displayColor = HSVColor.fromAHSV(1.0, currentHue, 1.0, 1.0).toColor();
+                            hexController.text = ColorUtils.toHex(displayColor).replaceAll('#', '');
                           });
                         },
                       ),
@@ -369,10 +359,7 @@ class _SharedFolderFormState extends State<_SharedFolderForm> {
                 TextButton(
                   child: const Text(
                     'Hủy',
-                    style: TextStyle(
-                      color: Colors.grey,
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold),
                   ),
                   onPressed: () => Navigator.pop(context),
                 ),
@@ -382,18 +369,10 @@ class _SharedFolderFormState extends State<_SharedFolderForm> {
                         ? Colors.black87
                         : displayColor,
                     foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 24,
-                      vertical: 12,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                   ),
-                  child: const Text(
-                    'Áp dụng',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
+                  child: const Text('Áp dụng', style: TextStyle(fontWeight: FontWeight.bold)),
                   onPressed: () {
                     setState(() => _selectedColor = displayColor);
                     Navigator.pop(context);
@@ -410,9 +389,6 @@ class _SharedFolderFormState extends State<_SharedFolderForm> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final buttonColor = ColorUtils.isLightColor(_selectedColor)
-        ? Colors.black87
-        : _selectedColor;
 
     return BlocListener<FolderFormBloc, FolderFormState>(
       listener: (context, state) {
@@ -423,6 +399,15 @@ class _SharedFolderFormState extends State<_SharedFolderForm> {
             context,
             CustomToast.danger(message: state.errorMessage ?? 'Có lỗi xảy ra'),
           );
+        }
+
+        if (state.recentlyAddedTag != null) {
+          final isAlreadySelected = _selectedTags.any((t) => t.id == state.recentlyAddedTag!.id);
+          if (!isAlreadySelected) {
+            setState(() {
+              _selectedTags.add(state.recentlyAddedTag!);
+            });
+          }
         }
       },
       child: Column(
@@ -435,50 +420,54 @@ class _SharedFolderFormState extends State<_SharedFolderForm> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    _buildPreview(theme),
+                    const SizedBox(height: 24),
                     CustomTextField(
                       controller: _nameController,
                       label: 'Tên thư mục',
-                      hintText: 'Nhập tên thư mục...',
+                      hintText: 'folder_form_name_hint'.tr,
                       isRequired: true,
-                      prefixIcon: Icon(
-                        AppIcons.getIconFromKey(_selectedIcon),
-                        color: buttonColor,
-                      ),
-                      validator: (value) =>
-                          (value == null || value.trim().isEmpty)
+                      large: true,
+                      validator: (value) => (value == null || value.trim().isEmpty)
                           ? 'Vui lòng nhập tên thư mục'
                           : null,
                     ),
                     const SizedBox(height: 24),
                     CustomTextField(
                       controller: _descController,
-                      label: 'Mô tả (Tùy chọn)',
-                      hintText: 'Nhập ghi chú cho thư mục này...',
+                      label: 'folder_form_desc_label'.tr,
+                      hintText: 'folder_form_desc_hint'.tr,
                       maxLines: 3,
+                      large: true,
                       alignLabelWithHint: true,
                     ),
                     const SizedBox(height: 24),
-                    SwitchListTile(
-                      title: const Text(
-                        'Công khai thư mục',
-                        style: TextStyle(fontWeight: FontWeight.bold),
+                    BlocBuilder<FolderFormBloc, FolderFormState>(
+                      builder: (context, state) => TagPicker(
+                        availableTags: state.availableTags,
+                        isLoading: state.isLoadingTags,
+                        selectedTags: _selectedTags,
+                        onToggle: (tag) => setState(() {
+                          if (!_selectedTags.any((t) => t.id == tag.id)) {
+                            _selectedTags.add(tag);
+                          } else {
+                            _selectedTags.removeWhere((t) => t.id == tag.id);
+                          }
+                        }),
+                        onAddNew: _showAddTagDialog,
                       ),
-                      subtitle: const Text(
-                        'Mọi người có thể tìm kiếm và xem thư mục này',
-                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    PublicSwitchCard(
+                      subtitle: 'folder_public_warning'.tr,
                       value: _isPublic,
-                      onChanged: (val) {
-                        setState(() {
-                          _isPublic = val;
-                        });
-                      },
                       activeColor: _selectedColor,
-                      contentPadding: EdgeInsets.zero,
+                      onChanged: (val) => setState(() => _isPublic = val),
                     ),
                     const SizedBox(height: 32),
                     Text(
-                      'Màu sắc chủ đạo',
-                      style: theme.textTheme.titleSmall?.copyWith(
+                      'folder_form_color_title'.tr,
+                      style: theme.textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.bold,
                         color: Colors.black87,
                       ),
@@ -488,9 +477,7 @@ class _SharedFolderFormState extends State<_SharedFolderForm> {
                       spacing: 14,
                       runSpacing: 14,
                       children: [
-                        ..._availableColors.map(
-                          (color) => _buildColorItem(color),
-                        ),
+                        ..._availableColors.map((color) => _buildColorItem(color)),
                         if (!_availableColors.contains(_selectedColor))
                           _buildColorItem(_selectedColor),
                         _buildStaticColorPickerButton(),
@@ -499,7 +486,7 @@ class _SharedFolderFormState extends State<_SharedFolderForm> {
                     const SizedBox(height: 34),
                     Text(
                       'Biểu tượng',
-                      style: theme.textTheme.titleSmall?.copyWith(
+                      style: theme.textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.bold,
                         color: Colors.black87,
                       ),
@@ -516,9 +503,7 @@ class _SharedFolderFormState extends State<_SharedFolderForm> {
                           bottomLeft: Radius.circular(8),
                         ),
                         border: Border.all(
-                          color: theme.colorScheme.outline.withValues(
-                            alpha: 0.15,
-                          ),
+                          color: theme.colorScheme.outline.withValues(alpha: 0.15),
                         ),
                       ),
                       child: Wrap(
@@ -536,53 +521,65 @@ class _SharedFolderFormState extends State<_SharedFolderForm> {
               ),
             ),
           ),
-          SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.all(24.0).copyWith(top: 0),
-              child: BlocBuilder<FolderFormBloc, FolderFormState>(
-                builder: (context, state) {
-                  final isLoading = state.status == FolderFormStatus.loading;
-                  final isLightBtn = ColorUtils.isLightColor(_selectedColor);
-                  final btnTextColor = ColorUtils.getContrastColor(
-                    _selectedColor,
-                  );
+          Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              border: Border(top: BorderSide(color: Colors.grey.shade200)),
+            ),
+            child: SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.all(24.0).copyWith(bottom: 16),
+                child: BlocBuilder<FolderFormBloc, FolderFormState>(
+                  builder: (context, state) {
+                    final isLoading = state.status == FolderFormStatus.loading;
+                    final isLightBtn = ColorUtils.isLightColor(_selectedColor);
+                    final btnTextColor = ColorUtils.getContrastColor(_selectedColor);
 
-                  return ElevatedButton(
-                    onPressed: isLoading ? null : _submitForm,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: _selectedColor,
-                      foregroundColor: btnTextColor,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      elevation: 5,
-                      minimumSize: const Size(double.infinity, 56),
-                      shadowColor: isLightBtn
-                          ? Colors.black.withValues(alpha: 0.1)
-                          : _selectedColor.withValues(alpha: 0.3),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(18),
-                        side: isLightBtn
-                            ? BorderSide(color: Colors.grey.shade300)
-                            : BorderSide.none,
-                      ),
-                    ),
-                    child: isLoading
-                        ? SizedBox(
-                            width: 24,
-                            height: 24,
-                            child: CircularProgressIndicator(
-                              color: btnTextColor,
-                              strokeWidth: 2,
-                            ),
-                          )
-                        : Text(
-                            widget.isEdit ? 'Lưu thay đổi' : 'Tạo thư mục',
-                            style: theme.textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.bold,
-                              color: btnTextColor,
-                            ),
+                    // Chưa nhập tên thì nút xám, chưa bấm được
+                    return ListenableBuilder(
+                      listenable: _nameController,
+                      builder: (context, _) => ElevatedButton(
+                        onPressed: isLoading || _nameController.text.trim().isEmpty
+                            ? null
+                            : _submitForm,
+                        style: ElevatedButton.styleFrom(
+                          disabledBackgroundColor: const Color(0xFFE3E7F0),
+                          disabledForegroundColor: Colors.black45,
+                          backgroundColor: _selectedColor,
+                          foregroundColor: btnTextColor,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          elevation: 5,
+                          minimumSize: const Size(double.infinity, 56),
+                          shadowColor: isLightBtn
+                              ? Colors.black.withValues(alpha: 0.1)
+                              : _selectedColor.withValues(alpha: 0.3),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(18),
+                            side: isLightBtn
+                                ? BorderSide(color: Colors.grey.shade300)
+                                : BorderSide.none,
                           ),
-                  );
-                },
+                        ),
+                        child: isLoading
+                            ? SizedBox(
+                                width: 24,
+                                height: 24,
+                                child: CircularProgressIndicator(
+                                  color: btnTextColor,
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : Text(
+                                widget.isEdit ? 'Lưu thay đổi' : 'Tạo thư mục',
+                                style: theme.textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                  color: _nameController.text.trim().isEmpty ? null : btnTextColor,
+                                ),
+                              ),
+                      ),
+                    );
+                  },
+                ),
               ),
             ),
           ),
@@ -621,9 +618,7 @@ class _SharedFolderFormState extends State<_SharedFolderForm> {
             ),
           ],
         ),
-        child: isSelected
-            ? Icon(Icons.check_rounded, color: checkIconColor, size: 22)
-            : null,
+        child: isSelected ? Icon(Icons.check_rounded, color: checkIconColor, size: 22) : null,
       ),
     );
   }
@@ -658,10 +653,7 @@ class _SharedFolderFormState extends State<_SharedFolderForm> {
         ),
         child: Container(
           margin: const EdgeInsets.all(12),
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            shape: BoxShape.circle,
-          ),
+          decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
           child: const Icon(Icons.add_rounded, color: Colors.black87, size: 16),
         ),
       ),
@@ -670,9 +662,7 @@ class _SharedFolderFormState extends State<_SharedFolderForm> {
 
   Widget _buildIconItem(String iconKey) {
     final isSelected = _selectedIcon == iconKey;
-    final activeColor = ColorUtils.isLightColor(_selectedColor)
-        ? Colors.black87
-        : _selectedColor;
+    final activeColor = ColorUtils.isLightColor(_selectedColor) ? Colors.black87 : _selectedColor;
 
     return GestureDetector(
       onTap: () => setState(() => _selectedIcon = iconKey),
@@ -680,9 +670,7 @@ class _SharedFolderFormState extends State<_SharedFolderForm> {
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: isSelected
-              ? activeColor.withValues(alpha: 0.12)
-              : Colors.white,
+          color: isSelected ? activeColor.withValues(alpha: 0.12) : Colors.white,
           borderRadius: _disruptiveRadius,
           border: Border.all(
             color: isSelected ? activeColor : Colors.grey.shade300,
@@ -705,5 +693,86 @@ class _SharedFolderFormState extends State<_SharedFolderForm> {
         ),
       ),
     );
+  }
+
+  /// Bản xem trước thẻ thư mục theo các lựa chọn hiện tại.
+  Widget _buildPreview(ThemeData theme) {
+    final colorScheme = theme.colorScheme;
+    // Thư mục mới chưa có bộ thẻ nào; khi sửa thì lấy số hiện có
+    final deckCount = widget.initialData?.deckCount ?? widget.initialData?.decks?.length ?? 0;
+
+    return FormPreviewFrame(
+      color: _selectedColor,
+      child: Row(
+        children: [
+          FolderIllustration(
+            color: _selectedColor,
+            icon: AppIcons.getIconFromKey(_selectedIcon),
+            scale: 1.15,
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: ListenableBuilder(
+              listenable: _nameController,
+              builder: (context, _) {
+                final name = _nameController.text.trim();
+                final status = (_isPublic ? 'library_public' : 'library_private').tr;
+                final count = 'folder_deck_count'.tr.replaceAll('{count}', '$deckCount');
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      name.isEmpty ? 'folder_form_untitled'.tr : name,
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        color: name.isEmpty
+                            ? colorScheme.onSurface.withValues(alpha: 0.45)
+                            : colorScheme.onSurface,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '$status · $count',
+                      style: theme.textTheme.bodyLarge?.copyWith(
+                        color: colorScheme.onSurface.withValues(alpha: 0.65),
+                      ),
+                    ),
+                    if (_selectedTags.isNotEmpty) ...[
+                      const SizedBox(height: 6),
+                      Wrap(
+                        runSpacing: 4,
+                        children: [
+                          for (final tag in _selectedTags)
+                            TagPill(text: '#${tag.name}', hex: tag.color),
+                        ],
+                      ),
+                    ],
+                  ],
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showAddTagDialog() async {
+    final result = await AddTagSheet.show(
+      context,
+      availableTags: context.read<FolderFormBloc>().state.availableTags,
+    );
+    if (result == null || !mounted) return;
+    final existing = result.existing;
+    if (existing != null) {
+      // Tag đã có: dùng luôn, không tạo mới
+      if (!_selectedTags.any((t) => t.id == existing.id)) {
+        setState(() => _selectedTags.add(existing));
+      }
+    } else {
+      context.read<FolderFormBloc>().add(FolderFormAddTag(name: result.name, color: result.color));
+    }
   }
 }

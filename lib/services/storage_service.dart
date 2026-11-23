@@ -15,10 +15,7 @@ class StorageService {
             iOptions: IOSOptions(accessibility: KeychainAccessibility.first_unlock),
           );
 
-  Future<void> saveTokens({
-    required String accessToken,
-    required String refreshToken,
-  }) async {
+  Future<void> saveTokens({required String accessToken, required String refreshToken}) async {
     await _storage.write(key: _keyAccessToken, value: accessToken);
     await _storage.write(key: _keyRefreshToken, value: refreshToken);
   }

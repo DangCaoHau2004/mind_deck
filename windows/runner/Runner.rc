@@ -89,13 +89,13 @@ BEGIN
     BEGIN
         BLOCK "040904e4"
         BEGIN
-            VALUE "CompanyName", "com.example" "\0"
-            VALUE "FileDescription", "mind_deck" "\0"
+            VALUE "CompanyName", "com.caohau" "\0"
+            VALUE "FileDescription", "minddeck" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "mind_deck" "\0"
-            VALUE "LegalCopyright", "Copyright (C) 2026 com.example. All rights reserved." "\0"
-            VALUE "OriginalFilename", "mind_deck.exe" "\0"
-            VALUE "ProductName", "mind_deck" "\0"
+            VALUE "InternalName", "minddeck" "\0"
+            VALUE "LegalCopyright", "Copyright (C) 2026 com.caohau. All rights reserved." "\0"
+            VALUE "OriginalFilename", "minddeck.exe" "\0"
+            VALUE "ProductName", "minddeck" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END

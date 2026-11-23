@@ -27,3 +27,17 @@ class NotificationMarkAsRead extends NotificationListEvent {
 class NotificationMarkAllAsRead extends NotificationListEvent {
   const NotificationMarkAllAsRead();
 }
+
+class NotificationDeleted extends NotificationListEvent {
+  final String notificationId;
+
+  const NotificationDeleted(this.notificationId);
+
+  @override
+  List<Object?> get props => [notificationId];
+}
+
+/// Xóa mọi thông báo đã đọc.
+class NotificationDeleteAllRead extends NotificationListEvent {
+  const NotificationDeleteAllRead();
+}

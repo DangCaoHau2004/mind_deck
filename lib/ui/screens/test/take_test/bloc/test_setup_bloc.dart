@@ -1,6 +1,13 @@
 import 'dart:async';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:mind_deck/constants/app_error_codes.dart';
+import 'package:mind_deck/constants/class_error_messages.dart';
+import 'package:mind_deck/core/extensions/failure_extension.dart';
+import 'package:mind_deck/core/failures.dart';
+import 'package:mind_deck/core/server_clock.dart';
+import 'package:mind_deck/utils/test_answer_builder.dart';
 import 'package:mind_deck/data/models/enums.dart';
+import 'package:mind_deck/data/models/custom_test_model.dart';
 import 'package:mind_deck/data/models/test_question_model.dart';
 import 'package:mind_deck/data/repositories/deck_repository.dart';
 import 'package:mind_deck/data/repositories/folder_repository.dart';
@@ -16,7 +23,25 @@ class TestSetupBloc extends Bloc<TestSetupEvent, TestSetupState> {
   final DeckRepository deckRepository;
   final FolderRepository folderRepository;
 
+  /// Phiên không còn cứu được khi nộp/mở lại: về màn thiết lập thay vì cho bấm nộp mãi.
+  static const Set<String> _fatalSessionCodes = {
+    AppErrorCodes.testSessionExpired,
+    AppErrorCodes.testSessionNotFound,
+    AppErrorCodes.testNotFound,
+    AppErrorCodes.testNoQuestions,
+    AppErrorCodes.testNoCardsFound,
+  };
+
+  static const Duration _minDraftGap = Duration(seconds: 3);
+
   Timer? _timer;
+
+  /// Id đề đang làm (generate trả về, hoặc lấy từ phiên dở). Không dựa vào `id` của payload Start.
+  String _activeTestId = '';
+  bool _submitStarted = false;
+  DateTime? _lastDraftSaveAt;
+  Timer? _pendingDraft;
+  TestSetupInProgressState? _latestDraft;
 
   TestSetupBloc({
     required this.testRepository,
@@ -28,6 +53,7 @@ class TestSetupBloc extends Bloc<TestSetupEvent, TestSetupState> {
     on<TestSetupSourceRemoved>(_onSourceRemoved);
     on<TestSetupCardToggled>(_onCardToggled);
     on<TestSetupAllCardsToggled>(_onAllCardsToggled);
+    on<TestSetupOnlyDueCardsToggled>(_onOnlyDueCardsToggled);
     on<TestSetupSettingsChanged>(_onSettingsChanged);
     on<TestSetupQuestionTypesChanged>(_onQuestionTypesChanged);
     on<TestSetupGenerateRequested>(_onGenerateRequested);
@@ -37,11 +63,18 @@ class TestSetupBloc extends Bloc<TestSetupEvent, TestSetupState> {
     on<TestSetupSubmitRequested>(_onSubmitRequested);
     on<TestSetupReset>(_onReset);
     on<TestSetupCompletedExternally>(_onCompletedExternally);
+    on<TestSetupResumeRequested>(_onResumeRequested);
+    on<TestSetupRestartRequested>(_onRestartRequested);
   }
 
   @override
   Future<void> close() {
     _timer?.cancel();
+    if (_pendingDraft != null) {
+      _pendingDraft!.cancel();
+      _pendingDraft = null;
+      _flushDraft();
+    }
     return super.close();
   }
 
@@ -72,6 +105,10 @@ class TestSetupBloc extends Bloc<TestSetupEvent, TestSetupState> {
           initialSelectedFolders.add(event.initData as FolderModel);
         } else if (event.initData is TagModel) {
           initialSelectedTags.add(event.initData as TagModel);
+        } else if (event.initData is List<DeckModel>) {
+          initialSelectedDecks.addAll(event.initData as List<DeckModel>);
+        } else if (event.initData is List<FolderModel>) {
+          initialSelectedFolders.addAll(event.initData as List<FolderModel>);
         }
       }
 
@@ -165,6 +202,29 @@ class TestSetupBloc extends Bloc<TestSetupEvent, TestSetupState> {
     emit(configState.copyWith(selectedCardIds: updatedCardIds));
   }
 
+  Future<void> _onOnlyDueCardsToggled(
+    TestSetupOnlyDueCardsToggled event,
+    Emitter<TestSetupState> emit,
+  ) async {
+    if (state is! TestSetupConfigState) return;
+    final configState = state as TestSetupConfigState;
+
+    if (event.value) {
+      final dueCardIds = configState.resolvedSourceDecks
+          .expand((d) => d.cards)
+          .where((c) => c.isDueCard)
+          .map((c) => c.id)
+          .toSet();
+      emit(configState.copyWith(onlyDueCards: true, selectedCardIds: dueCardIds));
+    } else {
+      final allCardIds = configState.resolvedSourceDecks
+          .expand((d) => d.cards)
+          .map((c) => c.id)
+          .toSet();
+      emit(configState.copyWith(onlyDueCards: false, selectedCardIds: allCardIds));
+    }
+  }
+
   Future<void> _onSettingsChanged(
     TestSetupSettingsChanged event,
     Emitter<TestSetupState> emit,
@@ -221,11 +281,70 @@ class TestSetupBloc extends Bloc<TestSetupEvent, TestSetupState> {
       return;
     }
 
+    // Chỉ chọn "Flashcard": đây là ôn tập (không chấm điểm) đi qua `/study/start`, KHÔNG gọi `/tests/*`.
+    // Dựng phiên giả chứa các thẻ để màn hình mở luồng học (xem TakeTestScreen).
+    if (configState.selectedQuestionTypes.every((t) => t == TestQuestionType.flashcard)) {
+      final cards = configState.selectedCardIds.toList();
+      _lastConfigState = configState.copyWith(isGenerating: false, errorMessage: null);
+      emit(
+        TestSetupInProgressState(
+          testModel: CustomTestModel(
+            id: '',
+            name: event.name ?? 'Ôn tập flashcard',
+            questionTypes: [TestQuestionType.flashcard.value],
+            createdAt: DateTime.now(),
+            questions: [
+              for (final id in cards)
+                TestQuestionModel(
+                  cardId: id,
+                  questionType: TestQuestionType.flashcard,
+                  questionData: const {},
+                ),
+            ],
+          ),
+          questions: const [],
+          startedAt: DateTime.now(),
+          currentQuestionStartedAt: DateTime.now(),
+        ),
+      );
+      return;
+    }
+
+    // Đề cá nhân chỉ lấy thẻ của deck cá nhân của chính mình: BE loại thẻ bản sao lớp IM LẶNG
+    // (đề ít câu hơn mong đợi, hoặc 404 TEST_NO_CARDS_FOUND). FE lọc trước và báo rõ.
+    final classDeckIds = <String>{
+      for (final d in configState.selectedDecks)
+        if (d.isClassCopy) d.id,
+      for (final f in configState.selectedFolders)
+        for (final d in f.decks ?? const <DeckModel>[])
+          if (f.isClassCopy || d.isClassCopy) d.id,
+    };
+    final classCardIds = <String>{
+      for (final rd in configState.resolvedSourceDecks)
+        if (classDeckIds.contains(rd.deckId))
+          for (final c in rd.cards) c.id,
+    };
+    final personalCardIds = [
+      for (final id in configState.selectedCardIds)
+        if (!classCardIds.contains(id)) id,
+    ];
+    final skippedClassCards = configState.selectedCardIds.length - personalCardIds.length;
+    if (personalCardIds.isEmpty) {
+      emit(
+        configState.copyWith(
+          errorMessage:
+              'Đề kiểm tra chỉ tạo được từ bộ thẻ cá nhân của bạn. '
+              'Thẻ của lớp hãy ôn bằng chế độ Flashcard.',
+        ),
+      );
+      return;
+    }
+
     emit(configState.copyWith(isGenerating: true, errorMessage: null));
     try {
       final Map<String, dynamic> settings = {
         'timeLimitEnabled': configState.timeLimitEnabled,
-        'timeLimitMinutes': configState.timeLimitMinutes,
+        if (configState.timeLimitEnabled) 'timeLimitMinutes': configState.timeLimitMinutes,
         'questionSide': configState.questionSide,
         'showAnswerInstantly': configState.showAnswerInstantly,
       };
@@ -253,12 +372,23 @@ class TestSetupBloc extends Bloc<TestSetupEvent, TestSetupState> {
         }
       }
 
-      final response = await testRepository.generateTest(
-        cardIds: configState.selectedCardIds.toList(),
+      // Đề cá nhân: chỉ `kind: auto`, chỉ thẻ của deck cá nhân của mình, `flashcard` không phải dạng câu của đề.
+      final generated = await testRepository.generateTest(
+        cardIds: personalCardIds,
         name: testName,
-        questionTypes: configState.selectedQuestionTypes.map((t) => t.value).toList(),
+        questionTypes: [
+          for (final t in configState.selectedQuestionTypes)
+            if (t != TestQuestionType.flashcard) t.value,
+        ],
         settings: settings,
       );
+
+      // `questions` trong response của generate chỉ là bản xem trước (không lưu). Đề làm thật
+      // phải lấy từ Start: nó sinh bộ câu mới cho phiên này và server dùng nó để chấm khi nộp.
+      if (generated.success && generated.data != null) _activeTestId = generated.data!.id;
+      final response = generated.success && generated.data != null
+          ? await testRepository.startTest(generated.data!.id)
+          : generated;
 
       if (response.success && response.data != null) {
         final testModel = response.data!;
@@ -275,9 +405,8 @@ class TestSetupBloc extends Bloc<TestSetupEvent, TestSetupState> {
         }
 
         _timer?.cancel();
-        final timeLimitSeconds = configState.timeLimitEnabled
-            ? configState.timeLimitMinutes * 60
-            : 0;
+        // Giới hạn giờ lấy từ phiên Start (phiên không giới hạn giờ thì không hết hạn).
+        final timeLimitSeconds = testModel.timeLimitSeconds;
 
         final inProgressState = TestSetupInProgressState(
           testModel: testModel,
@@ -286,12 +415,16 @@ class TestSetupBloc extends Bloc<TestSetupEvent, TestSetupState> {
           timeRemainingSeconds: timeLimitSeconds,
           startedAt: DateTime.now(),
           currentQuestionStartedAt: DateTime.now(),
+          errorMessage: skippedClassCards > 0
+              ? 'Đã bỏ $skippedClassCards thẻ của lớp: đề cá nhân chỉ dùng thẻ của bạn.'
+              : null,
         );
 
         _lastConfigState = configState.copyWith(isGenerating: false, errorMessage: null);
+        _resetDraftState();
         emit(inProgressState);
 
-        if (configState.timeLimitEnabled) {
+        if (timeLimitSeconds > 0) {
           _startTimer(timeLimitSeconds);
         }
       } else {
@@ -302,6 +435,9 @@ class TestSetupBloc extends Bloc<TestSetupEvent, TestSetupState> {
           ),
         );
       }
+    } on Failure catch (f) {
+      // VD: TEST_NO_CARDS_FOUND khi thẻ không thuộc deck cá nhân của mình, TEST_PERSONAL_AUTO_ONLY...
+      emit(configState.copyWith(isGenerating: false, errorMessage: ClassErrorMessages.of(f)));
     } catch (e) {
       emit(
         configState.copyWith(
@@ -346,15 +482,15 @@ class TestSetupBloc extends Bloc<TestSetupEvent, TestSetupState> {
       updatedQuestions.add(question);
     }
 
-    emit(
-      inProgressState.copyWith(
-        questions: updatedQuestions,
-        answersMap: updatedAnswersMap,
-        isAnswerCheckedMap: updatedIsCheckedMap,
-        answersCorrectnessMap: updatedCorrectnessMap,
-        correctCount: newCorrectCount,
-      ),
+    final next = inProgressState.copyWith(
+      questions: updatedQuestions,
+      answersMap: updatedAnswersMap,
+      isAnswerCheckedMap: updatedIsCheckedMap,
+      answersCorrectnessMap: updatedCorrectnessMap,
+      correctCount: newCorrectCount,
     );
+    emit(next);
+    _saveDraft(next);
   }
 
   Future<void> _onNextQuestionRequested(
@@ -398,6 +534,9 @@ class TestSetupBloc extends Bloc<TestSetupEvent, TestSetupState> {
     final inProgressState = state as TestSetupInProgressState;
 
     _timer?.cancel();
+    _submitStarted = true;
+    _pendingDraft?.cancel();
+    _pendingDraft = null;
 
     emit(inProgressState.copyWith(isSubmitting: true));
 
@@ -412,136 +551,249 @@ class TestSetupBloc extends Bloc<TestSetupEvent, TestSetupState> {
     finalDurationMap[inProgressState.currentQuestionIndex] =
         (finalDurationMap[inProgressState.currentQuestionIndex] ?? 0) + lastQDurationMs;
 
-    final Map<String, Map<String, dynamic>> aggregatedAnswers = {};
-    for (int i = 0; i < inProgressState.questions.length; i++) {
-      final q = inProgressState.questions[i];
-      final ans = inProgressState.answersMap[i];
-      final isCorrect = inProgressState.answersCorrectnessMap[i] ?? false;
-      final duration = finalDurationMap[i] ?? 0;
-
-      if (q.questionType == TestQuestionType.matching) {
-        final matches = (ans as Map<String, String>?) ?? {};
-        final leftColumn = q.leftColumn;
-        final numCards = leftColumn.isNotEmpty
-            ? leftColumn.length
-            : (matches.isNotEmpty ? matches.length : 1);
-        final perCardDuration = duration ~/ numCards;
-
-        for (final item in leftColumn) {
-          final id = item['id']?.toString() ?? '';
-          if (id.isNotEmpty) {
-            final matchedWith = matches[id];
-            final matchedCorrect = matchedWith == id;
-
-            if (aggregatedAnswers.containsKey(id)) {
-              final existing = aggregatedAnswers[id]!;
-              final newDuration = (existing['durationMs'] as int) + perCardDuration;
-              aggregatedAnswers[id] = {
-                'cardId': id,
-                'questionType': TestQuestionType.matching.value,
-                'isCorrect': matchedCorrect,
-                'durationMs': newDuration,
-                'answerDetails': {},
-              };
-            } else {
-              aggregatedAnswers[id] = {
-                'cardId': id,
-                'questionType': TestQuestionType.matching.value,
-                'isCorrect': matchedCorrect,
-                'durationMs': perCardDuration,
-                'answerDetails': {},
-              };
-            }
-          }
-        }
-        continue; // Skip the rest for matching
-      }
-
-      dynamic answerDetails;
-      if (q.questionType == TestQuestionType.flashcard) {
-        answerDetails = {
-          'isRemembered': isCorrect,
-          'thinkTimeMs': 0, // Sẽ tính tổng bên dưới
-        };
-      } else {
-        answerDetails = {'userAnswer': ans != null ? ans.toString() : ''};
-      }
-
-      final mapKey = q.cardId ?? 'unknown_$i';
-
-      if (aggregatedAnswers.containsKey(mapKey)) {
-        final existing = aggregatedAnswers[mapKey]!;
-        final newDuration = (existing['durationMs'] as int) + duration;
-
-        if (q.questionType == TestQuestionType.flashcard) {
-          answerDetails['thinkTimeMs'] = newDuration;
-        }
-
-        aggregatedAnswers[mapKey] = {
-          'cardId': q.cardId,
-          'questionType': q.questionType.value,
-          'isCorrect': isCorrect, // Lấy trạng thái đúng sai mới nhất
-          'durationMs': newDuration, // Cộng dồn thời gian
-          'answerDetails': answerDetails,
-        };
-      } else {
-        if (q.questionType == TestQuestionType.flashcard) {
-          answerDetails['thinkTimeMs'] = duration;
-        }
-        aggregatedAnswers[mapKey] = {
-          'cardId': q.cardId,
-          'questionType': q.questionType.value,
-          'isCorrect': isCorrect,
-          'durationMs': duration,
-          'answerDetails': answerDetails,
-        };
-      }
-    }
-
-    final List<Map<String, dynamic>> answers = aggregatedAnswers.values.toList();
+    // Gửi MỘT phần tử cho MỖI câu, có `qid` (câu bỏ trống: userAnswer ""). Server chấm lại bằng đề của
+    // phiên Start nên không gửi `expectedAnswer` / `isCorrect` / số câu đúng nữa.
+    final List<Map<String, dynamic>> answers = [
+      for (int i = 0; i < inProgressState.questions.length; i++)
+        if (inProgressState.questions[i].questionType != TestQuestionType.flashcard)
+          TestAnswerBuilder.build(
+            inProgressState.questions[i],
+            inProgressState.answersMap[i],
+            finalDurationMap[i] ?? 0,
+          ),
+    ];
 
     try {
       final response = await testRepository.submitTest(
-        testId: inProgressState.testModel.id,
-        totalQuestions: inProgressState.questions.length,
-        correctAnswers: inProgressState.correctCount,
+        testId: _activeTestId.isNotEmpty ? _activeTestId : inProgressState.testModel.id,
         durationMs: totalDurationMs,
-        startedAt: inProgressState.startedAt.toIso8601String(),
-        completedAt: completedAt.toIso8601String(),
         answers: answers,
       );
+      final result = response.data;
 
-      final attemptId = response.data?.attemptId ?? '';
+      // Điểm chính thức là kết quả CHẤM LẠI của server: ghi đè kết quả chấm cục bộ (ghép theo qid).
+      final serverCorrectness = <int, bool>{};
+      final serverAnswers = result?.answers;
+      if (serverAnswers != null) {
+        for (int i = 0; i < inProgressState.questions.length; i++) {
+          final qid = inProgressState.questions[i].qid;
+          if (qid == null) continue;
+          final match = serverAnswers.where((a) => a.qid == qid);
+          if (match.isNotEmpty) serverCorrectness[i] = match.first.isCorrect;
+        }
+      }
 
       emit(
         TestSetupCompletedState(
           testModel: inProgressState.testModel,
-          correctCount: inProgressState.correctCount,
-          totalQuestions: inProgressState.questions.length,
+          correctCount: result?.correctAnswers ?? inProgressState.correctCount,
+          totalQuestions: result?.totalQuestions ?? inProgressState.questions.length,
           timeSpentSeconds: totalDurationMs ~/ 1000,
           answersMap: inProgressState.answersMap,
-          answersCorrectnessMap: inProgressState.answersCorrectnessMap,
+          answersCorrectnessMap: serverCorrectness.isNotEmpty
+              ? serverCorrectness
+              : inProgressState.answersCorrectnessMap,
           questions: inProgressState.questions,
-          attemptId: attemptId,
-          errorMessage: response.success
-              ? null
-              : 'Kết nối mạng không ổn định, kết quả thi được lưu tạm thời.',
+          attemptId: result?.attemptId ?? '',
         ),
       );
-    } catch (e) {
+    } on Failure catch (f) {
+      // Không giả lập kết quả cục bộ khi nộp lỗi (điểm chỉ có giá trị khi server đã chấm).
+      if (_fatalSessionCodes.contains(f.errorCode)) {
+        // Phiên hết hạn / không còn: bài làm mất phía server, nộp lại vô ích → về màn thiết lập.
+        emit(
+          (_lastConfigState ?? const TestSetupConfigState()).copyWith(
+            isGenerating: false,
+            errorMessage: '${ClassErrorMessages.of(f)} Hãy tạo bài mới để làm lại.',
+          ),
+        );
+        return;
+      }
+      // Lỗi tạm thời (mạng...): giữ bài làm, cho bấm nộp lại.
+      _submitStarted = false;
+      emit(inProgressState.copyWith(isSubmitting: false, errorMessage: ClassErrorMessages.of(f)));
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Phiên dở: lưu nháp lên server + mở lại
+  // ---------------------------------------------------------------------------
+
+  void _resetDraftState() {
+    _submitStarted = false;
+    _lastDraftSaveAt = null;
+    _pendingDraft?.cancel();
+    _pendingDraft = null;
+    _latestDraft = null;
+  }
+
+  /// Lưu nháp thưa (≤ 1 lần / [_minDraftGap]); câu trả lời trong khoảng chờ được gửi ở lần lưu bù.
+  void _saveDraft(TestSetupInProgressState s) {
+    if (_submitStarted || s.testModel.sessionId == null) return;
+    _latestDraft = s;
+    final since = _lastDraftSaveAt == null ? null : DateTime.now().difference(_lastDraftSaveAt!);
+    if (since == null || since >= _minDraftGap) {
+      _pendingDraft?.cancel();
+      _pendingDraft = null;
+      _flushDraft();
+      return;
+    }
+    _pendingDraft ??= Timer(_minDraftGap - since, () {
+      _pendingDraft = null;
+      _flushDraft();
+    });
+  }
+
+  void _flushDraft() {
+    final s = _latestDraft;
+    final sessionId = s?.testModel.sessionId;
+    if (s == null || sessionId == null || _submitStarted) return;
+    _lastDraftSaveAt = DateTime.now();
+    final answers = [
+      for (int i = 0; i < s.questions.length; i++)
+        if (s.answersMap.containsKey(i) &&
+            s.questions[i].questionType != TestQuestionType.flashcard)
+          TestAnswerBuilder.build(s.questions[i], s.answersMap[i], s.questionDurationMap[i] ?? 0),
+    ];
+    final elapsed = DateTime.now().difference(s.startedAt).inSeconds;
+    unawaited(() async {
+      try {
+        await testRepository.saveProgress(
+          sessionId,
+          answers: answers,
+          elapsedSeconds: elapsed,
+          currentQuestionIndex: s.currentQuestionIndex,
+        );
+      } on Failure catch (_) {
+        // Lưu nháp chỉ là phòng hờ; lỗi phiên sẽ được báo khi nộp.
+      }
+    }());
+  }
+
+  Future<void> _onResumeRequested(
+    TestSetupResumeRequested event,
+    Emitter<TestSetupState> emit,
+  ) async {
+    final config = state is TestSetupConfigState
+        ? state as TestSetupConfigState
+        : const TestSetupConfigState();
+    _lastConfigState = config.copyWith(isGenerating: false);
+    emit(config.copyWith(isGenerating: true));
+
+    try {
+      final response = await testRepository.resumeSession(event.sessionId);
+      final testModel = response.data;
+      if (!response.success || testModel == null || testModel.questions.isEmpty) {
+        emit(
+          config.copyWith(
+            isGenerating: false,
+            errorMessage: response.message ?? 'Không mở lại được bài đang làm dở.',
+          ),
+        );
+        return;
+      }
+
+      final questions = testModel.questions;
+      final answers = <int, dynamic>{};
+      final durations = <int, int>{};
+      for (final draft in testModel.drafts) {
+        final qid = draft['qid']?.toString();
+        final index = questions.indexWhere((q) => q.qid != null && q.qid == qid);
+        if (index < 0) continue;
+        final restored = TestAnswerBuilder.restore(questions[index], draft);
+        if (restored == null) continue;
+        answers[index] = restored;
+        durations[index] = (draft['durationMs'] as num?)?.toInt() ?? 0;
+      }
+      final correctness = {
+        for (final e in answers.entries) e.key: questions[e.key].checkAnswer(e.value),
+      };
+      var firstOpen = 0;
+      while (firstOpen < questions.length && answers.containsKey(firstOpen)) {
+        firstOpen++;
+      }
+
+      // Giờ còn lại theo server: giới hạn giờ − đã làm, chặn bởi `expiresAt` (giờ server).
+      int remaining = testModel.timeLimitSeconds > 0
+          ? testModel.timeLimitSeconds - testModel.elapsedSeconds
+          : 0;
+      final expires = testModel.expiresAt;
+      if (expires != null) {
+        final byHard = expires.difference(ServerClock.now()).inSeconds;
+        remaining = remaining > 0 && remaining < byHard ? remaining : byHard;
+      }
+
+      _activeTestId = event.testId;
+      _resetDraftState();
+      _timer?.cancel();
+      final now = DateTime.now();
+      final resumed = TestSetupInProgressState(
+        testModel: testModel,
+        questions: questions,
+        currentQuestionIndex: firstOpen >= questions.length ? questions.length - 1 : firstOpen,
+        timeRemainingSeconds: remaining > 0 ? remaining : 0,
+        answersMap: answers,
+        isAnswerCheckedMap: {for (final i in answers.keys) i: true},
+        answersCorrectnessMap: correctness,
+        questionDurationMap: durations,
+        correctCount: correctness.values.where((v) => v).length,
+        startedAt: now.subtract(Duration(seconds: testModel.elapsedSeconds)),
+        currentQuestionStartedAt: now,
+      );
+      emit(resumed);
+
+      final hasDeadline = testModel.timeLimitSeconds > 0 || expires != null;
+      if (hasDeadline && remaining <= 0) {
+        add(const TestSetupSubmitRequested());
+      } else if (hasDeadline) {
+        _startTimer(remaining);
+      }
+    } on Failure catch (f) {
+      emit(config.copyWith(isGenerating: false, errorMessage: ClassErrorMessages.of(f)));
+    }
+  }
+
+  /// "Làm đề mới": cùng đề cá nhân nhưng bỏ phiên dở và sinh bộ câu hỏi mới (`?restart=true`).
+  Future<void> _onRestartRequested(
+    TestSetupRestartRequested event,
+    Emitter<TestSetupState> emit,
+  ) async {
+    final config = state is TestSetupConfigState
+        ? state as TestSetupConfigState
+        : const TestSetupConfigState();
+    _lastConfigState = config.copyWith(isGenerating: false);
+    emit(config.copyWith(isGenerating: true));
+
+    try {
+      final response = await testRepository.startTest(event.testId, restart: true);
+      final testModel = response.data;
+      if (!response.success || testModel == null || testModel.questions.isEmpty) {
+        emit(
+          config.copyWith(
+            isGenerating: false,
+            errorMessage: response.message ?? 'Không tạo được đề mới.',
+          ),
+        );
+        return;
+      }
+
+      _activeTestId = event.testId;
+      _resetDraftState();
+      _timer?.cancel();
+      final now = DateTime.now();
       emit(
-        TestSetupCompletedState(
-          testModel: inProgressState.testModel,
-          correctCount: inProgressState.correctCount,
-          totalQuestions: inProgressState.questions.length,
-          timeSpentSeconds: totalDurationMs ~/ 1000,
-          answersMap: inProgressState.answersMap,
-          answersCorrectnessMap: inProgressState.answersCorrectnessMap,
-          questions: inProgressState.questions,
-          attemptId: '',
-          errorMessage: 'Lỗi nộp bài: ${e.toString()}. Kết quả được hiển thị cục bộ.',
+        TestSetupInProgressState(
+          testModel: testModel,
+          questions: testModel.questions,
+          currentQuestionIndex: 0,
+          timeRemainingSeconds: testModel.timeLimitSeconds,
+          startedAt: now,
+          currentQuestionStartedAt: now,
         ),
       );
+      if (testModel.timeLimitSeconds > 0) _startTimer(testModel.timeLimitSeconds);
+    } on Failure catch (f) {
+      emit(config.copyWith(isGenerating: false, errorMessage: ClassErrorMessages.of(f)));
     }
   }
 
@@ -600,10 +852,14 @@ class TestSetupBloc extends Bloc<TestSetupEvent, TestSetupState> {
       // 2. Giữ lại những thẻ cũ đang chọn mà vẫn còn tồn tại (loại bỏ thẻ của Deck đã bị xóa)
       final updatedCardIds = configState.selectedCardIds.intersection(allValidCardIds).toSet();
 
-      // 3. Với các Deck MỚI thêm vào -> Mặc định chọn tất cả thẻ của nó
+      // 3. Với các Deck MỚI thêm vào -> Mặc định chọn thẻ (tuân thủ onlyDueCards)
       for (final rd in resolvedDecks) {
         if (!prevResolvedDeckIds.contains(rd.deckId)) {
-          updatedCardIds.addAll(rd.cards.map((c) => c.id));
+          if (configState.onlyDueCards) {
+            updatedCardIds.addAll(rd.cards.where((c) => c.isDueCard).map((c) => c.id));
+          } else {
+            updatedCardIds.addAll(rd.cards.map((c) => c.id));
+          }
         }
       }
 
@@ -611,7 +867,11 @@ class TestSetupBloc extends Bloc<TestSetupEvent, TestSetupState> {
         configState.copyWith(resolvedSourceDecks: resolvedDecks, selectedCardIds: updatedCardIds),
       );
     } catch (e) {
-      emit(configState.copyWith(errorMessage: 'Lỗi gom thẻ từ nguồn: ${e.toString()}'));
+      emit(
+        configState.copyWith(
+          errorMessage: e is Failure ? e.displayMessage : 'Lỗi gom thẻ từ nguồn: ${e.toString()}',
+        ),
+      );
     }
   }
 }

@@ -27,6 +27,8 @@ class ClassErrorMessages {
     AppErrorCodes.classNotAMember: 'Bạn không còn là thành viên của lớp này.',
     AppErrorCodes.classClassIdRequired: 'Thiếu mã lớp học.',
     AppErrorCodes.classNameEmpty: 'Tên lớp không được để trống.',
+    AppErrorCodes.classNewOwnerInvalid:
+        'Không chuyển quyền được cho người này. Họ phải là thành viên đã được duyệt của lớp.',
     AppErrorCodes.classSettingsInvalid: 'Cài đặt lớp không hợp lệ.',
     AppErrorCodes.classNotifySettingsInvalid: 'Cài đặt thông báo không hợp lệ.',
     AppErrorCodes.classJoinCodeOrIdRequired: 'Vui lòng nhập mã lớp.',
@@ -117,6 +119,8 @@ class ClassErrorMessages {
   /// Thông báo cho người dùng theo `errorCode`; thiếu thì dùng `message` của BE.
   static String of(Failure failure) {
     switch (failure.errorCode) {
+      case AppErrorCodes.classNameTooLong:
+        return 'Tên lớp tối đa ${failure.params?['max'] ?? 255} ký tự.';
       case AppErrorCodes.classInviteTooMany:
         final max = failure.params?['max'];
         return 'Mỗi lần chỉ mời tối đa ${max ?? 50} email.';

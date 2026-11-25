@@ -31,23 +31,11 @@ class _ImageSearchSheetState extends State<ImageSearchSheet> {
   // Chờ người dùng ngừng gõ để đỡ tốn lượt, con số do thiết kế chọn, chưa đo.
   static const Duration _debounce = Duration(milliseconds: 500);
 
-  final ScrollController _scroll = ScrollController();
   Timer? _timer;
-
-  @override
-  void initState() {
-    super.initState();
-    _scroll.addListener(() {
-      if (_scroll.position.pixels >= _scroll.position.maxScrollExtent - 200) {
-        context.read<ImageSearchBloc>().add(const ImageSearchNextPageRequested());
-      }
-    });
-  }
 
   @override
   void dispose() {
     _timer?.cancel();
-    _scroll.dispose();
     super.dispose();
   }
 
@@ -95,33 +83,16 @@ class _ImageSearchSheetState extends State<ImageSearchSheet> {
                       color: state.error != null ? colorScheme.error : null,
                     );
                   }
-                  return Column(
-                    children: [
-                      Expanded(
-                        child: GridView.builder(
-                          controller: _scroll,
-                          padding: const EdgeInsets.all(16),
-                          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: 2,
-                            crossAxisSpacing: 12,
-                            mainAxisSpacing: 12,
-                            childAspectRatio: 0.9,
-                          ),
-                          itemCount: state.results.length,
-                          itemBuilder: (context, index) => _ImageTile(image: state.results[index]),
-                        ),
-                      ),
-                      if (state.isLoadingMore)
-                        const Padding(
-                          padding: EdgeInsets.all(8),
-                          child: CircularProgressIndicator(),
-                        ),
-                      if (state.error != null)
-                        Padding(
-                          padding: const EdgeInsets.all(8),
-                          child: Text(state.error!, style: TextStyle(color: colorScheme.error)),
-                        ),
-                    ],
+                  return GridView.builder(
+                    padding: const EdgeInsets.all(16),
+                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 2,
+                      crossAxisSpacing: 12,
+                      mainAxisSpacing: 12,
+                      childAspectRatio: 0.9,
+                    ),
+                    itemCount: state.results.length,
+                    itemBuilder: (context, index) => _ImageTile(image: state.results[index]),
                   );
                 },
               ),

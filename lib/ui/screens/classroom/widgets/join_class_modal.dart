@@ -3,6 +3,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mind_deck/configs/di.dart';
+import 'package:mind_deck/constants/app_error_codes.dart';
 import 'package:mind_deck/constants/class_error_messages.dart';
 import 'package:mind_deck/core/failures.dart';
 import 'package:mind_deck/data/models/class/class_model.dart';
@@ -24,6 +25,7 @@ class JoinClassModal extends StatefulWidget {
 class _JoinClassModalState extends State<JoinClassModal> {
   final _joinCodeController = TextEditingController();
   bool _isLoadingPreview = false;
+  bool _isCancelling = false;
   ClassModel? _previewClass;
   String? _previewError;
 
@@ -71,6 +73,46 @@ class _JoinClassModalState extends State<JoinClassModal> {
         _isLoadingPreview = false;
       });
     }
+  }
+
+  /// Hủy yêu cầu xin vào lớp đang chờ duyệt (có xác nhận), rồi tải lại xem trước để nút đổi lại
+  /// thành "Xin tham gia".
+  Future<void> _cancelJoinRequest() async {
+    final classId = _previewClass?.id;
+    if (classId == null) return;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Hủy yêu cầu tham gia?'),
+        content: const Text('Bạn có thể gửi yêu cầu lại sau.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Giữ lại')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text('Hủy yêu cầu', style: TextStyle(color: Theme.of(ctx).colorScheme.error)),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+
+    setState(() => _isCancelling = true);
+    try {
+      await DI().sl<ClassRepository>().cancelMyJoinRequest(classId);
+      if (mounted) {
+        CustomToast.show(context, CustomToast.success(message: 'Đã hủy yêu cầu tham gia'));
+      }
+    } on Failure catch (f) {
+      if (mounted) CustomToast.show(context, CustomToast.danger(message: ClassErrorMessages.of(f)));
+      // Không còn yêu cầu đang chờ: vẫn tải lại xem trước để trạng thái đúng.
+      if (f.errorCode != AppErrorCodes.classRequestNotFound) {
+        if (mounted) setState(() => _isCancelling = false);
+        return;
+      }
+    }
+    if (!mounted) return;
+    await _fetchPreview(_joinCodeController.text.trim());
+    if (mounted) setState(() => _isCancelling = false);
   }
 
   @override
@@ -455,21 +497,44 @@ class _JoinClassModalState extends State<JoinClassModal> {
                           ],
                         );
                       } else if (myStatus == 'pending') {
-                        ctaButton = ElevatedButton(
-                          onPressed: null,
-                          style: ElevatedButton.styleFrom(
-                            disabledBackgroundColor: colorScheme.surfaceContainerHighest,
-                            padding: const EdgeInsets.symmetric(vertical: 20),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                            minimumSize: const Size(double.infinity, 60),
-                          ),
-                          child: Text(
-                            "Đang chờ duyệt",
-                            style: theme.textTheme.titleMedium?.copyWith(
-                              color: colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
-                              fontWeight: FontWeight.w900,
+                        ctaButton = Column(
+                          children: [
+                            ElevatedButton(
+                              onPressed: null,
+                              style: ElevatedButton.styleFrom(
+                                disabledBackgroundColor: colorScheme.surfaceContainerHighest,
+                                padding: const EdgeInsets.symmetric(vertical: 20),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                minimumSize: const Size(double.infinity, 60),
+                              ),
+                              child: Text(
+                                "Đang chờ duyệt",
+                                style: theme.textTheme.titleMedium?.copyWith(
+                                  color: colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
                             ),
-                          ),
+                            const SizedBox(height: 10),
+                            OutlinedButton(
+                              onPressed: _isCancelling ? null : _cancelJoinRequest,
+                              style: OutlinedButton.styleFrom(
+                                minimumSize: const Size(double.infinity, 56),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                              ),
+                              child: _isCancelling
+                                  ? const SizedBox(
+                                      height: 22,
+                                      width: 22,
+                                      child: CircularProgressIndicator(strokeWidth: 2.5),
+                                    )
+                                  : const Text('Hủy yêu cầu'),
+                            ),
+                          ],
                         );
                       } else {
                         ctaButton = Column(

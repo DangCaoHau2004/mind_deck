@@ -8,7 +8,10 @@ class ReviewWorkloadModel {
   ReviewWorkloadModel({required this.day, required this.count});
 
   factory ReviewWorkloadModel.fromJson(Map<String, dynamic> json) {
-    return ReviewWorkloadModel(day: DateTime.parse(json['day']), count: _asInt(json['count']));
+    // `day` là ngày dương lịch `YYYY-MM-DD` (theo múi giờ người xem), không phải mốc thời gian:
+    // đọc thành 00:00 cùng ngày của máy, không đổi múi giờ.
+    final day = (json['day'] as String? ?? '').split('T').first;
+    return ReviewWorkloadModel(day: DateTime.parse(day), count: _asInt(json['count']));
   }
 
   /// BE chỉ trả những ngày có thẻ, không gồm thẻ quá hạn. Điền `count: 0` cho đủ 7 ngày
@@ -23,7 +26,7 @@ class ReviewWorkloadModel {
       final date = DateTime(start.year, start.month, start.day + i);
       var count = 0;
       for (final item in items) {
-        final local = item.day.toLocal();
+        final local = item.day;
         if (local.year == date.year && local.month == date.month && local.day == date.day) {
           count += item.count;
         }

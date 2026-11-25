@@ -1,6 +1,20 @@
 import 'package:equatable/equatable.dart';
 import 'package:mind_deck/data/models/class/class_assignment_model.dart';
 
+/// Danh sách bài giao phân trang: đang diễn ra, đã kết thúc, quá hạn (học viên).
+enum AssignmentListKind { active, history, overdue }
+
+/// Cuộn gần cuối một danh sách: tải trang kế tiếp của danh sách đó.
+class ClassAssignmentsMoreLoaded extends ClassAssignmentsEvent {
+  final String classId;
+  final AssignmentListKind kind;
+
+  const ClassAssignmentsMoreLoaded(this.classId, this.kind);
+
+  @override
+  List<Object?> get props => [classId, kind];
+}
+
 /// Nội dung form tạo / sửa bài giao.
 class AssignmentDraft extends Equatable {
   final String title;

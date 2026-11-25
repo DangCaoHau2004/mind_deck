@@ -1,4 +1,5 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:mind_deck/constants/app_error_codes.dart';
 import 'package:mind_deck/constants/class_error_messages.dart';
 import 'package:mind_deck/core/failures.dart';
 import 'package:mind_deck/data/models/class/class_invitation_model.dart';
@@ -11,6 +12,9 @@ class ClassHubBloc extends Bloc<ClassHubEvent, ClassHubState> {
   final ClassRepository repository;
   final String classId;
 
+  /// Số dòng tối đa BE trả một trang; dùng để đếm "chờ duyệt" (từ mức này trở lên hiện "99+").
+  static const int pendingCountLimit = 100;
+
   ClassHubBloc({required this.repository, required this.classId, ClassModel? initialClass})
     : super(ClassHubState(classModel: initialClass)) {
     on<ClassHubLoaded>(_onClassHubLoaded);
@@ -18,6 +22,24 @@ class ClassHubBloc extends Bloc<ClassHubEvent, ClassHubState> {
     on<ClassHubDeleteRequested>(_onDelete);
     on<ClassHubJoinRequested>(_onJoin);
     on<ClassHubInviteResponded>(_onInviteResponded);
+    on<ClassHubJoinRequestCancelled>(_onJoinRequestCancelled);
+  }
+
+  /// Hủy yêu cầu xin vào lớp đang chờ duyệt rồi tải lại để nút đổi lại thành "Tham gia".
+  Future<void> _onJoinRequestCancelled(
+    ClassHubJoinRequestCancelled event,
+    Emitter<ClassHubState> emit,
+  ) async {
+    emit(state.copyWith(isBusy: true));
+    try {
+      await repository.cancelMyJoinRequest(classId);
+      emit(state.copyWith(isBusy: false, notice: 'Đã hủy yêu cầu tham gia'));
+      add(ClassHubLoaded());
+    } on Failure catch (f) {
+      emit(state.copyWith(isBusy: false, notice: ClassErrorMessages.of(f), noticeIsError: true));
+      // Không còn yêu cầu đang chờ (đã được duyệt / từ chối / hủy ở nơi khác): tải lại trạng thái.
+      if (f.errorCode == AppErrorCodes.classRequestNotFound) add(ClassHubLoaded());
+    }
   }
 
   Future<void> _onClassHubLoaded(ClassHubLoaded event, Emitter<ClassHubState> emit) async {
@@ -52,7 +74,10 @@ class ClassHubBloc extends Bloc<ClassHubEvent, ClassHubState> {
       if (currentClass.isTeacher) {
         // Chỉ giảng viên gọi được `members/pending` (học viên nhận 403).
         try {
-          final pendingRes = await repository.getPendingMembers(currentClass.id);
+          final pendingRes = await repository.getPendingMembers(
+            currentClass.id,
+            limit: pendingCountLimit,
+          );
           if (pendingRes.success) pendingCount = pendingRes.data.length;
         } on Failure {
           // Không có số chờ duyệt vẫn dùng được hub.

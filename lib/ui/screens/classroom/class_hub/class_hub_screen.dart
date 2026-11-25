@@ -515,7 +515,10 @@ class _ClassHubView extends StatelessWidget {
                                       child: _buildStatBlock(
                                         context,
                                         "CHỜ DUYỆT",
-                                        "${state.pendingCount}",
+                                        // Chỉ đếm tối đa một trang lớn (xem `ClassHubBloc`)
+                                        state.pendingCount >= ClassHubBloc.pendingCountLimit
+                                            ? '${ClassHubBloc.pendingCountLimit - 1}+'
+                                            : '${state.pendingCount}',
                                       ),
                                     ),
                                   ] else
@@ -644,10 +647,16 @@ class _ClassHubView extends StatelessWidget {
                     borderRadius: BorderRadius.circular(28),
                     child: InkWell(
                       borderRadius: BorderRadius.circular(28),
-                      onTap: () => Navigator.push(
-                        context,
-                        SlideRightRoute(page: ClassMembersScreen(classData: classData)),
-                      ),
+                      onTap: () {
+                        final hubBloc = context.read<ClassHubBloc>();
+                        Navigator.push<dynamic>(
+                          context,
+                          SlideRightRoute(page: ClassMembersScreen(classData: classData)),
+                        ).then((transferred) {
+                          // Vừa chuyển quyền chủ lớp: tải lại để cập nhật vai trò của tôi.
+                          if (transferred == true) hubBloc.add(ClassHubLoaded());
+                        });
+                      },
                       child: Container(
                         padding: const EdgeInsets.all(20),
                         decoration: BoxDecoration(
@@ -721,7 +730,7 @@ class _ClassHubView extends StatelessWidget {
   }
 
   /// Người ngoài lớp: nút theo `myStatus` (not_joined → Tham gia, pending → Chờ duyệt,
-  /// invited → Chấp nhận / Từ chối). Chưa có API tự hủy yêu cầu đang chờ duyệt.
+  /// invited → Chấp nhận / Từ chối). Yêu cầu đang chờ duyệt hủy được bằng `DELETE requests/me`.
   Widget _buildPreviewActions(BuildContext context, ClassHubState state, ClassModel classData) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
@@ -736,10 +745,50 @@ class _ClassHubView extends StatelessWidget {
     final Widget actions;
     switch (classData.myStatus) {
       case 'pending':
-        actions = FilledButton(
-          onPressed: null,
-          style: FilledButton.styleFrom(minimumSize: const Size(double.infinity, 56)),
-          child: const Text('Đang chờ giáo viên duyệt'),
+        actions = Column(
+          children: [
+            FilledButton(
+              onPressed: null,
+              style: FilledButton.styleFrom(minimumSize: const Size(double.infinity, 56)),
+              child: const Text('Đang chờ giáo viên duyệt'),
+            ),
+            const SizedBox(height: 10),
+            OutlinedButton(
+              onPressed: state.isBusy
+                  ? null
+                  : () async {
+                      final ok = await showDialog<bool>(
+                        context: context,
+                        builder: (ctx) => AlertDialog(
+                          title: const Text('Hủy yêu cầu tham gia?'),
+                          content: const Text('Bạn có thể gửi yêu cầu lại sau.'),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(ctx, false),
+                              child: const Text('Giữ lại'),
+                            ),
+                            TextButton(
+                              onPressed: () => Navigator.pop(ctx, true),
+                              child: Text(
+                                'Hủy yêu cầu',
+                                style: TextStyle(color: Theme.of(ctx).colorScheme.error),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                      if (ok == true) bloc.add(ClassHubJoinRequestCancelled());
+                    },
+              style: OutlinedButton.styleFrom(minimumSize: const Size(double.infinity, 52)),
+              child: state.isBusy
+                  ? const SizedBox(
+                      height: 20,
+                      width: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Text('Hủy yêu cầu'),
+            ),
+          ],
         );
       case 'invited':
         actions = Column(

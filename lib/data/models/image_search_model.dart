@@ -87,8 +87,6 @@ class ImageSearchPage {
     required this.results,
   });
 
-  bool get hasMore => page < totalPages;
-
   factory ImageSearchPage.fromJson(Map<String, dynamic> json) {
     return ImageSearchPage(
       total: (json['total'] as num?)?.toInt() ?? 0,

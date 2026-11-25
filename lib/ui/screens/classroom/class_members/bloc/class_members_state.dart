@@ -1,6 +1,7 @@
 import 'package:equatable/equatable.dart';
 import 'package:mind_deck/data/models/class/class_invitation_model.dart';
 import 'package:mind_deck/data/models/class/class_member_model.dart';
+import 'package:mind_deck/data/models/page_info.dart';
 
 enum ClassMembersStatus { initial, loading, success, failure }
 
@@ -13,7 +14,15 @@ class ClassMembersState extends Equatable {
 
   /// Lời mời đã gửi nhưng người được mời chưa trả lời (chỉ owner/admin).
   final List<ClassMemberModel> invitedMembers;
+
+  /// Tiến độ tải thêm của từng danh sách (cuộn để tải thêm).
+  final PageInfo membersPage;
+  final PageInfo pendingPage;
+  final PageInfo invitedPage;
   final String? errorMessage;
+
+  /// Vừa chuyển quyền chủ lớp xong: màn thoát về hub để hub tải lại vai trò của tôi.
+  final bool ownerTransferred;
 
   /// Owner/admin: có tab chờ duyệt / đã mời.
   final bool canManage;
@@ -36,7 +45,11 @@ class ClassMembersState extends Equatable {
     this.members = const [],
     this.pendingMembers = const [],
     this.invitedMembers = const [],
+    this.membersPage = const PageInfo(),
+    this.pendingPage = const PageInfo(),
+    this.invitedPage = const PageInfo(),
     this.errorMessage,
+    this.ownerTransferred = false,
     this.canManage = false,
     this.isProcessing = false,
     this.isRefreshing = false,
@@ -52,7 +65,11 @@ class ClassMembersState extends Equatable {
     List<ClassMemberModel>? members,
     List<ClassMemberModel>? pendingMembers,
     List<ClassMemberModel>? invitedMembers,
+    PageInfo? membersPage,
+    PageInfo? pendingPage,
+    PageInfo? invitedPage,
     String? errorMessage,
+    bool? ownerTransferred,
     bool? canManage,
     bool? isProcessing,
     bool? isRefreshing,
@@ -66,7 +83,11 @@ class ClassMembersState extends Equatable {
       members: members ?? this.members,
       pendingMembers: pendingMembers ?? this.pendingMembers,
       invitedMembers: invitedMembers ?? this.invitedMembers,
+      membersPage: membersPage ?? this.membersPage,
+      pendingPage: pendingPage ?? this.pendingPage,
+      invitedPage: invitedPage ?? this.invitedPage,
       errorMessage: errorMessage ?? this.errorMessage,
+      ownerTransferred: ownerTransferred ?? this.ownerTransferred,
       canManage: canManage ?? this.canManage,
       isProcessing: isProcessing ?? this.isProcessing,
       isRefreshing: isRefreshing ?? this.isRefreshing,
@@ -84,7 +105,11 @@ class ClassMembersState extends Equatable {
     members,
     pendingMembers,
     invitedMembers,
+    membersPage,
+    pendingPage,
+    invitedPage,
     errorMessage,
+    ownerTransferred,
     canManage,
     isProcessing,
     isRefreshing,

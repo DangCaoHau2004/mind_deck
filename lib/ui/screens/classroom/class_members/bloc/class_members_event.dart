@@ -19,6 +19,31 @@ class ClassMembersLoaded extends ClassMembersEvent {
   List<Object?> get props => [classId, canManage];
 }
 
+/// Danh sách trong màn thành viên: đã tham gia, chờ duyệt, đã mời.
+enum MemberListKind { joined, pending, invited }
+
+/// Cuộn gần cuối một danh sách: tải trang kế tiếp của danh sách đó.
+class ClassMembersMoreLoaded extends ClassMembersEvent {
+  final String classId;
+  final MemberListKind kind;
+
+  const ClassMembersMoreLoaded(this.classId, this.kind);
+
+  @override
+  List<Object?> get props => [classId, kind];
+}
+
+/// Chủ lớp chuyển quyền chủ lớp cho một thành viên đã duyệt (chủ cũ xuống làm admin).
+class OwnerTransferred extends ClassMembersEvent {
+  final String classId;
+  final String userId;
+
+  const OwnerTransferred(this.classId, this.userId);
+
+  @override
+  List<Object?> get props => [classId, userId];
+}
+
 class ClassMembersRefreshed extends ClassMembersEvent {
   final String classId;
 

@@ -25,6 +25,9 @@ class ClassHubDeleteRequested extends ClassHubEvent {
 /// Người ngoài lớp (xem trước lớp công khai) bấm "Tham gia".
 class ClassHubJoinRequested extends ClassHubEvent {}
 
+/// Người ngoài lớp hủy yêu cầu xin vào lớp đang chờ duyệt của chính mình.
+class ClassHubJoinRequestCancelled extends ClassHubEvent {}
+
 /// Người được mời chấp nhận / từ chối lời mời.
 class ClassHubInviteResponded extends ClassHubEvent {
   final bool accept;

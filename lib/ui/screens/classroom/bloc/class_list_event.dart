@@ -9,6 +9,12 @@ abstract class ClassListEvent extends Equatable {
 
 class ClassListLoaded extends ClassListEvent {}
 
+/// Cuộn gần cuối danh sách lớp: tải trang kế tiếp.
+class ClassListMoreLoaded extends ClassListEvent {}
+
+/// Bấm "Tải thêm lời mời": tải trang lời mời kế tiếp.
+class ClassInvitationsMoreLoaded extends ClassListEvent {}
+
 /// Tham gia lớp bằng mã lớp (`joinCode`) HOẶC bằng `classId` (lớp công khai).
 class ClassJoined extends ClassListEvent {
   final String? classId;

@@ -13,6 +13,7 @@ import 'package:mind_deck/ui/screens/classroom/class_analytics/bloc/class_analyt
 import 'package:mind_deck/ui/screens/classroom/class_analytics/bloc/class_analytics_event.dart';
 import 'package:mind_deck/ui/screens/classroom/class_analytics/bloc/class_analytics_state.dart';
 import 'package:mind_deck/ui/screens/classroom/class_analytics/widgets/analytics_attempt_sheets.dart';
+import 'package:mind_deck/ui/screens/classroom/class_analytics/widgets/analytics_pick_sheets.dart';
 import 'package:mind_deck/ui/screens/classroom/class_analytics/widgets/score_distribution_card.dart';
 import 'package:mind_deck/ui/commons/common_refresh.dart';
 
@@ -476,6 +477,8 @@ class _AnalyticsViewState extends State<_AnalyticsView> with SingleTickerProvide
     ClassAnalyticsState state,
     ColorScheme colorScheme,
   ) {
+    final selected = state.selectedMember;
+    final selectedName = selected == null ? '' : analyticsMemberName(selected);
     return Container(
       decoration: BoxDecoration(
         color: colorScheme.surface,
@@ -489,57 +492,56 @@ class _AnalyticsViewState extends State<_AnalyticsView> with SingleTickerProvide
           ),
         ],
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<String>(
-          isExpanded: true,
-          icon: Icon(Icons.keyboard_arrow_down_rounded, color: colorScheme.onSurfaceVariant),
-          value: state.selectedMember?.userId,
-          items: state.members.map((member) {
-            return DropdownMenuItem<String>(
-              value: member.userId,
-              child: Row(
-                children: [
-                  Container(
-                    width: 36,
-                    height: 36,
-                    decoration: BoxDecoration(
-                      color: colorScheme.primaryContainer,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    alignment: Alignment.center,
-                    child: Text(
-                      (member.user?.fullName ?? '').isNotEmpty
-                          ? (member.user?.fullName ?? '')[0].toUpperCase()
-                          : '?',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w900,
-                        color: colorScheme.onPrimaryContainer,
-                      ),
-                    ),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(20),
+        onTap: () async {
+          final bloc = context.read<ClassAnalyticsBloc>();
+          final picked = await showMemberPickerSheet(
+            context,
+            classId: widget.classData.id,
+            selectedUserId: state.selectedMember?.userId,
+          );
+          if (picked != null && picked.userId != state.selectedMember?.userId) {
+            bloc.add(ClassAnalyticsMemberSelected(widget.classData.id, picked));
+          }
+        },
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+          child: Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: colorScheme.primaryContainer,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  selectedName.isNotEmpty ? selectedName[0].toUpperCase() : '?',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w900,
+                    color: colorScheme.onPrimaryContainer,
                   ),
-                  const SizedBox(width: 16),
-                  Text(
-                    member.user?.fullName ?? '',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w800,
-                      color: colorScheme.onSurface,
-                      fontSize: 16,
-                    ),
-                  ),
-                ],
+                ),
               ),
-            );
-          }).toList(),
-          onChanged: (userId) {
-            if (userId != null) {
-              final member = state.members.firstWhere((m) => m.userId == userId);
-              context.read<ClassAnalyticsBloc>().add(
-                ClassAnalyticsMemberSelected(widget.classData.id, member),
-              );
-            }
-          },
+              const SizedBox(width: 16),
+              Expanded(
+                child: Text(
+                  selectedName.isNotEmpty ? selectedName : 'Chọn học viên',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    color: colorScheme.onSurface,
+                    fontSize: 16,
+                  ),
+                ),
+              ),
+              Icon(Icons.keyboard_arrow_down_rounded, color: colorScheme.onSurfaceVariant),
+            ],
+          ),
         ),
       ),
     );
@@ -664,33 +666,38 @@ class _AnalyticsViewState extends State<_AnalyticsView> with SingleTickerProvide
                       color: colorScheme.surfaceVariant.withValues(alpha: 0.4),
                       borderRadius: BorderRadius.circular(16),
                     ),
-                    child: DropdownButtonHideUnderline(
-                      child: DropdownButton<String>(
-                        isExpanded: true,
-                        value: state.selectedAssignment?.id,
-                        icon: Icon(Icons.expand_more_rounded, color: colorScheme.onSurfaceVariant),
-                        items: state.assignments.map((assignment) {
-                          return DropdownMenuItem<String>(
-                            value: assignment.id,
-                            child: Text(
-                              assignment.title,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontWeight: FontWeight.w800,
-                                fontSize: 16,
-                                color: colorScheme.onSurface,
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(16),
+                      onTap: () async {
+                        final bloc = context.read<ClassAnalyticsBloc>();
+                        final picked = await showAssignmentPickerSheet(
+                          context,
+                          classId: widget.classData.id,
+                          selectedAssignmentId: state.selectedAssignment?.id,
+                        );
+                        if (picked != null && picked.id != state.selectedAssignment?.id) {
+                          bloc.add(ClassAnalyticsAssignmentSelected(widget.classData.id, picked));
+                        }
+                      },
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                state.selectedAssignment?.title ?? 'Chọn bài giao',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 16,
+                                  color: colorScheme.onSurface,
+                                ),
                               ),
                             ),
-                          );
-                        }).toList(),
-                        onChanged: (val) {
-                          if (val != null) {
-                            final assignment = state.assignments.firstWhere((a) => a.id == val);
-                            context.read<ClassAnalyticsBloc>().add(
-                              ClassAnalyticsAssignmentSelected(widget.classData.id, assignment),
-                            );
-                          }
-                        },
+                            Icon(Icons.expand_more_rounded, color: colorScheme.onSurfaceVariant),
+                          ],
+                        ),
                       ),
                     ),
                   ),
@@ -1121,7 +1128,7 @@ class _AnalyticsViewState extends State<_AnalyticsView> with SingleTickerProvide
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: Text(
-                          '${card.wrongCount} lỗi',
+                          '${card.wrongCount} phiên quên',
                           style: TextStyle(
                             color: Colors.red.shade600,
                             fontWeight: FontWeight.w900,

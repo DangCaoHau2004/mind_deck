@@ -294,6 +294,8 @@ class LibraryFolderBloc extends Bloc<LibraryFolderEvent, LibraryFolderState> {
     final ids = state.selected.keys.toList();
     final original = state.folders;
     final originalSelected = state.selected;
+    // Sao ban đầu của từng mục, để lỗi thì chỉ trả sao về như cũ (không đụng tới lựa chọn hiện tại).
+    final before = {for (final x in originalSelected.values) x.id: x.isStarred};
     // BE đặt giá trị rõ ràng cho cả lô: tất cả đã gắn sao thì bỏ sao, ngược lại gắn sao.
     final target = !originalSelected.values.every((x) => x.isStarred);
 
@@ -309,13 +311,21 @@ class LibraryFolderBloc extends Bloc<LibraryFolderEvent, LibraryFolderState> {
       ),
     );
     try {
+      // Thành công: giao diện đã đúng sẵn, giữ nguyên lựa chọn và thanh hành động.
       await folderRepository.starFolders(ids, isStarred: target);
-      emit(state.copyWith(selected: const {}));
     } catch (e) {
       emit(
         state.copyWith(
-          folders: original,
-          selected: originalSelected,
+          folders: [
+            for (final x in state.folders)
+              before.containsKey(x.id) ? x.copyWith(isStarred: before[x.id]) : x,
+          ],
+          selected: {
+            for (final entry in state.selected.entries)
+              entry.key: before.containsKey(entry.key)
+                  ? entry.value.copyWith(isStarred: before[entry.key])
+                  : entry.value,
+          },
           toastMessage: e is Failure ? e.displayMessage : e.toString(),
           toastTriggerTime: DateTime.now(),
           isToastError: true,
@@ -333,21 +343,20 @@ class LibraryFolderBloc extends Bloc<LibraryFolderEvent, LibraryFolderState> {
     Emitter<LibraryFolderState> emit,
   ) async {
     final ids = state.selected.keys.toList();
+    // Bỏ khỏi màn hình ngay, API chạy ngầm. Lỗi chỉ báo, không đưa mục trở lại cho khỏi giật
+    // danh sách: người dùng muốn xem lại thì kéo làm mới. Thành công thì không báo gì (mục đã biến mất).
+    emit(
+      state.copyWith(
+        folders: state.folders.where((x) => !ids.contains(x.id)).toList(),
+        selected: const {},
+      ),
+    );
     try {
       await folderRepository.deleteFolders(ids);
+    } catch (_) {
       emit(
         state.copyWith(
-          folders: state.folders.where((x) => !ids.contains(x.id)).toList(),
-          selected: const {},
-          toastMessage: 'folder_deleted'.tr,
-          toastTriggerTime: DateTime.now(),
-          isToastError: false,
-        ),
-      );
-    } catch (e) {
-      emit(
-        state.copyWith(
-          toastMessage: e is Failure ? e.displayMessage : e.toString(),
+          toastMessage: 'library_delete_failed'.tr.replaceAll('{count}', '${ids.length}'),
           toastTriggerTime: DateTime.now(),
           isToastError: true,
         ),

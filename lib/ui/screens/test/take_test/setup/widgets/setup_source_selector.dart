@@ -8,7 +8,8 @@ import 'package:mind_deck/ui/screens/test/take_test/bloc/test_setup_bloc.dart';
 import 'package:mind_deck/ui/screens/test/take_test/bloc/test_setup_event.dart';
 import 'package:mind_deck/ui/screens/test/take_test/bloc/test_setup_state.dart';
 import 'package:mind_deck/ui/screens/test/take_test/setup/add_source/add_source_screen.dart';
-import 'package:mind_deck/ui/screens/test/take_test/setup/widgets/customize_cards_screen.dart';import 'package:mind_deck/utils/color_utils.dart';
+import 'package:mind_deck/ui/screens/test/take_test/setup/widgets/customize_cards_screen.dart';
+import 'package:mind_deck/utils/color_utils.dart';
 
 class SetupSourceSelector extends StatelessWidget {
   final TestSetupConfigState state;

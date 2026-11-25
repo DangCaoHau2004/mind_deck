@@ -12,9 +12,6 @@ import 'package:mind_deck/ui/screens/classroom/class_members/bloc/class_members_
 import 'package:mind_deck/ui/screens/classroom/class_members/widgets/invite_members_sheet.dart';
 import 'package:mind_deck/ui/commons/common_refresh.dart';
 
-/// Danh sách đang hiển thị: thành viên, yêu cầu chờ duyệt hoặc lời mời chưa trả lời.
-enum _ListMode { joined, pending, invited }
-
 /// Thứ bậc: owner > admin > tutor > student. Chỉ người CAO bậc hơn mới đuổi được.
 int _rank(ClassRole role) => switch (role) {
   ClassRole.owner => 4,
@@ -77,6 +74,30 @@ class _ClassMembersView extends StatelessWidget {
     }
   }
 
+  Future<void> _confirmTransferOwner(BuildContext context, ClassMemberModel member) async {
+    final name = member.fullName.isNotEmpty ? member.fullName : 'thành viên này';
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Chuyển quyền chủ lớp?'),
+        content: Text(
+          '$name sẽ trở thành chủ lớp. Bạn sẽ xuống làm admin của lớp và không thể tự lấy lại '
+          'quyền chủ lớp.',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Hủy')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text('Chuyển quyền', style: TextStyle(color: Theme.of(ctx).colorScheme.error)),
+          ),
+        ],
+      ),
+    );
+    if (ok == true && context.mounted) {
+      context.read<ClassMembersBloc>().add(OwnerTransferred(classData.id, member.userId));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -94,6 +115,8 @@ class _ClassMembersView extends StatelessWidget {
               ? CustomToast.danger(message: notice)
               : CustomToast.success(message: notice),
         );
+        // Vừa chuyển quyền chủ lớp: quay về màn lớp để tải lại vai trò của tôi.
+        if (state.ownerTransferred) Navigator.of(context).pop(true);
       },
       builder: (context, state) {
         return DefaultTabController(
@@ -164,12 +187,12 @@ class _ClassMembersView extends StatelessWidget {
                             Tab(
                               text: state.pendingMembers.isEmpty
                                   ? "Chờ duyệt"
-                                  : "Chờ duyệt (${state.pendingMembers.length})",
+                                  : "Chờ duyệt (${state.pendingMembers.length}${state.pendingPage.hasMore ? '+' : ''})",
                             ),
                             Tab(
                               text: state.invitedMembers.isEmpty
                                   ? "Đã mời"
-                                  : "Đã mời (${state.invitedMembers.length})",
+                                  : "Đã mời (${state.invitedMembers.length}${state.invitedPage.hasMore ? '+' : ''})",
                             ),
                           ],
                         ),
@@ -217,12 +240,12 @@ class _ClassMembersView extends StatelessWidget {
                   physics: const NeverScrollableScrollPhysics(),
                   children: [
                     // Tab 1: Đã tham gia
-                    _buildMemberList(context, state.members, _ListMode.joined),
+                    _buildMemberList(context, state.members, MemberListKind.joined),
 
                     // Tab 2, 3: Chờ duyệt / Đã mời (chỉ owner/admin)
                     if (canManage) ...[
-                      _buildMemberList(context, state.pendingMembers, _ListMode.pending),
-                      _buildMemberList(context, state.invitedMembers, _ListMode.invited),
+                      _buildMemberList(context, state.pendingMembers, MemberListKind.pending),
+                      _buildMemberList(context, state.invitedMembers, MemberListKind.invited),
                     ],
                   ],
                 );
@@ -234,12 +257,16 @@ class _ClassMembersView extends StatelessWidget {
     );
   }
 
-  Widget _buildMemberList(BuildContext context, List<ClassMemberModel> members, _ListMode mode) {
+  Widget _buildMemberList(
+    BuildContext context,
+    List<ClassMemberModel> members,
+    MemberListKind mode,
+  ) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final bool canManage = classData.isAdminOrOwner;
-    final bool isPending = mode == _ListMode.pending;
-    final bool isInvited = mode == _ListMode.invited;
+    final bool isPending = mode == MemberListKind.pending;
+    final bool isInvited = mode == MemberListKind.invited;
 
     Future<void> onRefresh() async {
       final bloc = context.read<ClassMembersBloc>();
@@ -291,281 +318,322 @@ class _ClassMembersView extends StatelessWidget {
       );
     }
 
-    return CommonRefresh(
-      onRefresh: onRefresh,
-      slivers: [
-        SliverPadding(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-          sliver: SliverList.builder(
-            itemCount: members.length,
-            itemBuilder: (context, index) {
-              final member = members[index];
+    final pageInfo = switch (mode) {
+      MemberListKind.joined => context.read<ClassMembersBloc>().state.membersPage,
+      MemberListKind.pending => context.read<ClassMembersBloc>().state.pendingPage,
+      MemberListKind.invited => context.read<ClassMembersBloc>().state.invitedPage,
+    };
 
-              // Custom design elements dựa trên role
-              final isOwner = member.role == ClassRole.owner;
-              final isAdmin = member.role == ClassRole.admin;
-              final isTutor = member.role == ClassRole.tutor;
+    // Gần cuối danh sách thì tải trang kế tiếp (bloc tự bỏ qua khi hết trang hoặc đang tải).
+    return NotificationListener<ScrollNotification>(
+      onNotification: (n) {
+        if (n.depth == 0 && n.metrics.axis == Axis.vertical && n.metrics.extentAfter < 600) {
+          context.read<ClassMembersBloc>().add(ClassMembersMoreLoaded(classData.id, mode));
+        }
+        return false;
+      },
+      child: CommonRefresh(
+        onRefresh: onRefresh,
+        slivers: [
+          SliverPadding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+            sliver: SliverList.builder(
+              itemCount: members.length + (pageInfo.isLoadingMore ? 1 : 0),
+              itemBuilder: (context, index) {
+                if (index >= members.length) {
+                  return const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 16),
+                    child: Center(child: CircularProgressIndicator(strokeWidth: 2.5)),
+                  );
+                }
+                final member = members[index];
 
-              final roleColor = isOwner || isAdmin
-                  ? Colors.purple.shade600
-                  : (isTutor ? Colors.orange.shade600 : colorScheme.primary);
+                // Custom design elements dựa trên role
+                final isOwner = member.role == ClassRole.owner;
+                final isAdmin = member.role == ClassRole.admin;
+                final isTutor = member.role == ClassRole.tutor;
 
-              final roleIcon = isOwner || isAdmin
-                  ? Icons.shield_rounded
-                  : (isTutor ? Icons.school_rounded : Icons.person_rounded);
+                final roleColor = isOwner || isAdmin
+                    ? Colors.purple.shade600
+                    : (isTutor ? Colors.orange.shade600 : colorScheme.primary);
 
-              // Email là null với học viên (trừ khi lớp bật `showMemberEmails`); giảng viên luôn thấy.
-              final email = member.email ?? member.user?.email;
-              final canKick =
-                  canManage &&
-                  mode == _ListMode.joined &&
-                  member.userId != classData.ownerId &&
-                  _rank(member.role) < _myRank;
+                final roleIcon = isOwner || isAdmin
+                    ? Icons.shield_rounded
+                    : (isTutor ? Icons.school_rounded : Icons.person_rounded);
 
-              return Container(
-                margin: const EdgeInsets.only(bottom: 16),
-                clipBehavior: Clip.antiAlias, // Để watermark không tràn viền
-                decoration: BoxDecoration(
-                  color: colorScheme.surface,
-                  borderRadius: BorderRadius.circular(28),
-                  boxShadow: [
-                    BoxShadow(
-                      color: roleColor.withValues(alpha: 0.05),
-                      blurRadius: 20,
-                      offset: const Offset(0, 10),
-                    ),
-                  ],
-                ),
-                child: Stack(
-                  children: [
-                    // Dải màu bên trái báo hiệu quyền
-                    Positioned(
-                      left: 0,
-                      top: 0,
-                      bottom: 0,
-                      child: Container(width: 6, color: roleColor),
-                    ),
+                // Email là null với học viên (trừ khi lớp bật `showMemberEmails`); giảng viên luôn thấy.
+                final email = member.email ?? member.user?.email;
+                final canKick =
+                    canManage &&
+                    mode == MemberListKind.joined &&
+                    member.userId != classData.ownerId &&
+                    _rank(member.role) < _myRank;
 
-                    // Watermark icon cực lớn chìm dưới nền
-                    Positioned(
-                      right: -20,
-                      bottom: -20,
-                      child: Transform.rotate(
-                        angle: -0.2,
-                        child: Icon(roleIcon, size: 100, color: roleColor.withValues(alpha: 0.04)),
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 16),
+                  clipBehavior: Clip.antiAlias, // Để watermark không tràn viền
+                  decoration: BoxDecoration(
+                    color: colorScheme.surface,
+                    borderRadius: BorderRadius.circular(28),
+                    boxShadow: [
+                      BoxShadow(
+                        color: roleColor.withValues(alpha: 0.05),
+                        blurRadius: 20,
+                        offset: const Offset(0, 10),
                       ),
-                    ),
+                    ],
+                  ),
+                  child: Stack(
+                    children: [
+                      // Dải màu bên trái báo hiệu quyền
+                      Positioned(
+                        left: 0,
+                        top: 0,
+                        bottom: 0,
+                        child: Container(width: 6, color: roleColor),
+                      ),
 
-                    // Nội dung thẻ
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(24, 20, 20, 20),
-                      child: Row(
-                        children: [
-                          // Squircle Avatar (Vuông bo góc)
-                          Container(
-                            width: 56,
-                            height: 56,
-                            decoration: BoxDecoration(
-                              color: roleColor.withValues(alpha: 0.15),
-                              borderRadius: BorderRadius.circular(18),
-                            ),
-                            alignment: Alignment.center,
-                            child: Text(
-                              member.fullName.isNotEmpty ? member.fullName[0].toUpperCase() : '?',
-                              style: theme.textTheme.headlineSmall?.copyWith(
-                                color: roleColor,
-                                fontWeight: FontWeight.w900,
+                      // Watermark icon cực lớn chìm dưới nền
+                      Positioned(
+                        right: -20,
+                        bottom: -20,
+                        child: Transform.rotate(
+                          angle: -0.2,
+                          child: Icon(
+                            roleIcon,
+                            size: 100,
+                            color: roleColor.withValues(alpha: 0.04),
+                          ),
+                        ),
+                      ),
+
+                      // Nội dung thẻ
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(24, 20, 20, 20),
+                        child: Row(
+                          children: [
+                            // Squircle Avatar (Vuông bo góc)
+                            Container(
+                              width: 56,
+                              height: 56,
+                              decoration: BoxDecoration(
+                                color: roleColor.withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(18),
+                              ),
+                              alignment: Alignment.center,
+                              child: Text(
+                                member.fullName.isNotEmpty ? member.fullName[0].toUpperCase() : '?',
+                                style: theme.textTheme.headlineSmall?.copyWith(
+                                  color: roleColor,
+                                  fontWeight: FontWeight.w900,
+                                ),
                               ),
                             ),
-                          ),
-                          const SizedBox(width: 16),
+                            const SizedBox(width: 16),
 
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  member.fullName.isNotEmpty ? member.fullName : 'Unknown User',
-                                  style: theme.textTheme.titleMedium?.copyWith(
-                                    fontWeight: FontWeight.w900,
-                                    fontSize: 17,
-                                    color: colorScheme.onSurface,
-                                  ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                                if (email != null && email.isNotEmpty) ...[
-                                  const SizedBox(height: 4),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
                                   Text(
-                                    email,
-                                    style: theme.textTheme.bodySmall?.copyWith(
-                                      color: colorScheme.onSurfaceVariant,
-                                      fontWeight: FontWeight.w600,
+                                    member.fullName.isNotEmpty ? member.fullName : 'Unknown User',
+                                    style: theme.textTheme.titleMedium?.copyWith(
+                                      fontWeight: FontWeight.w900,
+                                      fontSize: 17,
+                                      color: colorScheme.onSurface,
                                     ),
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                   ),
-                                ],
-                                if (mode == _ListMode.joined) ...[
-                                  const SizedBox(height: 8),
-                                  Row(
-                                    children: [
-                                      Icon(roleIcon, size: 12, color: roleColor),
-                                      const SizedBox(width: 4),
-                                      Text(
-                                        member.role.name.toUpperCase(),
-                                        style: theme.textTheme.labelSmall?.copyWith(
-                                          color: roleColor,
-                                          fontWeight: FontWeight.w900,
-                                          letterSpacing: 1,
-                                          fontSize: 10,
-                                        ),
+                                  if (email != null && email.isNotEmpty) ...[
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      email,
+                                      style: theme.textTheme.bodySmall?.copyWith(
+                                        color: colorScheme.onSurfaceVariant,
+                                        fontWeight: FontWeight.w600,
                                       ),
-                                    ],
-                                  ),
-                                ],
-                                if (isInvited && member.invitedAt != null) ...[
-                                  const SizedBox(height: 6),
-                                  Text(
-                                    'Đã mời ${_formatDate(member.invitedAt!)}',
-                                    style: theme.textTheme.labelSmall?.copyWith(
-                                      color: colorScheme.outline,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
                                     ),
-                                  ),
+                                  ],
+                                  if (mode == MemberListKind.joined) ...[
+                                    const SizedBox(height: 8),
+                                    Row(
+                                      children: [
+                                        Icon(roleIcon, size: 12, color: roleColor),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          member.role.name.toUpperCase(),
+                                          style: theme.textTheme.labelSmall?.copyWith(
+                                            color: roleColor,
+                                            fontWeight: FontWeight.w900,
+                                            letterSpacing: 1,
+                                            fontSize: 10,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                  if (isInvited && member.invitedAt != null) ...[
+                                    const SizedBox(height: 6),
+                                    Text(
+                                      'Đã mời ${_formatDate(member.invitedAt!)}',
+                                      style: theme.textTheme.labelSmall?.copyWith(
+                                        color: colorScheme.outline,
+                                      ),
+                                    ),
+                                  ],
                                 ],
-                              ],
+                              ),
                             ),
-                          ),
 
-                          // Khối Actions
-                          if (canManage && isPending) ...[
-                            Column(
-                              children: [
-                                InkWell(
-                                  onTap: () => context.read<ClassMembersBloc>().add(
-                                    MemberApproved(classData.id, member.userId),
-                                  ),
-                                  borderRadius: BorderRadius.circular(12),
-                                  child: Container(
-                                    padding: const EdgeInsets.all(10),
-                                    decoration: BoxDecoration(
-                                      color: Colors.green.withValues(alpha: 0.15),
-                                      borderRadius: BorderRadius.circular(12),
+                            // Khối Actions
+                            if (canManage && isPending) ...[
+                              Column(
+                                children: [
+                                  InkWell(
+                                    onTap: () => context.read<ClassMembersBloc>().add(
+                                      MemberApproved(classData.id, member.userId),
                                     ),
-                                    child: const Icon(
-                                      Icons.check_rounded,
-                                      color: Colors.green,
-                                      size: 24,
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(height: 8),
-                                InkWell(
-                                  onTap: () => context.read<ClassMembersBloc>().add(
-                                    MemberKicked(classData.id, member.userId),
-                                  ),
-                                  borderRadius: BorderRadius.circular(12),
-                                  child: Container(
-                                    padding: const EdgeInsets.all(10),
-                                    decoration: BoxDecoration(
-                                      color: Colors.red.withValues(alpha: 0.15),
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    child: const Icon(
-                                      Icons.close_rounded,
-                                      color: Colors.red,
-                                      size: 24,
+                                    borderRadius: BorderRadius.circular(12),
+                                    child: Container(
+                                      padding: const EdgeInsets.all(10),
+                                      decoration: BoxDecoration(
+                                        color: Colors.green.withValues(alpha: 0.15),
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: const Icon(
+                                        Icons.check_rounded,
+                                        color: Colors.green,
+                                        size: 24,
+                                      ),
                                     ),
                                   ),
-                                ),
-                              ],
-                            ),
-                          ] else if (canManage && isInvited) ...[
-                            TextButton(
-                              onPressed: () => context.read<ClassMembersBloc>().add(
-                                InviteRevoked(classData.id, member.userId),
+                                  const SizedBox(height: 8),
+                                  InkWell(
+                                    onTap: () => context.read<ClassMembersBloc>().add(
+                                      MemberKicked(classData.id, member.userId),
+                                    ),
+                                    borderRadius: BorderRadius.circular(12),
+                                    child: Container(
+                                      padding: const EdgeInsets.all(10),
+                                      decoration: BoxDecoration(
+                                        color: Colors.red.withValues(alpha: 0.15),
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: const Icon(
+                                        Icons.close_rounded,
+                                        color: Colors.red,
+                                        size: 24,
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
-                              child: Text(
-                                'Thu hồi',
-                                style: TextStyle(
-                                  color: colorScheme.error,
-                                  fontWeight: FontWeight.w800,
+                            ] else if (canManage && isInvited) ...[
+                              TextButton(
+                                onPressed: () => context.read<ClassMembersBloc>().add(
+                                  InviteRevoked(classData.id, member.userId),
+                                ),
+                                child: Text(
+                                  'Thu hồi',
+                                  style: TextStyle(
+                                    color: colorScheme.error,
+                                    fontWeight: FontWeight.w800,
+                                  ),
                                 ),
                               ),
-                            ),
-                          ] else if (canKick) ...[
-                            Container(
-                              decoration: BoxDecoration(
-                                color: colorScheme.surfaceVariant.withValues(alpha: 0.4),
-                                borderRadius: BorderRadius.circular(16),
-                              ),
-                              child: PopupMenuButton<String>(
-                                icon: Icon(
-                                  Icons.more_horiz_rounded,
-                                  color: colorScheme.onSurfaceVariant,
+                            ] else if (canKick) ...[
+                              Container(
+                                decoration: BoxDecoration(
+                                  color: colorScheme.surfaceVariant.withValues(alpha: 0.4),
+                                  borderRadius: BorderRadius.circular(16),
                                 ),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(20),
-                                ),
-                                offset: const Offset(0, 40),
-                                onSelected: (value) {
-                                  if (value == 'kick') {
-                                    _confirmKick(context, member);
-                                  } else if (value == 'role' && classData.isOwner) {
-                                    _showRoleDialog(context, member);
-                                  }
-                                },
-                                itemBuilder: (BuildContext context) {
-                                  return [
-                                    if (classData.isOwner)
-                                      const PopupMenuItem(
-                                        value: 'role',
+                                child: PopupMenuButton<String>(
+                                  icon: Icon(
+                                    Icons.more_horiz_rounded,
+                                    color: colorScheme.onSurfaceVariant,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(20),
+                                  ),
+                                  offset: const Offset(0, 40),
+                                  onSelected: (value) {
+                                    if (value == 'kick') {
+                                      _confirmKick(context, member);
+                                    } else if (value == 'role' && classData.isOwner) {
+                                      _showRoleDialog(context, member);
+                                    } else if (value == 'transfer' && classData.isOwner) {
+                                      _confirmTransferOwner(context, member);
+                                    }
+                                  },
+                                  itemBuilder: (BuildContext context) {
+                                    return [
+                                      if (classData.isOwner)
+                                        const PopupMenuItem(
+                                          value: 'role',
+                                          child: Row(
+                                            children: [
+                                              Icon(Icons.swap_calls_rounded, size: 22),
+                                              SizedBox(width: 12),
+                                              Text(
+                                                'Đổi quyền',
+                                                style: TextStyle(fontWeight: FontWeight.bold),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      if (classData.isOwner)
+                                        const PopupMenuItem(
+                                          value: 'transfer',
+                                          child: Row(
+                                            children: [
+                                              Icon(Icons.workspace_premium_rounded, size: 22),
+                                              SizedBox(width: 12),
+                                              Text(
+                                                'Chuyển quyền chủ lớp',
+                                                style: TextStyle(fontWeight: FontWeight.bold),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      PopupMenuItem(
+                                        value: 'kick',
                                         child: Row(
                                           children: [
-                                            Icon(Icons.swap_calls_rounded, size: 22),
-                                            SizedBox(width: 12),
+                                            Icon(
+                                              Icons.person_remove_rounded,
+                                              size: 22,
+                                              color: colorScheme.error,
+                                            ),
+                                            const SizedBox(width: 12),
                                             Text(
-                                              'Đổi quyền',
-                                              style: TextStyle(fontWeight: FontWeight.bold),
+                                              'Đuổi khỏi lớp',
+                                              style: TextStyle(
+                                                color: colorScheme.error,
+                                                fontWeight: FontWeight.bold,
+                                              ),
                                             ),
                                           ],
                                         ),
                                       ),
-                                    PopupMenuItem(
-                                      value: 'kick',
-                                      child: Row(
-                                        children: [
-                                          Icon(
-                                            Icons.person_remove_rounded,
-                                            size: 22,
-                                            color: colorScheme.error,
-                                          ),
-                                          const SizedBox(width: 12),
-                                          Text(
-                                            'Đuổi khỏi lớp',
-                                            style: TextStyle(
-                                              color: colorScheme.error,
-                                              fontWeight: FontWeight.bold,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ];
-                                },
+                                    ];
+                                  },
+                                ),
                               ),
-                            ),
+                            ],
                           ],
-                        ],
+                        ),
                       ),
-                    ),
-                  ],
-                ),
-              );
-            },
+                    ],
+                  ),
+                );
+              },
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 

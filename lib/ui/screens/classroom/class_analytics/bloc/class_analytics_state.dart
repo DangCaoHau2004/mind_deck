@@ -2,6 +2,7 @@ import 'package:equatable/equatable.dart';
 import 'package:mind_deck/data/models/class/class_analytics_models.dart';
 import 'package:mind_deck/data/models/class/class_member_model.dart';
 import 'package:mind_deck/data/models/class/class_assignment_model.dart';
+import 'package:mind_deck/data/models/page_info.dart';
 
 enum ClassAnalyticsStatus { initial, loading, success, failure }
 
@@ -13,7 +14,13 @@ class ClassAnalyticsState extends Equatable {
 
   // General Data (chỉ giảng viên)
   final List<ClassMemberModel> members;
-  final List<ClassAssignmentModel> assignments;
+
+  /// Bài giao đang diễn ra / đã kết thúc (mỗi nhóm phân trang riêng, tải thêm khi cuộn ô chọn).
+  final List<ClassAssignmentModel> activeAssignments;
+  final List<ClassAssignmentModel> historyAssignments;
+  final PageInfo membersPage;
+  final PageInfo activeAssignmentsPage;
+  final PageInfo historyAssignmentsPage;
 
   // Selections
   final ClassMemberModel? selectedMember;
@@ -37,7 +44,11 @@ class ClassAnalyticsState extends Equatable {
     this.isRefreshing = false,
     this.isTeacher = false,
     this.members = const [],
-    this.assignments = const [],
+    this.activeAssignments = const [],
+    this.historyAssignments = const [],
+    this.membersPage = const PageInfo(),
+    this.activeAssignmentsPage = const PageInfo(),
+    this.historyAssignmentsPage = const PageInfo(),
     this.selectedMember,
     this.selectedAssignment,
     this.assignmentProgress = const [],
@@ -50,13 +61,23 @@ class ClassAnalyticsState extends Equatable {
     this.personalAssignments = const [],
   });
 
+  /// Mọi bài giao đã tải: đang diễn ra trước, đã kết thúc sau.
+  List<ClassAssignmentModel> get assignments => [...activeAssignments, ...historyAssignments];
+
+  /// Còn trang bài giao chưa tải (ở nhóm nào cũng được).
+  bool get hasMoreAssignments => activeAssignmentsPage.hasMore || historyAssignmentsPage.hasMore;
+
   ClassAnalyticsState copyWith({
     ClassAnalyticsStatus? status,
     String? errorMessage,
     bool? isRefreshing,
     bool? isTeacher,
     List<ClassMemberModel>? members,
-    List<ClassAssignmentModel>? assignments,
+    List<ClassAssignmentModel>? activeAssignments,
+    List<ClassAssignmentModel>? historyAssignments,
+    PageInfo? membersPage,
+    PageInfo? activeAssignmentsPage,
+    PageInfo? historyAssignmentsPage,
     ClassMemberModel? selectedMember,
     ClassAssignmentModel? selectedAssignment,
     List<AssignmentProgressModel>? assignmentProgress,
@@ -75,7 +96,11 @@ class ClassAnalyticsState extends Equatable {
       isRefreshing: isRefreshing ?? this.isRefreshing,
       isTeacher: isTeacher ?? this.isTeacher,
       members: members ?? this.members,
-      assignments: assignments ?? this.assignments,
+      activeAssignments: activeAssignments ?? this.activeAssignments,
+      historyAssignments: historyAssignments ?? this.historyAssignments,
+      membersPage: membersPage ?? this.membersPage,
+      activeAssignmentsPage: activeAssignmentsPage ?? this.activeAssignmentsPage,
+      historyAssignmentsPage: historyAssignmentsPage ?? this.historyAssignmentsPage,
       selectedMember: selectedMember ?? this.selectedMember,
       selectedAssignment: selectedAssignment ?? this.selectedAssignment,
       assignmentProgress: assignmentProgress ?? this.assignmentProgress,
@@ -98,7 +123,11 @@ class ClassAnalyticsState extends Equatable {
     isRefreshing,
     isTeacher,
     members,
-    assignments,
+    activeAssignments,
+    historyAssignments,
+    membersPage,
+    activeAssignmentsPage,
+    historyAssignmentsPage,
     selectedMember,
     selectedAssignment,
     assignmentProgress,

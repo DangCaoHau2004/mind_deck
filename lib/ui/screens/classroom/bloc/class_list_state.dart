@@ -1,6 +1,7 @@
 import 'package:equatable/equatable.dart';
 import 'package:mind_deck/data/models/class/class_invitation_model.dart';
 import 'package:mind_deck/data/models/class/class_model.dart';
+import 'package:mind_deck/data/models/page_info.dart';
 
 enum ClassListStatus { initial, loading, success, failure }
 
@@ -11,6 +12,10 @@ class ClassListState extends Equatable {
 
   /// Lời mời vào lớp đang chờ tôi trả lời (mới nhất trước, không hết hạn).
   final List<ClassInvitationModel> invitations;
+
+  /// Tiến độ tải thêm của danh sách lớp / lời mời (cuộn để tải thêm).
+  final PageInfo classesPage;
+  final PageInfo invitationsPage;
 
   // Trạng thái xử lý tham gia / tạo lớp / phản hồi lời mời
   final bool isProcessing;
@@ -33,6 +38,8 @@ class ClassListState extends Equatable {
     this.classes = const [],
     this.errorMessage,
     this.invitations = const [],
+    this.classesPage = const PageInfo(),
+    this.invitationsPage = const PageInfo(),
     this.isProcessing = false,
     this.processErrorMessage,
     this.processSuccess = false,
@@ -48,6 +55,8 @@ class ClassListState extends Equatable {
     List<ClassModel>? classes,
     String? errorMessage,
     List<ClassInvitationModel>? invitations,
+    PageInfo? classesPage,
+    PageInfo? invitationsPage,
     bool? isProcessing,
     String? processErrorMessage,
     bool? processSuccess,
@@ -61,6 +70,8 @@ class ClassListState extends Equatable {
       classes: classes ?? this.classes,
       errorMessage: errorMessage ?? this.errorMessage,
       invitations: invitations ?? this.invitations,
+      classesPage: classesPage ?? this.classesPage,
+      invitationsPage: invitationsPage ?? this.invitationsPage,
       isProcessing: isProcessing ?? this.isProcessing,
       processErrorMessage: processErrorMessage,
       processSuccess: processSuccess ?? false,
@@ -78,6 +89,8 @@ class ClassListState extends Equatable {
     classes,
     errorMessage,
     invitations,
+    classesPage,
+    invitationsPage,
     isProcessing,
     processErrorMessage,
     processSuccess,

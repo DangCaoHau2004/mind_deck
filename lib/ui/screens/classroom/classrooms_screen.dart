@@ -27,13 +27,29 @@ class ClassRoomsScreen extends StatefulWidget {
 }
 
 class _ClassRoomsScreenState extends State<ClassRoomsScreen> {
+  final ScrollController _scrollController = ScrollController();
+
   @override
   void initState() {
     super.initState();
+    _scrollController.addListener(_onScroll);
     if (widget.initialJoinCode != null && widget.initialJoinCode!.isNotEmpty) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _showJoinModal(context, initialCode: widget.initialJoinCode);
       });
+    }
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  /// Gần cuối danh sách thì tải thêm lớp (bloc tự bỏ qua khi hết trang hoặc đang tải).
+  void _onScroll() {
+    if (_scrollController.hasClients && _scrollController.position.extentAfter < 600) {
+      context.read<ClassListBloc>().add(ClassListMoreLoaded());
     }
   }
 
@@ -123,7 +139,7 @@ class _ClassRoomsScreenState extends State<ClassRoomsScreen> {
                               Padding(
                                 padding: const EdgeInsets.only(bottom: 10, left: 4),
                                 child: Text(
-                                  "Lời mời tham gia (${invitations.length})",
+                                  "Lời mời tham gia (${invitations.length}${state.invitationsPage.hasMore ? '+' : ''})",
                                   style: theme.textTheme.titleSmall?.copyWith(
                                     fontWeight: FontWeight.w800,
                                     color: colorScheme.onSurfaceVariant,
@@ -151,6 +167,25 @@ class _ClassRoomsScreenState extends State<ClassRoomsScreen> {
                                     ),
                                   ),
                                 ),
+                              if (state.invitationsPage.hasMore)
+                                Align(
+                                  alignment: Alignment.centerLeft,
+                                  child: state.invitationsPage.isLoadingMore
+                                      ? const Padding(
+                                          padding: EdgeInsets.all(12),
+                                          child: SizedBox(
+                                            width: 20,
+                                            height: 20,
+                                            child: CircularProgressIndicator(strokeWidth: 2),
+                                          ),
+                                        )
+                                      : TextButton(
+                                          onPressed: () => context.read<ClassListBloc>().add(
+                                            ClassInvitationsMoreLoaded(),
+                                          ),
+                                          child: const Text('Tải thêm lời mời'),
+                                        ),
+                                ),
                             ],
                           ),
                         );
@@ -175,13 +210,21 @@ class _ClassRoomsScreenState extends State<ClassRoomsScreen> {
 
                   return CommonRefresh(
                     onRefresh: onRefresh,
+                    controller: _scrollController,
                     slivers: [
                       ?invitationsSliver,
                       SliverPadding(
                         padding: const EdgeInsets.fromLTRB(24, 16, 24, 90),
                         sliver: SliverList.builder(
-                          itemCount: state.classes.length,
+                          itemCount:
+                              state.classes.length + (state.classesPage.isLoadingMore ? 1 : 0),
                           itemBuilder: (context, index) {
+                            if (index >= state.classes.length) {
+                              return const Padding(
+                                padding: EdgeInsets.symmetric(vertical: 16),
+                                child: Center(child: CircularProgressIndicator(strokeWidth: 2.5)),
+                              );
+                            }
                             final classModel = state.classes[index];
                             return ClassItemCard(
                               classModel: classModel,

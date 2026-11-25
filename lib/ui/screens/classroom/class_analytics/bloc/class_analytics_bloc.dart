@@ -6,7 +6,9 @@ import 'package:mind_deck/data/models/class/class_analytics_models.dart';
 import 'package:mind_deck/data/models/class/class_assignment_model.dart';
 import 'package:mind_deck/data/models/class/class_member_model.dart';
 import 'package:mind_deck/data/models/enums.dart';
+import 'package:mind_deck/data/models/page_info.dart';
 import 'package:mind_deck/data/repositories/class_repository.dart';
+import 'package:mind_deck/utils/timezone_utils.dart';
 import 'class_analytics_event.dart';
 import 'class_analytics_state.dart';
 
@@ -33,6 +35,74 @@ class ClassAnalyticsBloc extends Bloc<ClassAnalyticsEvent, ClassAnalyticsState> 
     on<ClassAnalyticsRefreshed>(_onRefreshed);
     on<ClassAnalyticsMemberSelected>(_onMemberSelected);
     on<ClassAnalyticsAssignmentSelected>(_onAssignmentSelected);
+    on<ClassAnalyticsMembersMoreLoaded>(_onMembersMore);
+    on<ClassAnalyticsAssignmentsMoreLoaded>(_onAssignmentsMore);
+  }
+
+  /// Tải trang thành viên kế tiếp cho ô chọn học viên (lỗi thì chỉ dừng tải, cuộn lại để thử lại).
+  Future<void> _onMembersMore(
+    ClassAnalyticsMembersMoreLoaded event,
+    Emitter<ClassAnalyticsState> emit,
+  ) async {
+    final info = state.membersPage;
+    if (!info.canLoadMore) return;
+    emit(state.copyWith(membersPage: info.copyWith(isLoadingMore: true)));
+    try {
+      final page = info.page + 1;
+      final res = await repository.getMembers(event.classId, page: page);
+      final known = {for (final m in state.members) m.userId};
+      emit(
+        state.copyWith(
+          members: [...state.members, ...res.data.where((m) => !known.contains(m.userId))],
+          membersPage: PageInfo.loaded(page: page, loaded: res.data.length, limit: classPageSize),
+        ),
+      );
+    } on Failure {
+      emit(state.copyWith(membersPage: info.copyWith(isLoadingMore: false)));
+    }
+  }
+
+  /// Tải trang bài giao kế tiếp cho ô chọn bài giao: hết nhóm "đang diễn ra" mới tới "đã kết thúc".
+  Future<void> _onAssignmentsMore(
+    ClassAnalyticsAssignmentsMoreLoaded event,
+    Emitter<ClassAnalyticsState> emit,
+  ) async {
+    final activePage = state.activeAssignmentsPage;
+    final historyPage = state.historyAssignmentsPage;
+    if (activePage.isLoadingMore || historyPage.isLoadingMore) return;
+    final isActive = activePage.hasMore;
+    if (!isActive && !historyPage.hasMore) return;
+
+    final info = isActive ? activePage : historyPage;
+    emit(
+      isActive
+          ? state.copyWith(activeAssignmentsPage: info.copyWith(isLoadingMore: true))
+          : state.copyWith(historyAssignmentsPage: info.copyWith(isLoadingMore: true)),
+    );
+    try {
+      final page = info.page + 1;
+      final res = await repository.getAssignments(
+        event.classId,
+        tab: isActive ? 'active' : 'history',
+        page: page,
+      );
+      final current = isActive ? state.activeAssignments : state.historyAssignments;
+      final known = {for (final a in current) a.id};
+      final merged = [...current, ...res.data.where((a) => !known.contains(a.id))];
+      final next = PageInfo.loaded(page: page, loaded: res.data.length, limit: classPageSize);
+      emit(
+        isActive
+            ? state.copyWith(activeAssignments: merged, activeAssignmentsPage: next)
+            : state.copyWith(historyAssignments: merged, historyAssignmentsPage: next),
+      );
+    } on Failure {
+      final stopped = info.copyWith(isLoadingMore: false);
+      emit(
+        isActive
+            ? state.copyWith(activeAssignmentsPage: stopped)
+            : state.copyWith(historyAssignmentsPage: stopped),
+      );
+    }
   }
 
   /// Chạy một lời gọi API; lỗi được ghi lại thay vì làm hỏng cả màn hình.
@@ -64,10 +134,15 @@ class ClassAnalyticsBloc extends Bloc<ClassAnalyticsEvent, ClassAnalyticsState> 
     required bool isTeacher,
     required List<Failure> errors,
   }) async {
+    // Lịch ôn 7 ngày tính theo giờ của người xem; FE điền 0 theo ngày của máy nên gửi cùng múi giờ.
+    final timezone = await localTimezone();
     final results = await (
       _safe(() => repository.getDeckHealth(classId, studentId: studentId), errors),
       _safe(() => repository.getHardestCards(classId, studentId: studentId), errors),
-      _safe(() => repository.getReviewWorkload(classId, studentId: studentId), errors),
+      _safe(
+        () => repository.getReviewWorkload(classId, studentId: studentId, timezone: timezone),
+        errors,
+      ),
       // Kết quả theo từng bài giao của một học viên: API dành cho giảng viên.
       isTeacher && studentId != null
           ? _safe(() => repository.getStudentAssignments(classId, studentId), errors)
@@ -90,7 +165,11 @@ class ClassAnalyticsBloc extends Bloc<ClassAnalyticsEvent, ClassAnalyticsState> 
     final errors = <Failure>[];
 
     var members = state.members;
-    var assignments = state.assignments;
+    var activeAssignments = state.activeAssignments;
+    var historyAssignments = state.historyAssignments;
+    var membersPage = state.membersPage;
+    var activePage = state.activeAssignmentsPage;
+    var historyPage = state.historyAssignmentsPage;
     ClassMemberModel? selectedMember = state.selectedMember;
     ClassAssignmentModel? selectedAssignment = state.selectedAssignment;
 
@@ -102,14 +181,26 @@ class ClassAnalyticsBloc extends Bloc<ClassAnalyticsEvent, ClassAnalyticsState> 
         _safe(() => repository.getAssignments(classId, tab: 'history'), errors),
       ).wait;
 
-      members = lists.$1?.data ?? members;
-      final merged = <String, ClassAssignmentModel>{
-        for (final a in [...?lists.$2?.data, ...?lists.$3?.data]) a.id: a,
-      };
-      if (merged.isNotEmpty) assignments = merged.values.toList();
+      PageInfo firstPage(int loaded) =>
+          PageInfo.loaded(page: 1, loaded: loaded, limit: classPageSize);
+      if (lists.$1 != null) {
+        members = lists.$1!.data;
+        membersPage = firstPage(members.length);
+      }
+      if (lists.$2 != null) {
+        activeAssignments = lists.$2!.data;
+        activePage = firstPage(activeAssignments.length);
+      }
+      if (lists.$3 != null) {
+        historyAssignments = lists.$3!.data;
+        historyPage = firstPage(historyAssignments.length);
+      }
+      final assignments = [...activeAssignments, ...historyAssignments];
 
-      // Mặc định phân tích một học viên (nếu có), nếu không thì người đầu tiên.
-      bool stillThere(ClassMemberModel? m) => m != null && members.any((x) => x.userId == m.userId);
+      // Mặc định phân tích một học viên (nếu có), nếu không thì người đầu tiên. Người đang chọn
+      // vẫn được giữ khi chưa thấy trong trang đầu mà danh sách còn trang sau (họ có thể ở trang sau).
+      bool stillThere(ClassMemberModel? m) =>
+          m != null && (membersPage.hasMore || members.any((x) => x.userId == m.userId));
       if (!stillThere(selectedMember)) {
         selectedMember = members.isEmpty
             ? null
@@ -117,7 +208,8 @@ class ClassAnalyticsBloc extends Bloc<ClassAnalyticsEvent, ClassAnalyticsState> 
       }
       final keep = selectedAssignment == null
           ? null
-          : assignments.where((a) => a.id == selectedAssignment!.id).firstOrNull;
+          : assignments.where((a) => a.id == selectedAssignment!.id).firstOrNull ??
+                (activePage.hasMore || historyPage.hasMore ? selectedAssignment : null);
       selectedAssignment = keep ?? (assignments.isNotEmpty ? assignments.first : null);
     }
 
@@ -170,7 +262,11 @@ class ClassAnalyticsBloc extends Bloc<ClassAnalyticsEvent, ClassAnalyticsState> 
         status: ClassAnalyticsStatus.success,
         isRefreshing: false,
         members: members,
-        assignments: assignments,
+        membersPage: membersPage,
+        activeAssignments: activeAssignments,
+        historyAssignments: historyAssignments,
+        activeAssignmentsPage: activePage,
+        historyAssignmentsPage: historyPage,
         selectedMember: selectedMember,
         selectedAssignment: selectedAssignment,
         classDeckHealth: overview.$1?.data,

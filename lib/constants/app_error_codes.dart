@@ -56,6 +56,9 @@ class AppErrorCodes {
   static const String classInsufficientPermissions = 'CLASS_INSUFFICIENT_PERMISSIONS';
   static const String classClassIdRequired = 'CLASS_CLASS_ID_REQUIRED';
   static const String classNameEmpty = 'CLASS_NAME_EMPTY';
+  static const String classNameTooLong = 'CLASS_NAME_TOO_LONG';
+  static const String classNewOwnerInvalid = 'CLASS_NEW_OWNER_INVALID';
+  static const String tagNameTooLong = 'TAG_NAME_TOO_LONG';
   static const String classSettingsInvalid = 'CLASS_SETTINGS_INVALID';
   static const String classNotifySettingsInvalid = 'CLASS_NOTIFY_SETTINGS_INVALID';
   static const String classJoinCodeOrIdRequired = 'CLASS_JOIN_CODE_OR_ID_REQUIRED';

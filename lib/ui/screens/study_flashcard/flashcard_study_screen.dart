@@ -13,6 +13,7 @@ import 'widgets/flashcard_study_card_view.dart';
 import 'widgets/flashcard_study_progress_badge.dart';
 import 'widgets/flashcard_study_settings_modal.dart';
 import 'widgets/flashcard_study_completed_view.dart';
+import 'package:mind_deck/data/repositories/study_repository.dart';
 import 'package:mind_deck/utils/study_flow_helper.dart';
 import 'package:mind_deck/configs/di.dart';
 import 'package:mind_deck/constants/ad_units.dart';
@@ -121,6 +122,50 @@ class _FlashcardStudyScreenState extends State<FlashcardStudyScreen> with Widget
       confirmTextColor: Colors.white,
     );
     return result ?? false;
+  }
+
+  /// "Học lại từ đầu" trong menu: hỏi xác nhận rồi bắt đầu phiên mới để cả server cũng bỏ tiến độ cũ.
+  /// - Theo bộ thẻ: `start(deckId, restart: true)`.
+  /// - Nhiều nguồn: BE không có `restart` cho `cardIds`, nên bỏ phiên cũ rồi tạo phiên mới cùng nhóm thẻ.
+  /// - Học thử (không có phiên): chỉ đặt lại trên máy.
+  Future<void> _confirmRestart() async {
+    final bloc = context.read<FlashcardStudyBloc>();
+    final state = bloc.state;
+    final colorScheme = Theme.of(context).colorScheme;
+    final confirmed = await CustomDialog.show<bool>(
+      context,
+      icon: Icons.restart_alt_rounded,
+      iconColor: colorScheme.error,
+      iconBackgroundColor: colorScheme.error.withValues(alpha: 0.1),
+      title: 'Học lại từ đầu?',
+      description: 'Tiến độ hiện tại của phiên học này sẽ bị bỏ.',
+      cancelText: 'Hủy',
+      confirmText: 'Học lại',
+      confirmButtonColor: colorScheme.error,
+      confirmTextColor: Colors.white,
+    );
+    if (confirmed != true || !mounted) return;
+
+    // Xóa bản lưu tạm trên máy và dừng đồng bộ ngầm của phiên cũ
+    bloc.add(ResetCardsEvent());
+    if (state.isReadOnly) return;
+
+    final deckId = widget.restartDeckId;
+    if (deckId != null && deckId.isNotEmpty) {
+      await StudyFlowHelper.start(context: context, deckId: deckId, restart: true, replace: true);
+      return;
+    }
+    try {
+      await DI().sl<StudyRepository>().deleteSession(state.sessionId);
+    } catch (_) {
+      // Bỏ phiên cũ lỗi cũng không chặn học lại; phiên cũ sẽ tự dọn khi hết hạn
+    }
+    if (!mounted) return;
+    await StudyFlowHelper.start(
+      context: context,
+      cardIds: state.cards.map((c) => c.id).toList(),
+      replace: true,
+    );
   }
 
   @override
@@ -282,7 +327,7 @@ class _FlashcardStudyScreenState extends State<FlashcardStudyScreen> with Widget
                           context.read<FlashcardStudyBloc>().add(ToggleShuffleEvent(val)),
                       onShowBackFirstChanged: (val) =>
                           context.read<FlashcardStudyBloc>().add(ToggleShowBackFirstEvent(val)),
-                      onResetCards: () => context.read<FlashcardStudyBloc>().add(ResetCardsEvent()),
+                      onResetCards: _confirmRestart,
                     );
                   },
                 ),

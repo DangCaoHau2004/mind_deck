@@ -5,6 +5,7 @@ import 'package:mind_deck/configs/di.dart';
 import 'package:mind_deck/data/models/class/class_model.dart';
 import 'package:mind_deck/data/models/class/class_assignment_model.dart';
 import 'package:mind_deck/data/models/class/class_assignment_submission_model.dart';
+import 'package:mind_deck/data/models/page_info.dart';
 import 'package:mind_deck/ui/commons/common_refresh.dart';
 import 'package:mind_deck/ui/commons/custom_toast.dart';
 import 'package:mind_deck/ui/screens/classroom/class_assignments/bloc/class_assignments_bloc.dart';
@@ -210,13 +211,31 @@ class _ClassAssignmentsView extends StatelessWidget {
                         context,
                         state.active,
                         'Chưa có bài tập nào đang diễn ra hoặc đã hẹn giờ.',
+                        AssignmentListKind.active,
                       ),
-                      _assignmentList(context, state.history, 'Chưa có bài tập nào kết thúc.'),
+                      _assignmentList(
+                        context,
+                        state.history,
+                        'Chưa có bài tập nào kết thúc.',
+                        AssignmentListKind.history,
+                      ),
                     ]
                   : [
-                      _assignmentList(context, state.active, 'Bạn không có bài tập nào cần làm.'),
+                      _assignmentList(
+                        context,
+                        state.active,
+                        'Bạn không có bài tập nào cần làm.',
+                        AssignmentListKind.active,
+                      ),
                       _overdueList(context, state.overdue),
-                      _assignmentList(context, state.studentDone, 'Bạn chưa làm bài tập nào.'),
+                      // Danh sách lọc từ `history` nên có thể ngắn mà vẫn còn trang: có nút "Tải thêm".
+                      _assignmentList(
+                        context,
+                        state.studentDone,
+                        'Bạn chưa làm bài tập nào.',
+                        AssignmentListKind.history,
+                        showLoadMoreButton: true,
+                      ),
                     ],
             );
           },
@@ -262,17 +281,67 @@ class _ClassAssignmentsView extends StatelessWidget {
     );
   }
 
-  Widget _assignmentList(BuildContext context, List<ClassAssignmentModel> items, String emptyText) {
-    if (items.isEmpty) return _empty(context, emptyText);
-    return CommonRefresh(
-      onRefresh: () => _refresh(context),
+  /// Gần cuối danh sách thì tải trang kế tiếp (bloc tự bỏ qua khi hết trang hoặc đang tải).
+  Widget _pagedList(
+    BuildContext context,
+    AssignmentListKind kind, {
+    required List<Widget> slivers,
+  }) {
+    return NotificationListener<ScrollNotification>(
+      onNotification: (n) {
+        if (n.depth == 0 && n.metrics.axis == Axis.vertical && n.metrics.extentAfter < 600) {
+          context.read<ClassAssignmentsBloc>().add(ClassAssignmentsMoreLoaded(classData.id, kind));
+        }
+        return false;
+      },
+      child: CommonRefresh(onRefresh: () => _refresh(context), slivers: slivers),
+    );
+  }
+
+  /// Vòng xoay (đang tải thêm) hoặc nút "Tải thêm" ở cuối danh sách.
+  Widget _listFooter(BuildContext context, PageInfo info, AssignmentListKind kind, bool button) {
+    if (info.isLoadingMore) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 16),
+        child: Center(child: CircularProgressIndicator(strokeWidth: 2.5)),
+      );
+    }
+    if (button && info.hasMore) {
+      return Center(
+        child: TextButton(
+          onPressed: () => context.read<ClassAssignmentsBloc>().add(
+            ClassAssignmentsMoreLoaded(classData.id, kind),
+          ),
+          child: const Text('Tải thêm'),
+        ),
+      );
+    }
+    return const SizedBox.shrink();
+  }
+
+  Widget _assignmentList(
+    BuildContext context,
+    List<ClassAssignmentModel> items,
+    String emptyText,
+    AssignmentListKind kind, {
+    bool showLoadMoreButton = false,
+  }) {
+    final state = context.read<ClassAssignmentsBloc>().state;
+    final info = kind == AssignmentListKind.active ? state.activePage : state.historyPage;
+    // Danh sách rỗng nhưng còn trang (học viên chưa làm bài nào trong trang đầu): vẫn cho tải thêm.
+    if (items.isEmpty && !(showLoadMoreButton && info.hasMore)) return _empty(context, emptyText);
+    return _pagedList(
+      context,
+      kind,
       slivers: [
         SliverPadding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
           sliver: SliverList(
             delegate: SliverChildBuilderDelegate(
-              (context, index) => _buildAssignmentCard(context, items[index]),
-              childCount: items.length,
+              (context, index) => index < items.length
+                  ? _buildAssignmentCard(context, items[index])
+                  : _listFooter(context, info, kind, showLoadMoreButton),
+              childCount: items.length + 1,
             ),
           ),
         ),
@@ -285,13 +354,18 @@ class _ClassAssignmentsView extends StatelessWidget {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
-    return CommonRefresh(
-      onRefresh: () => _refresh(context),
+    final overduePage = context.read<ClassAssignmentsBloc>().state.overduePage;
+    return _pagedList(
+      context,
+      AssignmentListKind.overdue,
       slivers: [
         SliverPadding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
           sliver: SliverList(
             delegate: SliverChildBuilderDelegate((context, index) {
+              if (index >= items.length) {
+                return _listFooter(context, overduePage, AssignmentListKind.overdue, false);
+              }
               final item = items[index];
               final isTest = item.type == AssignmentType.gradedTest;
               return Padding(
@@ -341,7 +415,7 @@ class _ClassAssignmentsView extends StatelessWidget {
                   ),
                 ),
               );
-            }, childCount: items.length),
+            }, childCount: items.length + 1),
           ),
         ),
       ],

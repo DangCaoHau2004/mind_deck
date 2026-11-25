@@ -3,7 +3,7 @@ import 'package:mind_deck/constants/api_endpoints.dart';
 
 abstract class ClassRemoteDataSource {
   // Class management
-  Future<Response> getClasses();
+  Future<Response> getClasses({int page = 1, int limit = 20});
   Future<Response> getClassById(String classId);
   Future<Response> createClass({
     required String name,
@@ -29,14 +29,25 @@ abstract class ClassRemoteDataSource {
   /// (invited) hoặc đuổi (approved).
   Future<Response> kickMember(String classId, String userId);
   Future<Response> updateMemberRole(String classId, String userId, String role);
-  Future<Response> getPendingMembers(String classId, {String status = 'pending'});
-  Future<Response> getMembers(String classId);
+  Future<Response> getPendingMembers(
+    String classId, {
+    String status = 'pending',
+    int page = 1,
+    int limit = 20,
+  });
+  Future<Response> getMembers(String classId, {int page = 1, int limit = 20});
   Future<Response> leaveClass(String classId);
+
+  /// Chỉ chủ lớp: người nhận phải là thành viên đã duyệt. Chủ cũ xuống làm admin.
+  Future<Response> transferOwner(String classId, String userId);
+
+  /// Học viên hủy yêu cầu xin vào lớp đang chờ duyệt của chính mình.
+  Future<Response> cancelMyJoinRequest(String classId);
   Future<Response> patchClassSettings(String classId, Map<String, dynamic> body);
   Future<Response> patchMyNotifications(String classId, Map<String, dynamic> body);
 
   // Invitations
-  Future<Response> getInvitations();
+  Future<Response> getInvitations({int page = 1, int limit = 20});
   Future<Response> lookupInvites(String classId, List<String> emails);
   Future<Response> sendInvites(String classId, List<String> emails);
   Future<Response> revokeInvite(String classId, String userId);
@@ -105,10 +116,20 @@ abstract class ClassRemoteDataSource {
     String? testId,
   });
   Future<Response> deleteAssignment(String classId, String assignmentId);
-  Future<Response> getAssignments(String classId, {String tab = 'active'});
-  Future<Response> getSubmissions(String classId, String assignmentId);
-  Future<Response> getMySubmissions(String classId);
-  Future<Response> getOverdueAssignments(String classId);
+  Future<Response> getAssignments(
+    String classId, {
+    String tab = 'active',
+    int page = 1,
+    int limit = 20,
+  });
+  Future<Response> getSubmissions(
+    String classId,
+    String assignmentId, {
+    int page = 1,
+    int limit = 20,
+  });
+  Future<Response> getMySubmissions(String classId, {int page = 1, int limit = 20});
+  Future<Response> getOverdueAssignments(String classId, {int page = 1, int limit = 20});
   Future<Response> getLeaderboard(String classId, {String? month, int limit = 10});
 
   // Analytics
@@ -134,8 +155,8 @@ class ClassRemoteDataSourceImpl implements ClassRemoteDataSource {
 
   // Class management
   @override
-  Future<Response> getClasses() {
-    return dio.get(ApiEndpoints.classes);
+  Future<Response> getClasses({int page = 1, int limit = 20}) {
+    return dio.get(ApiEndpoints.classes, queryParameters: {'page': page, 'limit': limit});
   }
 
   @override
@@ -215,21 +236,39 @@ class ClassRemoteDataSourceImpl implements ClassRemoteDataSource {
   }
 
   @override
-  Future<Response> getPendingMembers(String classId, {String status = 'pending'}) {
+  Future<Response> getPendingMembers(
+    String classId, {
+    String status = 'pending',
+    int page = 1,
+    int limit = 20,
+  }) {
     return dio.get(
       '${ApiEndpoints.classMembersPending}$classId/members/pending',
-      queryParameters: {'status': status},
+      queryParameters: {'status': status, 'page': page, 'limit': limit},
     );
   }
 
   @override
-  Future<Response> getMembers(String classId) {
-    return dio.get('${ApiEndpoints.classMembers}$classId/members');
+  Future<Response> getMembers(String classId, {int page = 1, int limit = 20}) {
+    return dio.get(
+      '${ApiEndpoints.classMembers}$classId/members',
+      queryParameters: {'page': page, 'limit': limit},
+    );
   }
 
   @override
   Future<Response> leaveClass(String classId) {
     return dio.post('${ApiEndpoints.classLeave}$classId/leave');
+  }
+
+  @override
+  Future<Response> transferOwner(String classId, String userId) {
+    return dio.post('${ApiEndpoints.classes}/$classId/transfer-owner', data: {'userId': userId});
+  }
+
+  @override
+  Future<Response> cancelMyJoinRequest(String classId) {
+    return dio.delete('${ApiEndpoints.classes}/$classId/requests/me');
   }
 
   @override
@@ -247,8 +286,8 @@ class ClassRemoteDataSourceImpl implements ClassRemoteDataSource {
 
   // Invitations
   @override
-  Future<Response> getInvitations() {
-    return dio.get(ApiEndpoints.classInvitations);
+  Future<Response> getInvitations({int page = 1, int limit = 20}) {
+    return dio.get(ApiEndpoints.classInvitations, queryParameters: {'page': page, 'limit': limit});
   }
 
   @override
@@ -455,28 +494,45 @@ class ClassRemoteDataSourceImpl implements ClassRemoteDataSource {
   }
 
   @override
-  Future<Response> getAssignments(String classId, {String tab = 'active'}) {
+  Future<Response> getAssignments(
+    String classId, {
+    String tab = 'active',
+    int page = 1,
+    int limit = 20,
+  }) {
     return dio.get(
       '${ApiEndpoints.classAssignments}$classId/assignments',
-      queryParameters: {'tab': tab},
+      queryParameters: {'tab': tab, 'page': page, 'limit': limit},
     );
   }
 
   @override
-  Future<Response> getSubmissions(String classId, String assignmentId) {
+  Future<Response> getSubmissions(
+    String classId,
+    String assignmentId, {
+    int page = 1,
+    int limit = 20,
+  }) {
     return dio.get(
       '${ApiEndpoints.classAssignmentSubmissions}$classId/assignments/$assignmentId/submissions',
+      queryParameters: {'page': page, 'limit': limit},
     );
   }
 
   @override
-  Future<Response> getMySubmissions(String classId) {
-    return dio.get('${ApiEndpoints.classMySubmissions}$classId/my-submissions');
+  Future<Response> getMySubmissions(String classId, {int page = 1, int limit = 20}) {
+    return dio.get(
+      '${ApiEndpoints.classMySubmissions}$classId/my-submissions',
+      queryParameters: {'page': page, 'limit': limit},
+    );
   }
 
   @override
-  Future<Response> getOverdueAssignments(String classId) {
-    return dio.get('${ApiEndpoints.classAssignmentsOverdue}$classId/assignments/overdue');
+  Future<Response> getOverdueAssignments(String classId, {int page = 1, int limit = 20}) {
+    return dio.get(
+      '${ApiEndpoints.classAssignmentsOverdue}$classId/assignments/overdue',
+      queryParameters: {'page': page, 'limit': limit},
+    );
   }
 
   @override

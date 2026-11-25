@@ -22,39 +22,29 @@ class ImageSearchQueryChanged extends ImageSearchEvent {
   List<Object?> get props => [query];
 }
 
-class ImageSearchNextPageRequested extends ImageSearchEvent {
-  const ImageSearchNextPageRequested();
-}
-
 class ImageSearchState extends Equatable {
   final String query;
   final List<ImageSearchResult> results;
-  final int page;
-  final bool hasMore;
   final bool isLoading;
-  final bool isLoadingMore;
   final String? error;
 
   const ImageSearchState({
     this.query = '',
     this.results = const [],
-    this.page = 0,
-    this.hasMore = false,
     this.isLoading = false,
-    this.isLoadingMore = false,
     this.error,
   });
 
   @override
-  List<Object?> get props => [query, results, page, hasMore, isLoading, isLoadingMore, error];
+  List<Object?> get props => [query, results, isLoading, error];
 }
 
+/// Chỉ lấy trang đầu: người dùng muốn ảnh khác thì đổi từ khóa, đỡ tốn lượt gọi kho ảnh.
 class ImageSearchBloc extends Bloc<ImageSearchEvent, ImageSearchState> {
   final ImageRepository repository;
 
   ImageSearchBloc({required this.repository}) : super(const ImageSearchState()) {
     on<ImageSearchQueryChanged>(_onQueryChanged, transformer: restartable());
-    on<ImageSearchNextPageRequested>(_onNextPage, transformer: droppable());
   }
 
   Future<void> _onQueryChanged(
@@ -74,60 +64,11 @@ class ImageSearchBloc extends Bloc<ImageSearchEvent, ImageSearchState> {
         emit(ImageSearchState(query: query, error: _fallbackError(response.message)));
         return;
       }
-      emit(
-        ImageSearchState(
-          query: query,
-          results: page.results,
-          page: page.page,
-          hasMore: page.hasMore,
-        ),
-      );
+      emit(ImageSearchState(query: query, results: page.results));
     } on Failure catch (e) {
       emit(ImageSearchState(query: query, error: ImageSearchErrorMessages.of(e)));
     }
   }
 
-  Future<void> _onNextPage(
-    ImageSearchNextPageRequested event,
-    Emitter<ImageSearchState> emit,
-  ) async {
-    final current = state;
-    if (!current.hasMore || current.isLoading || current.isLoadingMore) return;
-    emit(_copy(current, isLoadingMore: true));
-    try {
-      final response = await repository.searchImages(query: current.query, page: current.page + 1);
-      final page = response.data;
-      // Từ khóa đã đổi trong lúc tải thì bỏ kết quả cũ.
-      if (state.query != current.query) return;
-      if (!response.success || page == null) {
-        emit(_copy(current, error: _fallbackError(response.message)));
-        return;
-      }
-      emit(
-        ImageSearchState(
-          query: current.query,
-          results: [...current.results, ...page.results],
-          page: page.page,
-          hasMore: page.hasMore,
-        ),
-      );
-    } on Failure catch (e) {
-      if (state.query == current.query) {
-        emit(_copy(current, error: ImageSearchErrorMessages.of(e)));
-      }
-    }
-  }
-
   String _fallbackError(String? message) => message ?? 'common_error_occurred'.tr;
-
-  ImageSearchState _copy(ImageSearchState s, {bool isLoadingMore = false, String? error}) {
-    return ImageSearchState(
-      query: s.query,
-      results: s.results,
-      page: s.page,
-      hasMore: s.hasMore,
-      isLoadingMore: isLoadingMore,
-      error: error,
-    );
-  }
 }

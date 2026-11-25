@@ -42,8 +42,8 @@ class AddTagSheet extends StatefulWidget {
     return showModalBottomSheet<AddTagResult>(
       context: context,
       isScrollControlled: true,
-      showDragHandle: true,
-      backgroundColor: Theme.of(context).colorScheme.surface,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
       builder: (_) => AddTagSheet(availableTags: availableTags),
     );
   }
@@ -54,11 +54,37 @@ class AddTagSheet extends StatefulWidget {
 
 class _AddTagSheetState extends State<AddTagSheet> {
   final TextEditingController _controller = TextEditingController();
+  final DraggableScrollableController _sheetController = DraggableScrollableController();
+  final FocusNode _nameFocus = FocusNode();
   Color _color = AddTagSheet.presetColors.first;
+
+  /// Độ cao (tỉ lệ màn hình) lúc mở, và tối đa khi kéo lên / khi bàn phím mở. Do thiết kế chọn, chưa đo.
+  static const double _initialSize = 0.6;
+  static const double _maxSize = 0.92;
+
+  @override
+  void initState() {
+    super.initState();
+    // Gõ tên (bàn phím mở) thì mở rộng tối đa để nút "Tạo và chọn" không bị bàn phím che
+    _nameFocus.addListener(() {
+      if (!_nameFocus.hasFocus) return;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _sheetController.isAttached) {
+          _sheetController.animateTo(
+            _maxSize,
+            duration: const Duration(milliseconds: 250),
+            curve: Curves.easeOut,
+          );
+        }
+      });
+    });
+  }
 
   @override
   void dispose() {
     _controller.dispose();
+    _nameFocus.dispose();
+    _sheetController.dispose();
     super.dispose();
   }
 
@@ -95,190 +121,218 @@ class _AddTagSheetState extends State<AddTagSheet> {
     final suggestions = [?exact, ...similar.take(4)];
     final isCustom = !AddTagSheet.presetColors.contains(_color);
 
-    return Padding(
-      padding: EdgeInsets.fromLTRB(20, 0, 20, 20 + MediaQuery.of(context).viewInsets.bottom),
-      child: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    'tag_new_title'.tr,
-                    style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800),
+    return DraggableScrollableSheet(
+      controller: _sheetController,
+      initialChildSize: _initialSize,
+      minChildSize: 0.35,
+      maxChildSize: _maxSize,
+      snap: true,
+      snapSizes: const [_initialSize],
+      expand: false,
+      builder: (context, scrollController) => Material(
+        color: colorScheme.surface,
+        clipBehavior: Clip.antiAlias,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+        ),
+        child: SingleChildScrollView(
+          controller: scrollController,
+          padding: EdgeInsets.fromLTRB(20, 0, 20, 20 + MediaQuery.of(context).viewInsets.bottom),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Thanh kéo (nằm trong vùng cuộn để kéo được cả sheet)
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.symmetric(vertical: 12),
+                  decoration: BoxDecoration(
+                    color: colorScheme.onSurface.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(2),
                   ),
                 ),
-                IconButton(
-                  onPressed: () => Navigator.pop(context),
-                  icon: const Icon(Icons.close_rounded),
+              ),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'tag_new_title'.tr,
+                      style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800),
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.close_rounded),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'tag_name_label'.tr,
+                style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: _controller,
+                focusNode: _nameFocus,
+                autofocus: true,
+                inputFormatters: [LengthLimitingTextInputFormatter(AddTagSheet.maxLength)],
+                onChanged: (_) => setState(() {}),
+                style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600),
+                decoration: InputDecoration(
+                  hintText: 'tag_name_hint'.tr,
+                  prefixIcon: Padding(
+                    padding: const EdgeInsets.only(left: 16, right: 8),
+                    child: Text(
+                      '#',
+                      style: theme.textTheme.headlineSmall?.copyWith(
+                        color: colorScheme.primary,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                  prefixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
+                  suffixIcon: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        '${_controller.text.length}/${AddTagSheet.maxLength}',
+                        style: theme.textTheme.bodyMedium?.copyWith(color: colorScheme.outline),
+                      ),
+                      if (_controller.text.isNotEmpty)
+                        IconButton(
+                          onPressed: () => setState(_controller.clear),
+                          icon: const Icon(Icons.close_rounded, size: 18),
+                          style: IconButton.styleFrom(
+                            backgroundColor: colorScheme.onSurface.withValues(alpha: 0.08),
+                          ),
+                        )
+                      else
+                        const SizedBox(width: 12),
+                    ],
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    borderSide: BorderSide(color: colorScheme.outline.withValues(alpha: 0.4)),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    borderSide: BorderSide(color: colorScheme.primary, width: 2),
+                  ),
+                ),
+              ),
+              if (slug.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Icon(Icons.info_outline_rounded, size: 18, color: colorScheme.outline),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text.rich(
+                        TextSpan(
+                          children: [
+                            TextSpan(text: '${'tag_will_save_as'.tr} '),
+                            TextSpan(
+                              text: '#$slug',
+                              style: const TextStyle(fontWeight: FontWeight.w800),
+                            ),
+                          ],
+                        ),
+                        style: theme.textTheme.bodyLarge?.copyWith(
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ],
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'tag_name_label'.tr,
-              style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
-            ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: _controller,
-              autofocus: true,
-              inputFormatters: [LengthLimitingTextInputFormatter(AddTagSheet.maxLength)],
-              onChanged: (_) => setState(() {}),
-              style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600),
-              decoration: InputDecoration(
-                hintText: 'tag_name_hint'.tr,
-                prefixIcon: Padding(
-                  padding: const EdgeInsets.only(left: 16, right: 8),
+              const SizedBox(height: 20),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'tag_color_label'.tr,
+                      style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                  _TagPill(text: '#${slug.isEmpty ? 'tag' : slug}', color: _color),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  for (final color in AddTagSheet.presetColors)
+                    Expanded(
+                      child: _Swatch(
+                        color: color,
+                        selected: _color == color,
+                        onTap: () => setState(() => _color = color),
+                      ),
+                    ),
+                  Expanded(
+                    child: _Swatch(
+                      color: _color,
+                      selected: isCustom,
+                      rainbow: !isCustom,
+                      onTap: _pickCustomColor,
+                    ),
+                  ),
+                ],
+              ),
+              if (suggestions.isNotEmpty) ...[
+                const SizedBox(height: 20),
+                Text(
+                  exact != null ? 'tag_existing_exact'.tr : 'tag_existing_similar'.tr,
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    color: colorScheme.onSurfaceVariant,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (final tag in suggestions)
+                      GestureDetector(
+                        onTap: () => Navigator.pop(context, AddTagResult.existing(tag)),
+                        child: _TagPill(
+                          text: '#${tag.name}',
+                          color: ColorUtils.parseHex(tag.color ?? '#8B5CF6'),
+                        ),
+                      ),
+                  ],
+                ),
+              ],
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                height: 56,
+                child: FilledButton(
+                  style: FilledButton.styleFrom(
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  ),
+                  onPressed: slug.isEmpty
+                      ? null
+                      : () => Navigator.pop(
+                          context,
+                          exact != null
+                              ? AddTagResult.existing(exact)
+                              : AddTagResult.create(name: slug, color: ColorUtils.toHex(_color)),
+                        ),
                   child: Text(
-                    '#',
-                    style: theme.textTheme.headlineSmall?.copyWith(
-                      color: colorScheme.primary,
+                    exact != null ? 'tag_select_existing'.tr : 'tag_create_and_select'.tr,
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      color: colorScheme.onPrimary,
                       fontWeight: FontWeight.w800,
                     ),
                   ),
                 ),
-                prefixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
-                suffixIcon: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      '${_controller.text.length}/${AddTagSheet.maxLength}',
-                      style: theme.textTheme.bodyMedium?.copyWith(color: colorScheme.outline),
-                    ),
-                    if (_controller.text.isNotEmpty)
-                      IconButton(
-                        onPressed: () => setState(_controller.clear),
-                        icon: const Icon(Icons.close_rounded, size: 18),
-                        style: IconButton.styleFrom(
-                          backgroundColor: colorScheme.onSurface.withValues(alpha: 0.08),
-                        ),
-                      )
-                    else
-                      const SizedBox(width: 12),
-                  ],
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  borderSide: BorderSide(color: colorScheme.outline.withValues(alpha: 0.4)),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  borderSide: BorderSide(color: colorScheme.primary, width: 2),
-                ),
-              ),
-            ),
-            if (slug.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Icon(Icons.info_outline_rounded, size: 18, color: colorScheme.outline),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Text.rich(
-                      TextSpan(
-                        children: [
-                          TextSpan(text: '${'tag_will_save_as'.tr} '),
-                          TextSpan(
-                            text: '#$slug',
-                            style: const TextStyle(fontWeight: FontWeight.w800),
-                          ),
-                        ],
-                      ),
-                      style: theme.textTheme.bodyLarge?.copyWith(
-                        color: colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ),
-                ],
               ),
             ],
-            const SizedBox(height: 20),
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    'tag_color_label'.tr,
-                    style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
-                  ),
-                ),
-                _TagPill(text: '#${slug.isEmpty ? 'tag' : slug}', color: _color),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                for (final color in AddTagSheet.presetColors)
-                  Expanded(
-                    child: _Swatch(
-                      color: color,
-                      selected: _color == color,
-                      onTap: () => setState(() => _color = color),
-                    ),
-                  ),
-                Expanded(
-                  child: _Swatch(
-                    color: _color,
-                    selected: isCustom,
-                    rainbow: !isCustom,
-                    onTap: _pickCustomColor,
-                  ),
-                ),
-              ],
-            ),
-            if (suggestions.isNotEmpty) ...[
-              const SizedBox(height: 20),
-              Text(
-                exact != null ? 'tag_existing_exact'.tr : 'tag_existing_similar'.tr,
-                style: theme.textTheme.titleSmall?.copyWith(
-                  color: colorScheme.onSurfaceVariant,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  for (final tag in suggestions)
-                    GestureDetector(
-                      onTap: () => Navigator.pop(context, AddTagResult.existing(tag)),
-                      child: _TagPill(
-                        text: '#${tag.name}',
-                        color: ColorUtils.parseHex(tag.color ?? '#8B5CF6'),
-                      ),
-                    ),
-                ],
-              ),
-            ],
-            const SizedBox(height: 24),
-            SizedBox(
-              width: double.infinity,
-              height: 56,
-              child: FilledButton(
-                style: FilledButton.styleFrom(
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                ),
-                onPressed: slug.isEmpty
-                    ? null
-                    : () => Navigator.pop(
-                        context,
-                        exact != null
-                            ? AddTagResult.existing(exact)
-                            : AddTagResult.create(name: slug, color: ColorUtils.toHex(_color)),
-                      ),
-                child: Text(
-                  exact != null ? 'tag_select_existing'.tr : 'tag_create_and_select'.tr,
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    color: colorScheme.onPrimary,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );

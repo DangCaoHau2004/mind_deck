@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:mind_deck/configs/di.dart';
@@ -210,6 +211,7 @@ class _ClassSettingsViewState extends State<_ClassSettingsView> {
                       controller: _nameController,
                       label: "Tên lớp học",
                       hint: "VD: Tiếng Anh C2",
+                      maxLength: 255, // BE: tên lớp tối đa 255 ký tự (CLASS_NAME_TOO_LONG)
                     ),
                     const SizedBox(height: 20),
                     _buildTextField(
@@ -499,6 +501,7 @@ class _ClassSettingsViewState extends State<_ClassSettingsView> {
     required String label,
     required String hint,
     int maxLines = 1,
+    int? maxLength,
   }) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
@@ -519,6 +522,7 @@ class _ClassSettingsViewState extends State<_ClassSettingsView> {
         TextField(
           controller: controller,
           maxLines: maxLines,
+          inputFormatters: [if (maxLength != null) LengthLimitingTextInputFormatter(maxLength)],
           style: theme.textTheme.bodyLarge?.copyWith(
             color: colorScheme.onSurface,
             fontWeight: FontWeight.w500,

@@ -1,6 +1,7 @@
 import 'package:equatable/equatable.dart';
 import 'package:mind_deck/data/models/class/class_assignment_model.dart';
 import 'package:mind_deck/data/models/class/class_assignment_submission_model.dart';
+import 'package:mind_deck/data/models/page_info.dart';
 
 enum ClassAssignmentsStatus { initial, loading, success, failure }
 
@@ -16,6 +17,11 @@ class ClassAssignmentsState extends Equatable {
 
   /// `GET /assignments/overdue` (chỉ học viên; giảng viên luôn rỗng).
   final List<ClassAssignmentSubmissionModel> overdue;
+
+  /// Tiến độ tải thêm của từng danh sách (cuộn để tải thêm).
+  final PageInfo activePage;
+  final PageInfo historyPage;
+  final PageInfo overduePage;
   final String? errorMessage;
 
   final bool isProcessing;
@@ -38,6 +44,9 @@ class ClassAssignmentsState extends Equatable {
     this.active = const [],
     this.history = const [],
     this.overdue = const [],
+    this.activePage = const PageInfo(),
+    this.historyPage = const PageInfo(),
+    this.overduePage = const PageInfo(),
     this.errorMessage,
     this.isProcessing = false,
     this.notice,
@@ -61,6 +70,9 @@ class ClassAssignmentsState extends Equatable {
     List<ClassAssignmentModel>? active,
     List<ClassAssignmentModel>? history,
     List<ClassAssignmentSubmissionModel>? overdue,
+    PageInfo? activePage,
+    PageInfo? historyPage,
+    PageInfo? overduePage,
     String? errorMessage,
     bool? isProcessing,
     String? notice,
@@ -74,6 +86,9 @@ class ClassAssignmentsState extends Equatable {
       active: active ?? this.active,
       history: history ?? this.history,
       overdue: overdue ?? this.overdue,
+      activePage: activePage ?? this.activePage,
+      historyPage: historyPage ?? this.historyPage,
+      overduePage: overduePage ?? this.overduePage,
       errorMessage: errorMessage ?? this.errorMessage,
       isProcessing: isProcessing ?? this.isProcessing,
       notice: notice,
@@ -92,6 +107,9 @@ class ClassAssignmentsState extends Equatable {
     active,
     history,
     overdue,
+    activePage,
+    historyPage,
+    overduePage,
     errorMessage,
     isProcessing,
     notice,

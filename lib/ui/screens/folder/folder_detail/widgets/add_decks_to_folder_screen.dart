@@ -15,7 +15,7 @@ class AddDecksToFolderScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return DeckPickerScreen(
       title: 'folder_add_decks_title'.tr,
-      excludeFolderId: folderId,
+      existingInFolderId: folderId,
       onDone: (decks) {
         if (decks.isEmpty) return;
         context.read<FolderDetailBloc>().add(

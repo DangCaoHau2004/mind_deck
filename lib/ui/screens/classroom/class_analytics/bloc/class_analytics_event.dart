@@ -31,6 +31,26 @@ class ClassAnalyticsRefreshed extends ClassAnalyticsEvent {
   List<Object?> get props => [classId];
 }
 
+/// Ô chọn học viên cuộn gần cuối: tải trang thành viên kế tiếp.
+class ClassAnalyticsMembersMoreLoaded extends ClassAnalyticsEvent {
+  final String classId;
+
+  const ClassAnalyticsMembersMoreLoaded(this.classId);
+
+  @override
+  List<Object?> get props => [classId];
+}
+
+/// Ô chọn bài giao cuộn gần cuối: tải trang kế tiếp (hết "đang diễn ra" rồi mới tới "đã kết thúc").
+class ClassAnalyticsAssignmentsMoreLoaded extends ClassAnalyticsEvent {
+  final String classId;
+
+  const ClassAnalyticsAssignmentsMoreLoaded(this.classId);
+
+  @override
+  List<Object?> get props => [classId];
+}
+
 class ClassAnalyticsMemberSelected extends ClassAnalyticsEvent {
   final String classId;
   final ClassMemberModel member;
